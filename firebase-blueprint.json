@@ -1,0 +1,172 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Student or Admin profile data",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "avatar": { "type": "string" },
+        "points": { "type": "integer" },
+        "profession": { "type": "string" },
+        "instagram": { "type": "string" },
+        "phone": { "type": "string" },
+        "maritalStatus": { "type": "string" },
+        "hasChildren": { "type": "boolean" },
+        "childrenCount": { "type": "integer" },
+        "role": { "type": "string", "enum": ["admin", "student"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "name", "role", "points"]
+    },
+    "Content": {
+      "title": "Content Item",
+      "description": "Video, material or game item",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "type": { "type": "string", "enum": ["video", "material", "game"] },
+        "duration": { "type": "string" },
+        "order": { "type": "integer" }
+      },
+      "required": ["title", "type"]
+    },
+    "Module": {
+      "title": "Course Module",
+      "description": "A collection of contents",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "contentIds": { "type": "array", "items": { "type": "string" } },
+        "order": { "type": "integer" }
+      },
+      "required": ["title"]
+    },
+    "Trail": {
+      "title": "Learning Trail",
+      "description": "A collection of modules",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "moduleIds": { "type": "array", "items": { "type": "string" } },
+        "order": { "type": "integer" }
+      },
+      "required": ["title"]
+    },
+    "AppSettings": {
+      "title": "App Global Settings",
+      "description": "Admin settings for the platform",
+      "type": "object",
+      "properties": {
+        "tabVisibility": {
+          "type": "object",
+          "properties": {
+            "jornada": { "type": "boolean" },
+            "materiais": { "type": "boolean" },
+            "gameficacao": { "type": "boolean" },
+            "guardiao": { "type": "boolean" }
+          }
+        },
+        "currentAudio": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "audioUrl": { "type": "string" }
+          }
+        }
+      }
+    },
+    "Comment": {
+      "title": "Lesson Comment",
+      "description": "Comments left by users on lessons",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "userPoints": { "type": "integer" },
+        "userInsignia": { "type": "string" },
+        "text": { "type": "string" },
+        "lessonId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "text", "lessonId", "createdAt"]
+    },
+    "DailyChallenge": {
+      "title": "Daily Challenge",
+      "description": "Specific challenge for a date",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "questions": { 
+          "type": "array", 
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "type": { "type": "string", "enum": ["text", "textarea"] }
+            }
+          }
+        }
+      },
+      "required": ["date", "title", "questions"]
+    },
+    "DailyChallengeCompletion": {
+      "title": "Daily Challenge Completion",
+      "description": "User's response to a daily challenge",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "challengeDate": { "type": "string" },
+        "audioChecked": { "type": "boolean" },
+        "responses": { "type": "object" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "challengeDate", "audioChecked", "responses", "completedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/trails/{trailId}": {
+      "schema": "Trail",
+      "description": "Learning trails"
+    },
+    "/modules/{moduleId}": {
+      "schema": "Module",
+      "description": "Course modules"
+    },
+    "/contents/{contentId}": {
+      "schema": "Content",
+      "description": "Global content repository"
+    },
+    "/settings/config": {
+      "schema": "AppSettings",
+      "description": "Global application configuration"
+    },
+    "/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "User comments on lessons"
+    },
+    "/dailyChallenges/{date}": {
+      "schema": "DailyChallenge",
+      "description": "Admin defined daily challenges"
+    },
+    "/dailyCompletions/{completionId}": {
+      "schema": "DailyChallengeCompletion",
+      "description": "User challenge completions"
+    }
+  }
+}

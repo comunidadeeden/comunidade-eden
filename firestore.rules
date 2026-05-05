@@ -1,0 +1,277 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'gu.correa98@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- USERS ---
+    function isValidUser(data) {
+      return data.keys().hasOnly([
+               'uid',
+               'name',
+               'email',
+               'avatar',
+               'points',
+               'role',
+               'requiresPasswordSetup',
+               'profession',
+               'instagram',
+               'phone',
+               'maritalStatus',
+               'hasChildren',
+               'childrenCount',
+               'lastAudioDate',
+               'lastMissionRewardDate',
+               'isCofounder',
+               'completedChallenges',
+               'updatedAt'
+             ]) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.points is int &&
+             data.role in ['admin', 'student'] &&
+             (!('requiresPasswordSetup' in data) || (data.requiresPasswordSetup is bool)) &&
+             (!('profession' in data) || (data.profession is string && data.profession.size() <= 100)) &&
+             (!('instagram' in data) || (data.instagram is string && data.instagram.size() <= 100)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+             (!('maritalStatus' in data) || (data.maritalStatus is string && data.maritalStatus.size() <= 50)) &&
+             (!('hasChildren' in data) || (data.hasChildren is bool)) &&
+             (!('childrenCount' in data) || (data.childrenCount is int)) &&
+             (!('lastAudioDate' in data) || (data.lastAudioDate is string)) &&
+             (!('lastMissionRewardDate' in data) || (data.lastMissionRewardDate is string)) &&
+             (!('isCofounder' in data) || (data.isCofounder is bool)) &&
+             (!('completedChallenges' in data) || (data.completedChallenges is list && data.completedChallenges.size() <= 500)) &&
+             (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 500));
+    }
+
+    function pointDelta() {
+      return incoming().points - existing().points;
+    }
+
+    function isStudentProfileUpdate() {
+      return incoming().role == existing().role &&
+             incoming().points == existing().points &&
+             incoming().email == existing().email &&
+             incoming().diff(existing()).affectedKeys().hasOnly([
+               'name',
+               'avatar',
+               'profession',
+               'instagram',
+               'phone',
+               'maritalStatus',
+               'hasChildren',
+               'childrenCount',
+               'updatedAt'
+             ]);
+    }
+
+    function isStudentPasswordSetupFlagUpdate() {
+      return incoming().role == existing().role &&
+             incoming().points == existing().points &&
+             incoming().email == existing().email &&
+             existing().requiresPasswordSetup == true &&
+             incoming().requiresPasswordSetup == false &&
+             incoming().diff(existing()).affectedKeys().hasOnly(['requiresPasswordSetup', 'updatedAt']);
+    }
+
+    function isStudentProgressUpdate() {
+      return incoming().role == existing().role &&
+             incoming().email == existing().email &&
+             incoming().points >= 0 &&
+             incoming().diff(existing()).affectedKeys().hasOnly(['completedChallenges', 'points', 'updatedAt']) &&
+             (pointDelta() == 7 || pointDelta() == -7);
+    }
+
+    function isStudentAudioRewardUpdate() {
+      return incoming().role == existing().role &&
+             incoming().email == existing().email &&
+             incoming().points >= 0 &&
+             incoming().diff(existing()).affectedKeys().hasOnly(['points', 'lastAudioDate', 'updatedAt']) &&
+             pointDelta() == 5 &&
+             incoming().lastAudioDate != existing().lastAudioDate;
+    }
+
+    function isStudentMissionRewardUpdate() {
+      return incoming().role == existing().role &&
+             incoming().email == existing().email &&
+             incoming().points >= 0 &&
+             incoming().diff(existing()).affectedKeys().hasOnly(['points', 'lastMissionRewardDate', 'updatedAt']) &&
+             pointDelta() == 30 &&
+             incoming().lastMissionRewardDate != existing().lastMissionRewardDate &&
+             exists(/databases/$(database)/documents/dailyChallengeCompletions/$(request.auth.uid + '_' + incoming().lastMissionRewardDate));
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      
+      allow create: if (
+        isAdmin() &&
+        isValidUser(incoming()) &&
+        incoming().role in ['admin', 'student'] &&
+        incoming().points == 0
+      ) || (
+        isSignedIn() &&
+        isOwner(userId) &&
+        isValidUser(incoming()) &&
+        incoming().role == 'student' &&
+        incoming().points == 0
+      );
+      
+      allow update: if (isAdmin() && isValidUser(incoming())) || (
+        isOwner(userId) && 
+        isValidUser(incoming()) &&
+        (
+          isStudentProfileUpdate() ||
+          isStudentPasswordSetupFlagUpdate() ||
+          isStudentProgressUpdate() ||
+          isStudentAudioRewardUpdate() ||
+          isStudentMissionRewardUpdate()
+        )
+      );
+    }
+
+    // --- STUDENT INVITES ---
+    function isValidStudentInvite(data) {
+      return data.keys().hasOnly([
+               'email',
+               'name',
+               'role',
+               'invitedBy',
+               'status',
+               'createdAt',
+               'updatedAt',
+               'acceptedBy',
+               'acceptedAt'
+             ]) &&
+             data.email is string && data.email.size() <= 100 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.role == 'student' &&
+             data.status in ['invited', 'accepted'];
+    }
+
+    function isInviteAcceptance() {
+      return isSignedIn() &&
+             existing().email == request.auth.token.email &&
+             incoming().email == existing().email &&
+             incoming().name == existing().name &&
+             incoming().role == existing().role &&
+             incoming().invitedBy == existing().invitedBy &&
+             incoming().status == 'accepted' &&
+             incoming().acceptedBy == request.auth.uid &&
+             incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acceptedBy', 'acceptedAt', 'updatedAt']);
+    }
+
+    match /studentInvites/{inviteId} {
+      allow get: if isAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidStudentInvite(incoming());
+      allow update: if (isAdmin() && isValidStudentInvite(incoming())) || (isValidStudentInvite(incoming()) && isInviteAcceptance());
+      allow delete: if isAdmin();
+    }
+
+    // --- TRAILS, MODULES, CONTENTS ---
+    match /trails/{trailId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /materials/{materialId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /modules/{moduleId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /contents/{contentId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- SETTINGS ---
+    match /settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- COMMENTS ---
+    function isValidComment(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.userName is string && data.userName.size() <= 100 &&
+             data.text is string && data.text.size() <= 1000 &&
+             data.lessonId is string && data.lessonId.size() <= 128 &&
+             data.createdAt == request.time;
+    }
+
+    match /comments/{commentId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidComment(incoming());
+      allow update, delete: if isAdmin() || (isSignedIn() && isOwner(existing().userId));
+    }
+
+    // --- DAILY CHALLENGES (ADMIN ONLY WRITE) ---
+    match /dailyChallenges/{date} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /dailyAudios/{date} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- DAILY COMPLETIONS ---
+    function isValidCompletion(data) {
+      return data.userId == request.auth.uid &&
+             data.challengeDate is string &&
+             data.audioChecked is bool &&
+             data.completedAt == request.time;
+    }
+
+    match /dailyChallengeCompletions/{completionId} {
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow get: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && isValidCompletion(incoming());
+      allow update, delete: if isAdmin();
+    }
+  }
+}
