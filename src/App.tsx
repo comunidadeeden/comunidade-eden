@@ -1284,8 +1284,12 @@ export default function App() {
           <div className="max-w-4xl mx-auto pt-4 pb-20 px-4">
             <div className="bg-[#040e11] border border-white/10 rounded-3xl overflow-hidden shadow-2xl min-h-[68vh] flex flex-col">
               <div className="p-5 sm:p-7 border-b border-white/10 bg-[#061418]/80 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 flex items-center justify-center text-[#4bd3ff]">
-                  <Shield size={24} />
+                <div className="w-14 h-14 rounded-2xl bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 flex items-center justify-center overflow-hidden p-1.5">
+                  <img
+                    src="http://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-Guardiao.png"
+                    alt="Logo do Guardião"
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 <div>
                   <h2 className="text-2xl font-black text-white uppercase tracking-tight">Guardião</h2>
@@ -1330,6 +1334,12 @@ export default function App() {
                   <textarea
                     value={guardianInput}
                     onChange={(event) => setGuardianInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        handleGuardianSubmit();
+                      }
+                    }}
                     placeholder="Converse com o Guardião..."
                     className="flex-1 min-h-[56px] max-h-40 bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-white resize-none focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
                   />
