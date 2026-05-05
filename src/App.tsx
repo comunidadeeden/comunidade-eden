@@ -361,6 +361,9 @@ export default function App() {
 
   // Use all tabs, but we will handle disabled state in content rendering
   const userTabs = INITIAL_TABS;
+  const isCurrentTabInDevelopment = !isAdmin && Boolean(INITIAL_TABS.find(t => t.id === activeTab)) && !tabVisibility[activeTab as keyof typeof tabVisibility];
+  const isTodayMissionCompleted = Boolean(todayChallenge && allCompletions.some(c => c.challengeDate === todayChallenge.date && c.userId === user?.uid));
+  const hasNewMissionToday = Boolean(todayChallenge && !isTodayMissionCompleted);
 
   // Gamification states
   const [leaves, setLeaves] = useState(0);
@@ -805,8 +808,8 @@ export default function App() {
     );
 
     return (
-	      <div className="max-w-2xl mx-auto py-6 sm:py-10 px-0 sm:px-4 pb-32">
-	        <div className="bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl">
+	      <div className="min-h-[72vh] py-6 sm:py-10 px-0 sm:px-4 pb-32" onClick={() => setActiveTab('jornada')}>
+	        <div className="max-w-2xl mx-auto bg-white/5 border border-white/10 rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl" onClick={(event) => event.stopPropagation()}>
           <div className="h-32 bg-gradient-to-r from-[#0b2831] via-[#144b5c] to-[#4bd3ff]/20"></div>
 	          <div className="px-4 sm:px-8 pb-8">
 	            <div className="relative -mt-14 sm:-mt-16 mb-6 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
@@ -1091,7 +1094,7 @@ export default function App() {
 
   const renderContent = () => {
     const currentTab = INITIAL_TABS.find(t => t.id === activeTab);
-    if (!isAdmin && currentTab && !tabVisibility[activeTab as keyof typeof tabVisibility]) {
+    if (isCurrentTabInDevelopment && currentTab) {
       return (
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-500 min-h-[70vh]">
           <div className="w-24 h-24 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 relative">
@@ -1103,10 +1106,10 @@ export default function App() {
           </div>
           <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">{currentTab.label}</h3>
           <p className="text-gray-400 font-medium max-w-xs leading-relaxed">
-            Esta funcionalidade está sendo preparada com carinho e logo estará disponível para sua jornada no Éden.
+            Estamos em desenvolvimento. Esta área está sendo preparada e logo estará disponível para sua jornada no Éden.
           </p>
           <div className="mt-8 px-6 py-2.5 bg-white/5 border border-white/10 rounded-full text-[10px] font-black text-[#4bd3ff] uppercase tracking-[0.3em] shadow-xl">
-            Despertando o Recurso
+            Estamos em Desenvolvimento
           </div>
         </div>
       );
@@ -1146,7 +1149,6 @@ export default function App() {
       case 'materiais':
         return (
           <div className="max-w-4xl mx-auto flex flex-col gap-10 pt-4">
-            {renderAudioCard()}
             <div className="space-y-4">
               {materiaisState.map(cat => (
                 <CategoryRow 
@@ -1169,7 +1171,22 @@ export default function App() {
         );
       case 'gameficacao': {
         return (
-          <div className="max-w-4xl mx-auto py-12 px-4 space-y-16">
+          <div className="max-w-4xl mx-auto pt-2 pb-12 px-4 space-y-8">
+            {hasNewMissionToday && (
+              <button
+                onClick={() => setIsMissionModalOpen(true)}
+                className="w-full text-left bg-[#4bd3ff]/10 border border-[#4bd3ff]/30 rounded-2xl p-4 sm:p-5 flex items-center gap-4 shadow-[0_0_30px_rgba(75,211,255,0.08)] hover:bg-[#4bd3ff]/15 transition-colors"
+              >
+                <div className="w-11 h-11 shrink-0 rounded-2xl bg-[#4bd3ff] text-[#020507] flex items-center justify-center">
+                  <Zap size={22} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black text-[#4bd3ff] uppercase tracking-[0.22em]">Nova missão disponível</p>
+                  <p className="text-white font-black tracking-tight truncate">Você tem uma nova missão hoje</p>
+                </div>
+                <ChevronRight size={20} className="ml-auto text-[#4bd3ff]" />
+              </button>
+            )}
             {/* Missão do Dia - Simplified Section */}
             <section className="space-y-6">
               <div className="flex items-center gap-4 mb-8">
@@ -1183,7 +1200,7 @@ export default function App() {
               </div>
 
               {todayChallenge ? (() => {
-                const isCompleted = allCompletions.some(c => c.challengeDate === todayChallenge.date && (isAdmin ? c.userId === user?.uid : true));
+                const isCompleted = isTodayMissionCompleted;
                 return (
                 <div className="bg-[#040e11] border border-white/10 p-8 rounded-none shadow-xl flex flex-col md:flex-row items-center gap-8 group relative overflow-hidden">
                   {isCompleted && (
@@ -2046,7 +2063,12 @@ export default function App() {
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isVisible ? 'translate-x-6' : 'translate-x-1'}`} />
                           </button>
                         </div>
-                        <p className="text-white font-bold text-sm tracking-tight">{tab.label}</p>
+                        <div>
+                          <p className="text-white font-bold text-sm tracking-tight">{tab.label}</p>
+                          <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${isVisible ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                            {isVisible ? 'Disponível' : 'Modo desenvolvimento'}
+                          </p>
+                        </div>
                       </div>
                     );
                   })}
@@ -3012,8 +3034,8 @@ export default function App() {
 	        </div>
       )}
 
-      {activeTab === 'gameficacao' && (
-        <div className="relative w-full z-0 pt-32 pb-24 px-4 sm:px-12 flex justify-center">
+      {activeTab === 'gameficacao' && !isCurrentTabInDevelopment && (
+        <div className="relative w-full z-0 pt-24 pb-16 px-4 sm:px-12 flex justify-center">
           <div className="w-full max-w-2xl bg-[#040e11] border border-white/10 p-6 sm:p-10 rounded-2xl shadow-2xl relative">
             <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[100px] rounded-full -mr-32 -mt-32"></div>
             
@@ -3102,8 +3124,8 @@ export default function App() {
       )}
 
           {/* Progress Overlap Card (Visible on Challenges) */}
-          {(activeTab === 'gameficacao') && (
-            <div className="px-4 sm:px-12 -mt-24 sm:-mt-32 relative z-30 mb-8 max-w-4xl mx-auto w-full">
+          {(activeTab === 'gameficacao') && !isCurrentTabInDevelopment && (
+            <div className="px-4 sm:px-12 -mt-16 sm:-mt-24 relative z-30 mb-4 max-w-4xl mx-auto w-full">
               <div className="bg-[#0b0c10]/40 backdrop-blur-3xl border border-white/10 rounded-2xl p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)]">
                 <div className="flex items-center justify-between mb-8">
                   <div>
@@ -3170,7 +3192,7 @@ export default function App() {
             </div>
           )}
 
-	      <div className={`px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'guardiao' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : 'pt-24') : (activeTab === 'materiais') ? 'pt-0' : 'pt-24'} relative z-30`}>
+	      <div className={`px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'guardiao' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : activeTab === 'gameficacao' ? 'pt-6' : 'pt-24') : (activeTab === 'materiais') ? 'pt-24' : 'pt-24'} relative z-30`}>
         {renderContent()}
       </div>
 
@@ -3516,6 +3538,8 @@ export default function App() {
           {userTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+            const isDevelopmentTab = !isAdmin && !tabVisibility[tab.id as keyof typeof tabVisibility];
+            const showMissionBadge = tab.id === 'gameficacao' && hasNewMissionToday;
             return (
               <button 
                 key={tab.id}
@@ -3529,8 +3553,13 @@ export default function App() {
                 )}
                 <div className={`p-1.5 transition-all duration-300 ${isActive ? '-translate-y-1' : ''}`}>
                   <Icon size={24} className={isActive ? 'text-[#4bd3ff]' : ''} />
+                  {showMissionBadge && (
+                    <span className="absolute top-0 right-5 sm:right-7 w-3 h-3 bg-[#4bd3ff] rounded-full border-2 border-[#020709] shadow-[0_0_14px_rgba(75,211,255,0.9)] animate-pulse" />
+                  )}
                 </div>
-                <span className={`text-[10px] sm:text-xs font-medium transition-all ${isActive ? 'text-[#4bd3ff] opacity-100' : 'opacity-80'}`}>{tab.label}</span>
+                <span className={`text-[10px] sm:text-xs font-medium transition-all ${isActive ? 'text-[#4bd3ff] opacity-100' : 'opacity-80'}`}>
+                  {isDevelopmentTab ? 'Em dev' : tab.label}
+                </span>
               </button>
             );
           })}
