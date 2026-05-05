@@ -30,6 +30,23 @@ const getEmailLinkActionCodeSettings = () => ({
   handleCodeInApp: true,
 });
 
+const getAuthErrorMessage = (error: any) => {
+  switch (error?.code) {
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+      return 'Email ou senha inválidos. Verifique os dados e tente novamente.';
+    case 'auth/too-many-requests':
+      return 'Muitas tentativas seguidas. Aguarde alguns minutos e tente novamente.';
+    case 'auth/operation-not-allowed':
+      return 'Login com email e senha não está habilitado no Firebase Authentication.';
+    case 'auth/network-request-failed':
+      return 'Falha de conexão com o Firebase. Verifique sua internet e tente novamente.';
+    default:
+      return 'Não foi possível entrar agora. Tente novamente em alguns instantes.';
+  }
+};
+
 const getVideoThumbnail = (url: string | undefined) => {
   if (!url) return '';
   const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
@@ -407,12 +424,16 @@ export default function App() {
 	            }
 	            setUser(newUser);
 	          }
-        } catch (error) {
-          handleFirestoreError(error, 'GET/WRITE', `users/${authUser?.uid}`);
-        }
-      } else {
-        setUser(null);
-      }
+	        } catch (error) {
+	          handleFirestoreError(error, 'GET/WRITE', `users/${authUser?.uid}`);
+	          setLoginError(
+	            'Login confirmado, mas não foi possível carregar seu perfil. Confira se as regras novas do Firestore foram publicadas no Firebase.'
+	          );
+	          await signOut(auth);
+	        }
+	      } else {
+	        setUser(null);
+	      }
       setLoading(false);
     });
 
@@ -634,7 +655,7 @@ export default function App() {
       await signInWithEmailAndPassword(auth, normalizeEmail(loginEmail), loginPassword);
     } catch (e: any) {
       console.error(e);
-      setLoginError('Email ou senha inválidos. Verifique seus dados e tente novamente.');
+      setLoginError(getAuthErrorMessage(e));
     } finally {
       setIsLoggingIn(false);
     }
