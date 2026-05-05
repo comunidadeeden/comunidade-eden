@@ -46,10 +46,11 @@ service cloud.firestore {
                'name',
                'email',
                'avatar',
-               'points',
-               'role',
-               'requiresPasswordSetup',
-               'profession',
+	               'points',
+	               'role',
+	               'requiresPasswordSetup',
+	               'isBlocked',
+	               'profession',
                'instagram',
                'phone',
                'maritalStatus',
@@ -63,9 +64,10 @@ service cloud.firestore {
              ]) &&
              data.name is string && data.name.size() <= 100 &&
              data.email is string && data.email.size() <= 100 &&
-             data.points is int &&
-             data.role in ['admin', 'student'] &&
-             (!('requiresPasswordSetup' in data) || (data.requiresPasswordSetup is bool)) &&
+	             data.points is int &&
+	             data.role in ['admin', 'student'] &&
+	             (!('requiresPasswordSetup' in data) || (data.requiresPasswordSetup is bool)) &&
+	             (!('isBlocked' in data) || (data.isBlocked is bool)) &&
              (!('profession' in data) || (data.profession is string && data.profession.size() <= 100)) &&
              (!('instagram' in data) || (data.instagram is string && data.instagram.size() <= 100)) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
@@ -84,10 +86,11 @@ service cloud.firestore {
     }
 
     function isStudentProfileUpdate() {
-      return incoming().role == existing().role &&
-             incoming().points == existing().points &&
-             incoming().email == existing().email &&
-             incoming().diff(existing()).affectedKeys().hasOnly([
+	      return incoming().role == existing().role &&
+	             incoming().points == existing().points &&
+	             incoming().email == existing().email &&
+	             incoming().isBlocked == existing().isBlocked &&
+	             incoming().diff(existing()).affectedKeys().hasOnly([
                'name',
                'avatar',
                'profession',
@@ -167,10 +170,11 @@ service cloud.firestore {
 
     // --- STUDENT INVITES ---
     function isValidStudentInvite(data) {
-      return data.keys().hasOnly([
-               'email',
-               'name',
-               'role',
+	      return data.keys().hasOnly([
+	               'email',
+	               'name',
+	               'phone',
+	               'role',
                'invitedBy',
                'status',
                'createdAt',
@@ -178,8 +182,9 @@ service cloud.firestore {
                'acceptedBy',
                'acceptedAt'
              ]) &&
-             data.email is string && data.email.size() <= 100 &&
-             data.name is string && data.name.size() <= 100 &&
+	             data.email is string && data.email.size() <= 100 &&
+	             data.name is string && data.name.size() <= 100 &&
+	             (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
              data.role == 'student' &&
              data.status in ['invited', 'accepted'];
     }
@@ -187,9 +192,10 @@ service cloud.firestore {
     function isInviteAcceptance() {
       return isSignedIn() &&
              existing().email == request.auth.token.email &&
-             incoming().email == existing().email &&
-             incoming().name == existing().name &&
-             incoming().role == existing().role &&
+	             incoming().email == existing().email &&
+	             incoming().name == existing().name &&
+	             incoming().phone == existing().phone &&
+	             incoming().role == existing().role &&
              incoming().invitedBy == existing().invitedBy &&
              incoming().status == 'accepted' &&
              incoming().acceptedBy == request.auth.uid &&

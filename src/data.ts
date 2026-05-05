@@ -3,6 +3,7 @@ import { AudioOfTheDay, NetflixCategory, ContentItem } from "./types";
 export const audioOfTheDay: AudioOfTheDay = {
   title: "A Essência da Jornada",
   subtitle: "Mensagem Diária • O Despertar",
+  description: "Uma pausa guiada para reconectar sua energia e abrir o próximo passo da jornada.",
   audioUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
 };
 

@@ -30,6 +30,17 @@ const getEmailLinkActionCodeSettings = () => ({
   handleCodeInApp: true,
 });
 
+const parseBrazilianDate = (date: string) => {
+  const [day, month, year] = date.split('-').map(Number);
+  return new Date(year || 0, (month || 1) - 1, day || 1);
+};
+
+const isPastDate = (date: string) => {
+  const parsedDate = parseBrazilianDate(date);
+  parsedDate.setHours(23, 59, 59, 999);
+  return new Date() > parsedDate;
+};
+
 const getAuthErrorMessage = (error: any) => {
   switch (error?.code) {
     case 'auth/invalid-credential':
@@ -149,6 +160,8 @@ export default function App() {
   const [isFolhasModalOpen, setIsFolhasModalOpen] = useState(false);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isMissionModalOpen, setIsMissionModalOpen] = useState(false);
+  const [adminMissionView, setAdminMissionView] = useState<'scheduled' | 'past'>('scheduled');
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [missionResponses, setMissionResponses] = useState<Record<string, string | string[]>>({});
   const [audioChecked, setAudioChecked] = useState(false);
   const [isSubmittingMission, setIsSubmittingMission] = useState(false);
@@ -186,6 +199,7 @@ export default function App() {
   const handleCreateStudent = async (data: Record<string, string>) => {
     const email = normalizeEmail(data.email || '');
     const name = data.name?.trim();
+    const phone = data.phone?.trim() || '';
 
     if (!email || !name) {
       alert('Informe nome e email do aluno.');
@@ -196,6 +210,7 @@ export default function App() {
       await setDoc(doc(db, 'studentInvites', getInviteIdFromEmail(email)), {
         email,
         name,
+        phone,
         role: 'student',
         invitedBy: user?.uid || '',
         status: 'invited',
@@ -230,6 +245,17 @@ export default function App() {
       setIsRoleModalOpen(false);
     } catch (error) {
       console.error("Error updating role:", error);
+    }
+  };
+
+  const handleToggleStudentBlock = async (student: UserProfile) => {
+    try {
+      await updateDoc(doc(db, 'users', student.uid), {
+        isBlocked: !student.isBlocked,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${student.uid}`);
     }
   };
 
@@ -379,6 +405,12 @@ export default function App() {
 	          const userDoc = await getDoc(doc(db, 'users', authUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data() as UserProfile;
+            if (userData.isBlocked) {
+              setLoginError('Seu acesso está bloqueado. Entre em contato com o suporte do Éden.');
+              await signOut(auth);
+              setLoading(false);
+              return;
+            }
             // Ensure points field exists for filtering/ordering
             if (userData.points === undefined) {
               await updateDoc(doc(db, 'users', authUser.uid), { points: 0 });
@@ -405,9 +437,10 @@ export default function App() {
 	              points: 0,
 	              role: authUser.email === ADMIN_EMAIL ? 'admin' : ((inviteData?.role as 'admin' | 'student') || 'student'),
 	              requiresPasswordSetup: authUser.email !== ADMIN_EMAIL,
+	              isBlocked: false,
 	              profession: '',
 	              instagram: '',
-	              phone: '',
+	              phone: (inviteData?.phone as string) || '',
               maritalStatus: '',
               hasChildren: false,
               childrenCount: 0,
@@ -438,7 +471,23 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, []);
+	  }, []);
+
+	  useEffect(() => {
+	    if (!user || isAdmin) return;
+
+	    const unsubscribeUserAccess = onSnapshot(doc(db, 'users', user.uid), async (snapshot) => {
+	      const userData = snapshot.data() as UserProfile | undefined;
+	      if (userData?.isBlocked) {
+	        setLoginError('Seu acesso está bloqueado. Entre em contato com o suporte do Éden.');
+	        await signOut(auth);
+	      }
+	    }, (error) => {
+	      handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
+	    });
+
+	    return () => unsubscribeUserAccess();
+	  }, [user?.uid, isAdmin]);
 
   useEffect(() => {
     if (!user) return;
@@ -976,17 +1025,20 @@ export default function App() {
 
 
   const renderAudioCard = () => (
-    <div className="relative group cursor-pointer w-full max-w-lg mx-auto" onClick={toggleAudio}>
-      <div className="absolute inset-0 bg-gradient-to-r from-[#4bd3ff]/10 to-[#0b2831]/20 rounded-xl blur-lg group-hover:blur-xl transition-all duration-500 opacity-40"></div>
-      <div className="relative bg-white/5 backdrop-blur-2xl border border-white/5 p-2 sm:p-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 hover:bg-white/10 hover:border-white/10 hover:-translate-y-0.5">
-        <button className="w-10 h-10 shrink-0 rounded-lg bg-gradient-to-tr from-[#0b2831] to-[#4bd3ff]/10 border border-white/5 text-white flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
-          {isPlayingAudio ? <Volume2 size={16} className="text-[#4bd3ff]" /> : <Play size={16} className="translate-x-0.5 fill-white" />}
+    <div className="relative group cursor-pointer w-full max-w-2xl mx-auto -mt-2 sm:-mt-6" onClick={toggleAudio}>
+      <div className="absolute inset-0 bg-gradient-to-r from-[#4bd3ff]/20 via-emerald-500/10 to-[#0b2831]/30 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500 opacity-60"></div>
+      <div className="relative bg-[#061418]/85 backdrop-blur-2xl border border-[#4bd3ff]/20 p-4 sm:p-5 rounded-2xl shadow-2xl flex items-center gap-4 transition-all duration-300 hover:bg-[#071b20] hover:border-[#4bd3ff]/35 hover:-translate-y-0.5">
+        <button className="w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-tr from-[#0b2831] to-[#4bd3ff]/20 border border-[#4bd3ff]/20 text-white flex items-center justify-center transition-transform duration-300 group-hover:scale-105 shadow-[0_0_24px_rgba(75,211,255,0.18)]">
+          {isPlayingAudio ? <Volume2 size={22} className="text-[#4bd3ff]" /> : <Play size={22} className="translate-x-0.5 fill-white" />}
         </button>
-        <div className="flex-1 min-w-0">
-          <p className="text-[8px] text-[#4bd3ff] font-bold uppercase tracking-[0.2em] truncate mb-0.5">
+        <div className="flex-1 min-w-0 space-y-1">
+          <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-[0.22em] truncate">
             {audioState.subtitle || 'Mensagem do Guardião'}
           </p>
-          <h3 className="text-sm font-black text-white truncate tracking-tight">{audioState.title || audioOfTheDay.title}</h3>
+          <h3 className="text-lg sm:text-xl font-black text-white truncate tracking-tight">{audioState.title || audioOfTheDay.title}</h3>
+          <p className="text-xs sm:text-sm text-gray-400 leading-relaxed line-clamp-2">
+            {audioState.description || audioOfTheDay.description}
+          </p>
         </div>
       </div>
     </div>
@@ -1146,7 +1198,7 @@ export default function App() {
     const renderAdminMissions = () => {
     if (editingMission) {
       return (
-        <div className="max-w-4xl space-y-8 pb-32">
+        <div className="w-full max-w-7xl space-y-8 pb-32">
           <div className="flex items-center gap-4">
             <button onClick={() => setEditingMission(null)} className="p-2 text-gray-400 hover:text-white rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
               <ChevronLeft size={24} />
@@ -1329,8 +1381,11 @@ export default function App() {
       );
     }
 
+    const sortedMissions = [...dailyChallenges].sort((a, b) => parseBrazilianDate(a.date).getTime() - parseBrazilianDate(b.date).getTime());
+    const visibleMissions = sortedMissions.filter((mission) => adminMissionView === 'past' ? isPastDate(mission.date) : !isPastDate(mission.date));
+
     return (
-      <div className="max-w-4xl space-y-8">
+      <div className="w-full max-w-7xl space-y-8">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-2xl font-black text-white uppercase tracking-tight">Missões Diárias</h3>
@@ -1349,13 +1404,36 @@ export default function App() {
           </button>
         </div>
 
+        <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
+          {[
+            { id: 'scheduled', label: 'Programadas' },
+            { id: 'past', label: 'Já passaram' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setAdminMissionView(tab.id as 'scheduled' | 'past')}
+              className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                adminMissionView === tab.id
+                  ? 'bg-[#4bd3ff] text-[#020507]'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 gap-4">
-          {dailyChallenges.map(mission => {
+          {visibleMissions.length === 0 && (
+            <div className="bg-white/5 border border-white/10 border-dashed rounded-2xl p-10 text-center">
+              <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">
+                Nenhuma missão nesta aba.
+              </p>
+            </div>
+          )}
+          {visibleMissions.map(mission => {
             const missionCompletions = allCompletions.filter(c => c.challengeDate === mission.date);
-            const [d,m,y] = mission.date.split('-');
-            const md = new Date(Number(y), Number(m)-1, Number(d));
-            md.setHours(23,59,59,999);
-            const isEnded = new Date() > md;
+            const isEnded = isPastDate(mission.date);
 
             return (
             <div key={mission.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 relative">
@@ -1437,7 +1515,7 @@ export default function App() {
     const renderAdminAudios = () => {
     if (editingAudio) {
       return (
-        <div className="max-w-4xl space-y-8 pb-32">
+        <div className="w-full max-w-7xl space-y-8 pb-32">
           <div className="flex items-center gap-4">
             <button onClick={() => setEditingAudio(null)} className="p-2 text-gray-400 hover:text-white rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
               <ChevronLeft size={24} />
@@ -1470,12 +1548,20 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Subtítulo</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Tag</label>
                 <input 
                    type="text"
                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
                    value={editingAudio.subtitle}
                    onChange={(e) => setEditingAudio({ ...editingAudio, subtitle: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Descrição</label>
+                <textarea
+                   className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors min-h-[96px]"
+                   value={editingAudio.description || ''}
+                   onChange={(e) => setEditingAudio({ ...editingAudio, description: e.target.value })}
                 />
               </div>
               <div>
@@ -1528,7 +1614,7 @@ export default function App() {
     }
 
     return (
-      <div className="max-w-4xl space-y-8">
+      <div className="w-full max-w-7xl space-y-8">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-2xl font-black text-white uppercase tracking-tight">Áudios do Guardião</h3>
@@ -1536,10 +1622,11 @@ export default function App() {
           </div>
           <button 
             onClick={() => setEditingAudio({
-               date: new Date().toLocaleDateString('pt-BR').split('/').join('-'),
-               title: '',
-               subtitle: 'Mensagem Diária • O Despertar',
-               audioUrl: ''
+	               date: new Date().toLocaleDateString('pt-BR').split('/').join('-'),
+	               title: '',
+	               subtitle: 'Mensagem Diária • O Despertar',
+	               description: '',
+	               audioUrl: ''
             })}
             className="bg-[#4bd3ff] text-black px-6 py-2.5 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-[#38bdf8] transition-all flex items-center"
           >
@@ -1588,9 +1675,10 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              <p className="text-[#4bd3ff] text-xs font-bold uppercase tracking-widest mb-2">{audio.subtitle}</p>
               <h4 className="text-xl font-bold text-white mb-2">{audio.title}</h4>
-              <p className="text-[#4bd3ff] text-xs font-bold uppercase tracking-widest mb-4">{audio.subtitle}</p>
-              <p className="text-gray-400 text-xs truncate max-w-sm">{audio.audioUrl}</p>
+              {audio.description && <p className="text-gray-400 text-sm mb-4 max-w-3xl">{audio.description}</p>}
+              <p className="text-gray-500 text-xs truncate max-w-2xl">{audio.audioUrl}</p>
             </div>
           )})}
         </div>
@@ -1608,7 +1696,7 @@ export default function App() {
   };
 
   const renderAdminLevels = () => (
-    <div className="max-w-4xl space-y-6">
+    <div className="w-full max-w-7xl space-y-6">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h3 className="text-2xl font-black text-white uppercase tracking-tight">Níveis de Acesso</h3>
@@ -1846,7 +1934,7 @@ export default function App() {
           )}
 
           {adminActiveSection === 'modulos' && (
-            <div className="max-w-4xl space-y-6">
+            <div className="w-full max-w-7xl space-y-6">
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h3 className="text-2xl font-black text-white uppercase tracking-tight">Conteúdos</h3>
@@ -2024,7 +2112,7 @@ export default function App() {
           )}
 
           {adminActiveSection === 'trilhas' && (
-            <div className="max-w-4xl space-y-6">
+            <div className="w-full max-w-7xl space-y-6">
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h3 className="text-2xl font-black text-white uppercase tracking-tight">Trilhas</h3>
@@ -2208,7 +2296,8 @@ export default function App() {
 	                      submitText: 'Criar Aluno',
 	                      fields: [
 	                        { name: 'name', label: 'Nome do aluno', required: true },
-	                        { name: 'email', label: 'Email de acesso', type: 'email', required: true }
+	                        { name: 'email', label: 'Email de acesso', type: 'email', required: true },
+	                        { name: 'phone', label: 'Telefone / WhatsApp' }
 	                      ],
 	                      onSubmit: handleCreateStudent,
 	                      onCancel: () => setPromptConfig(null)
@@ -2220,6 +2309,17 @@ export default function App() {
 	                </button>
 	              </div>
 
+              <div className="mt-6 max-w-xl">
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Pesquisar aluno</label>
+                <input
+                  type="search"
+                  value={studentSearchTerm}
+                  onChange={(event) => setStudentSearchTerm(event.target.value)}
+                  placeholder="Busque por nome, email ou telefone"
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
+                />
+              </div>
+
               <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden mt-8 shadow-2xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
@@ -2227,14 +2327,20 @@ export default function App() {
                       <tr className="border-b border-white/10 text-gray-500 text-[10px] font-black uppercase tracking-[0.2em]">
                         <th className="px-8 py-6">Nome</th>
                         <th className="px-6 py-6">Email</th>
+                        <th className="px-6 py-6">Telefone</th>
                         <th className="px-6 py-6 text-center">Role</th>
+                        <th className="px-6 py-6 text-center">Status</th>
                         <th className="px-6 py-6 text-center">Folhas</th>
                         <th className="px-6 py-6">Nível</th>
                         <th className="px-8 py-6 text-right">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {adminStudents.map((student) => (
+                      {adminStudents.filter((student) => {
+                        const search = studentSearchTerm.trim().toLowerCase();
+                        if (!search) return true;
+                        return [student.name, student.email, student.phone].some((value) => (value || '').toLowerCase().includes(search));
+                      }).map((student) => (
                         <tr key={student.uid} className="hover:bg-white/5 transition-colors group">
                           <td className="px-8 py-5">
                             <div className="flex items-center gap-3">
@@ -2245,9 +2351,15 @@ export default function App() {
                             </div>
                           </td>
                           <td className="px-6 py-5 text-gray-400 font-medium text-sm tracking-tight">{student.email}</td>
+                          <td className="px-6 py-5 text-gray-400 font-medium text-sm tracking-tight whitespace-nowrap">{student.phone || '-'}</td>
                           <td className="px-6 py-5 text-center">
                             <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${student.role === 'admin' ? 'bg-[#4bd3ff] text-[#020507] shadow-lg' : 'bg-white/5 text-gray-400 border border-white/10'}`}>
                               {student.role === 'admin' ? 'Admin' : 'Aluno'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-5 text-center">
+                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${student.isBlocked ? 'bg-red-500/15 text-red-300 border border-red-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                              {student.isBlocked ? 'Bloqueado' : 'Ativo'}
                             </span>
                           </td>
                           <td className="px-6 py-5 text-center">
@@ -2263,6 +2375,15 @@ export default function App() {
                           </td>
                           <td className="px-8 py-5 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              <button 
+                                onClick={() => handleToggleStudentBlock(student)}
+                                disabled={student.role === 'admin'}
+                                className={`p-2.5 bg-black/40 border border-white/5 rounded-lg transition-all ${student.isBlocked ? 'text-red-300 hover:bg-red-500 hover:text-white' : 'text-gray-400 hover:text-red-300'}`}
+                                title={student.role === 'admin' ? 'Admins não podem ser bloqueados por aqui' : student.isBlocked ? 'Desbloquear aluno' : 'Bloquear aluno'}
+                              >
+                                <Lock size={16} />
+                              </button>
+
                               <button 
                                 onClick={async () => {
                                   try {
@@ -2319,7 +2440,7 @@ export default function App() {
           )}
 
           {adminActiveSection === 'materiais' && (
-            <div className="max-w-4xl space-y-6">
+            <div className="w-full max-w-7xl space-y-6">
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h3 className="text-2xl font-black text-white uppercase tracking-tight">Arquivos Disponíveis</h3>
@@ -2657,7 +2778,7 @@ export default function App() {
       </AnimatePresence>
       
       {/* Navigation */}
-	      <nav className="fixed top-0 w-full z-50 flex items-center justify-between gap-3 px-3 sm:px-12 py-3 sm:py-4 pt-safe bg-gradient-to-b from-black/85 to-transparent transition-all duration-300 border-b border-white/5 backdrop-blur-sm">
+	      <nav className="fixed top-0 w-full z-50 flex items-center justify-between gap-3 px-4 sm:px-12 pt-5 pb-4 sm:pt-7 sm:pb-5 bg-gradient-to-b from-black/90 via-black/55 to-transparent transition-all duration-300 border-b border-white/5 backdrop-blur-sm">
 	        <div className="flex min-w-0 items-center gap-4 sm:gap-8">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('jornada')}>
             <img 
@@ -2748,21 +2869,24 @@ export default function App() {
 
       {/* Hero Section & Header Assets */}
       {activeTab === 'jornada' && (
-	        <div className="relative w-full z-0 h-[42vh] min-h-[280px] sm:h-auto sm:aspect-[21/9] overflow-hidden">
-          <div className="absolute inset-0">
+	        <div className="relative w-full z-0 h-[430px] sm:h-[520px] lg:h-[600px] max-h-[600px] overflow-hidden">
+	          <div className="absolute inset-0">
              <video 
                autoPlay 
                muted 
                loop 
                playsInline 
-               className="w-full h-full object-cover opacity-60 scale-105"
-             >
+	               className="w-full h-full object-cover opacity-65 scale-105"
+	             >
 	               <source src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Capa-Hubla.mp4" type="video/mp4" />
-             </video>
-             <div className="absolute inset-0 bg-gradient-to-t from-[#020507] via-[#020507]/20 to-transparent"></div>
-             <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#020507] to-transparent"></div>
-          </div>
-        </div>
+	             </video>
+	             <div className="absolute inset-0 bg-gradient-to-t from-[#020507] via-[#020507]/12 to-[#020507]/55"></div>
+	             <div className="absolute inset-y-0 left-0 w-24 sm:w-40 bg-gradient-to-r from-[#020507] to-transparent"></div>
+	             <div className="absolute inset-y-0 right-0 w-24 sm:w-40 bg-gradient-to-l from-[#020507] to-transparent"></div>
+	             <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-[#020507] via-[#020507]/80 to-transparent"></div>
+	             <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-[#020507] to-transparent"></div>
+	          </div>
+	        </div>
       )}
 
       {activeTab === 'gameficacao' && (
@@ -2923,7 +3047,7 @@ export default function App() {
             </div>
           )}
 
-	      <div className={`px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'guardiao' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-16 sm:-mt-32 pt-0' : 'pt-24') : (activeTab === 'materiais') ? 'pt-0' : 'pt-24'} relative z-30`}>
+	      <div className={`px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'guardiao' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : 'pt-24') : (activeTab === 'materiais') ? 'pt-0' : 'pt-24'} relative z-30`}>
         {renderContent()}
       </div>
 

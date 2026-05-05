@@ -1,6 +1,7 @@
 export interface AudioOfTheDay {
   title: string;
   subtitle: string;
+  description?: string;
   audioUrl: string;
 }
 
@@ -54,6 +55,7 @@ export interface UserProfile {
   points: number;
   role: 'admin' | 'student';
   requiresPasswordSetup?: boolean;
+  isBlocked?: boolean;
   profession?: string;
   instagram?: string;
   phone?: string;
@@ -99,6 +101,7 @@ export interface DailyAudio {
   date: string; // DD-MM-YYYY
   title: string;
   subtitle: string;
+  description?: string;
   audioUrl: string;
 }
 
