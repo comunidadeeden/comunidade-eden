@@ -186,6 +186,7 @@ export default function App() {
   const [adminMissionView, setAdminMissionView] = useState<'scheduled' | 'past'>('scheduled');
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [missionResponses, setMissionResponses] = useState<Record<string, string | string[]>>({});
+  const missionSectionRef = useRef<HTMLElement>(null);
   const [audioChecked, setAudioChecked] = useState(false);
   const [isSubmittingMission, setIsSubmittingMission] = useState(false);
   const [leavesAmount, setLeavesAmount] = useState(0);
@@ -201,6 +202,15 @@ export default function App() {
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
   const [passwordSetupError, setPasswordSetupError] = useState('');
   const [isSettingPassword, setIsSettingPassword] = useState(false);
+  const [guardianMessages, setGuardianMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([
+    {
+      role: 'assistant',
+      content: 'Eu sou o Guardião do Éden. Traga sua pergunta, reflexão ou desafio do dia.'
+    }
+  ]);
+  const [guardianInput, setGuardianInput] = useState('');
+  const [guardianError, setGuardianError] = useState('');
+  const [isGuardianReplying, setIsGuardianReplying] = useState(false);
 
   const sendLoginLink = async (email: string) => {
     const normalizedEmail = normalizeEmail(email);
@@ -1071,6 +1081,51 @@ export default function App() {
     }
   };
 
+  const scrollToTodayMission = () => {
+    setActiveTab('gameficacao');
+    setTimeout(() => {
+      missionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+  };
+
+  const handleGuardianSubmit = async () => {
+    const message = guardianInput.trim();
+    if (!message || isGuardianReplying) return;
+
+    const nextMessages = [...guardianMessages, { role: 'user' as const, content: message }];
+    setGuardianMessages(nextMessages);
+    setGuardianInput('');
+    setGuardianError('');
+    setIsGuardianReplying(true);
+
+    try {
+      const response = await fetch('/api/guardian', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: nextMessages.slice(-12),
+          user: user ? {
+            name: user.name,
+            points: user.points || 0,
+            level: getUserLevel(user.points || 0).title
+          } : null
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Não foi possível falar com o Guardião agora.');
+      }
+
+      setGuardianMessages([...nextMessages, { role: 'assistant', content: data.message || 'Estou aqui. Pode me contar um pouco mais?' }]);
+    } catch (error: any) {
+      setGuardianError(error?.message || 'Não foi possível falar com o Guardião agora.');
+      setGuardianMessages(nextMessages);
+    } finally {
+      setIsGuardianReplying(false);
+    }
+  };
+
 
   const renderAudioCard = () => (
     <div className="relative group cursor-pointer w-full max-w-2xl mx-auto -mt-2 sm:-mt-6" onClick={toggleAudio}>
@@ -1172,23 +1227,8 @@ export default function App() {
       case 'gameficacao': {
         return (
           <div className="max-w-4xl mx-auto pt-2 pb-12 px-4 space-y-8">
-            {hasNewMissionToday && (
-              <button
-                onClick={() => setIsMissionModalOpen(true)}
-                className="w-full text-left bg-[#4bd3ff]/10 border border-[#4bd3ff]/30 rounded-2xl p-4 sm:p-5 flex items-center gap-4 shadow-[0_0_30px_rgba(75,211,255,0.08)] hover:bg-[#4bd3ff]/15 transition-colors"
-              >
-                <div className="w-11 h-11 shrink-0 rounded-2xl bg-[#4bd3ff] text-[#020507] flex items-center justify-center">
-                  <Zap size={22} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black text-[#4bd3ff] uppercase tracking-[0.22em]">Nova missão disponível</p>
-                  <p className="text-white font-black tracking-tight truncate">Você tem uma nova missão hoje</p>
-                </div>
-                <ChevronRight size={20} className="ml-auto text-[#4bd3ff]" />
-              </button>
-            )}
             {/* Missão do Dia - Simplified Section */}
-            <section className="space-y-6">
+            <section ref={missionSectionRef} className="space-y-6 scroll-mt-32">
               <div className="flex items-center gap-4 mb-8">
                 <div className="p-3 bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 rounded-none text-[#4bd3ff]">
                   <Zap size={24} />
@@ -1241,14 +1281,67 @@ export default function App() {
       }
       case 'guardiao':
         return (
-          <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-            <Shield size={64} className="text-[#0b2831] mb-6 opacity-80" />
-            <h2 className="text-3xl font-bold text-white mb-4">O Guardião está despertando...</h2>
-            <p className="text-gray-400 max-w-lg mb-8">
-              A Inteligência Artificial do Éden está sendo calibrada. Em breve, você terá um mentor virtual exclusivo para guiar cada passo da sua jornada.
-            </p>
-            <div className="px-6 py-3 rounded-full bg-[#0b2831]/20 border border-[#0b2831]/50 text-[#4bd3ff] text-sm font-medium">
-              Em Desenvolvimento
+          <div className="max-w-4xl mx-auto pt-4 pb-20 px-4">
+            <div className="bg-[#040e11] border border-white/10 rounded-3xl overflow-hidden shadow-2xl min-h-[68vh] flex flex-col">
+              <div className="p-5 sm:p-7 border-b border-white/10 bg-[#061418]/80 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 flex items-center justify-center text-[#4bd3ff]">
+                  <Shield size={24} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-white uppercase tracking-tight">Guardião</h2>
+                  <p className="text-gray-400 text-sm">Seu mentor de reflexão dentro do Éden.</p>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar">
+                {guardianMessages.map((message, index) => (
+                  <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[86%] rounded-2xl px-4 py-3 text-sm sm:text-base leading-relaxed whitespace-pre-wrap ${
+                      message.role === 'user'
+                        ? 'bg-[#4bd3ff] text-[#020507] font-semibold'
+                        : 'bg-white/5 border border-white/10 text-gray-200'
+                    }`}>
+                      {message.content}
+                    </div>
+                  </div>
+                ))}
+                {isGuardianReplying && (
+                  <div className="flex justify-start">
+                    <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-gray-400 text-sm">
+                      O Guardião está escrevendo...
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleGuardianSubmit();
+                }}
+                className="p-4 sm:p-6 border-t border-white/10 bg-[#020507]/70 space-y-3"
+              >
+                {guardianError && (
+                  <p className="text-sm font-bold text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                    {guardianError}
+                  </p>
+                )}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <textarea
+                    value={guardianInput}
+                    onChange={(event) => setGuardianInput(event.target.value)}
+                    placeholder="Converse com o Guardião..."
+                    className="flex-1 min-h-[56px] max-h-40 bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-white resize-none focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!guardianInput.trim() || isGuardianReplying}
+                    className="sm:w-36 bg-[#4bd3ff] text-[#020507] rounded-2xl px-5 py-3 font-black uppercase tracking-widest text-xs disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#38bdf8] transition-colors"
+                  >
+                    Enviar
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         );
@@ -2130,6 +2223,7 @@ export default function App() {
                                fields: [
                                  { name: 'title', label: 'Título do conteúdo', required: true },
                                  { name: 'videoUrl', label: 'URL do Vídeo (Youtube/Vimeo)' },
+                                 { name: 'description', label: 'Descrição da aula', type: 'textarea' },
                                ],
                                onSubmit: async (data) => {
                                  try {
@@ -2139,7 +2233,7 @@ export default function App() {
                                      type: 'video',
                                      videoUrl: data.videoUrl,
                                      imageUrl: getVideoThumbnail(data.videoUrl),
-                                     description: 'Nova aula adicionada'
+                                     description: data.description || ''
                                    }];
 
                                    const trail = trailsState.find(t => t.id === module.trailId);
@@ -2212,6 +2306,7 @@ export default function App() {
                                 fields: [
                                   { name: 'title', label: 'Título da aula', defaultValue: lesson.title, required: true },
                                   { name: 'videoUrl', label: 'URL do Vídeo (Vimeo/Youtube)', defaultValue: lesson.videoUrl || '' },
+                                  { name: 'description', label: 'Descrição da aula', type: 'textarea', defaultValue: lesson.description || '' },
                                 ],
                                 onSubmit: async (data) => {
                                   try {
@@ -2220,7 +2315,7 @@ export default function App() {
 
                                     const updatedItems = (module.items || []).map((i: any) => 
                                       i.id === lesson.id 
-                                        ? { ...i, title: data.title, videoUrl: data.videoUrl, imageUrl: getVideoThumbnail(data.videoUrl) } 
+                                        ? { ...i, title: data.title, videoUrl: data.videoUrl, description: data.description || '', imageUrl: getVideoThumbnail(data.videoUrl) } 
                                         : i
                                     );
                                     
@@ -3012,6 +3107,22 @@ export default function App() {
         </div>
       </nav>
 
+      {hasNewMissionToday && tabVisibility.gameficacao && (
+        <button
+          onClick={scrollToTodayMission}
+          className="fixed top-[88px] sm:top-[104px] left-4 right-4 sm:left-10 sm:right-10 z-[70] max-w-5xl mx-auto text-left bg-[#061c21]/95 backdrop-blur-2xl border border-[#4bd3ff]/35 rounded-2xl p-4 sm:p-5 flex items-center gap-4 shadow-[0_18px_50px_rgba(0,0,0,0.45),0_0_34px_rgba(75,211,255,0.12)] hover:bg-[#08242b] transition-all"
+        >
+          <div className="w-11 h-11 shrink-0 rounded-2xl bg-[#4bd3ff] text-[#020507] flex items-center justify-center">
+            <Zap size={22} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black text-[#4bd3ff] uppercase tracking-[0.3em]">Nova missão disponível</p>
+            <p className="text-white font-black tracking-tight truncate">Você tem uma nova missão hoje</p>
+          </div>
+          <ChevronRight size={22} className="ml-auto text-[#4bd3ff]" />
+        </button>
+      )}
+
       {/* Hero Section & Header Assets */}
       {activeTab === 'jornada' && (
 	        <div className="relative w-full z-0 h-[430px] sm:h-[520px] lg:h-[600px] max-h-[600px] overflow-hidden">
@@ -3746,9 +3857,10 @@ export default function App() {
 
 function VideoThumbnail({ imageUrl, videoUrl, className = '' }: { imageUrl?: string, videoUrl?: string, className?: string }) {
   const baseClass = `w-full h-full object-cover ${className}`;
+  const derivedThumbnail = imageUrl || getVideoThumbnail(videoUrl);
 
-  if (imageUrl) {
-    return <img src={imageUrl} className={baseClass} alt="" />;
+  if (derivedThumbnail) {
+    return <img src={derivedThumbnail} className={baseClass} alt="" />;
   }
 
   if (isDirectVideoUrl(videoUrl)) {
