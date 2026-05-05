@@ -35,8 +35,29 @@ const parseBrazilianDate = (date: string) => {
   return new Date(year || 0, (month || 1) - 1, day || 1);
 };
 
+const toInputDate = (date: string) => {
+  const [day, month, year] = date.split('-');
+  if (!day || !month || !year) return '';
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+};
+
+const fromInputDate = (date: string) => {
+  const [year, month, day] = date.split('-');
+  if (!day || !month || !year) return '';
+  return `${day}-${month}-${year}`;
+};
+
 const isPastDate = (date: string) => {
   const parsedDate = parseBrazilianDate(date);
+  parsedDate.setHours(23, 59, 59, 999);
+  return new Date() > parsedDate;
+};
+
+const isAccessExpired = (date?: string) => {
+  if (!date) return false;
+  const parsedDate = date.includes('-') && date.split('-')[0].length === 4
+    ? new Date(`${date}T23:59:59`)
+    : parseBrazilianDate(date);
   parsedDate.setHours(23, 59, 59, 999);
   return new Date() > parsedDate;
 };
@@ -67,6 +88,10 @@ const getVideoThumbnail = (url: string | undefined) => {
   }
   return '';
 };
+
+const isDirectVideoUrl = (url?: string) => /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(url || '');
+
+const sortLevelsByStart = (levels: CustomLevel[]) => [...levels].sort((a, b) => b.points - a.points);
 
 enum OperationType {
   CREATE = 'create',
@@ -116,32 +141,30 @@ export default function App() {
   const isAdmin = user?.role === 'admin' || user?.email === ADMIN_EMAIL;
   
   const [userLevels, setUserLevels] = useState<CustomLevel[]>([
-    { id: '1', title: 'Guardiã do Éden', points: 2000, level: 5, iconName: 'Crown' },
-    { id: '2', title: 'Decidida', points: 1200, level: 4, iconName: 'Star' },
-    { id: '3', title: 'Ruptura', points: 750, level: 3, iconName: 'Zap' },
-    { id: '4', title: 'Desperta', points: 550, level: 2, iconName: 'Award' },
-    { id: '5', title: 'Observadora', points: 300, level: 1, iconName: 'Trophy' },
-    { id: '6', title: 'Iniciante', points: 0, level: 0, iconName: 'Sprout' }
+    { id: '1', title: 'Guardiã do Éden', points: 2000, maxPoints: 999999, level: 5, iconName: 'Crown' },
+    { id: '2', title: 'Decidida', points: 1200, maxPoints: 1999, level: 4, iconName: 'Star' },
+    { id: '3', title: 'Ruptura', points: 750, maxPoints: 1199, level: 3, iconName: 'Zap' },
+    { id: '4', title: 'Desperta', points: 550, maxPoints: 749, level: 2, iconName: 'Award' },
+    { id: '5', title: 'Observadora', points: 300, maxPoints: 549, level: 1, iconName: 'Trophy' },
+    { id: '6', title: 'Iniciante', points: 0, maxPoints: 299, level: 0, iconName: 'Sprout' }
   ]);
 
   const getUserLevel = (points: number) => {
     const sortedLevels = [...userLevels].sort((a, b) => b.points - a.points);
-    const levelObj = sortedLevels.find(l => points >= l.points) || sortedLevels[sortedLevels.length - 1];
+    const levelObj = sortedLevels.find(l => points >= l.points && points <= (l.maxPoints ?? Infinity)) || sortedLevels.find(l => points >= l.points) || sortedLevels[sortedLevels.length - 1];
     return { title: levelObj?.title || 'Iniciante', level: levelObj?.level || 0, icon: ICON_MAP[levelObj?.iconName] || Trophy };
   };
 
   const getNextLevelInfo = (points: number) => {
-    const sortedLevels = [...userLevels].sort((a, b) => b.points - a.points);
-    const reversed = [...sortedLevels].reverse(); // from 0 up
-    const currentIdx = reversed.findIndex(l => points < l.points);
-    if (currentIdx === -1 || (currentIdx === 0 && points >= reversed[reversed.length - 1].points)) {
+    const orderedLevels = [...userLevels].sort((a, b) => a.points - b.points);
+    const nextLevel = orderedLevels.find(l => points < l.points);
+    if (!nextLevel) {
       return { nextTitle: 'Nível Máximo Alcançado', percentage: 100 };
     }
-    const nextLevel = reversed[currentIdx];
-    const prevLevel = reversed[currentIdx - 1] || { points: 0 };
+    const currentLevel = [...orderedLevels].reverse().find(l => points >= l.points) || { points: 0 };
     return { 
        nextTitle: nextLevel.title, 
-       percentage: ((points - prevLevel.points) / (nextLevel.points - prevLevel.points)) * 100 
+       percentage: ((points - currentLevel.points) / (nextLevel.points - currentLevel.points)) * 100 
     };
   };
 
@@ -187,19 +210,11 @@ export default function App() {
     setTimeout(() => setResetEmailSent(null), 5000);
   };
 
-  const handleSendAccessLink = async (email: string) => {
-    try {
-      await sendLoginLink(email);
-    } catch (error) {
-      console.error("Error sending access link:", error);
-      alert("Erro ao enviar email de acesso.");
-    }
-  };
-
   const handleCreateStudent = async (data: Record<string, string>) => {
     const email = normalizeEmail(data.email || '');
     const name = data.name?.trim();
     const phone = data.phone?.trim() || '';
+    const accessExpiresAt = data.accessExpiresAt || '';
 
     if (!email || !name) {
       alert('Informe nome e email do aluno.');
@@ -211,6 +226,7 @@ export default function App() {
         email,
         name,
         phone,
+        accessExpiresAt,
         role: 'student',
         invitedBy: user?.uid || '',
         status: 'invited',
@@ -256,6 +272,21 @@ export default function App() {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${student.uid}`);
+    }
+  };
+
+  const handleReorderModules = async (trail: Trail, fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    const modules = [...(trail.modules || [])];
+    if (!modules[fromIndex] || !modules[toIndex]) return;
+
+    const [movedModule] = modules.splice(fromIndex, 1);
+    modules.splice(toIndex, 0, movedModule);
+
+    try {
+      await updateDoc(doc(db, 'trails', trail.id), { modules });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `trails/${trail.id}`);
     }
   };
 
@@ -405,8 +436,8 @@ export default function App() {
 	          const userDoc = await getDoc(doc(db, 'users', authUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data() as UserProfile;
-            if (userData.isBlocked) {
-              setLoginError('Seu acesso está bloqueado. Entre em contato com o suporte do Éden.');
+            if (userData.isBlocked || isAccessExpired(userData.accessExpiresAt)) {
+              setLoginError(userData.isBlocked ? 'Seu acesso está bloqueado. Entre em contato com o suporte do Éden.' : 'Seu acesso expirou. Entre em contato para renovar sua participação no Éden.');
               await signOut(auth);
               setLoading(false);
               return;
@@ -438,6 +469,7 @@ export default function App() {
 	              role: authUser.email === ADMIN_EMAIL ? 'admin' : ((inviteData?.role as 'admin' | 'student') || 'student'),
 	              requiresPasswordSetup: authUser.email !== ADMIN_EMAIL,
 	              isBlocked: false,
+	              accessExpiresAt: (inviteData?.accessExpiresAt as string) || '',
 	              profession: '',
 	              instagram: '',
 	              phone: (inviteData?.phone as string) || '',
@@ -478,8 +510,8 @@ export default function App() {
 
 	    const unsubscribeUserAccess = onSnapshot(doc(db, 'users', user.uid), async (snapshot) => {
 	      const userData = snapshot.data() as UserProfile | undefined;
-	      if (userData?.isBlocked) {
-	        setLoginError('Seu acesso está bloqueado. Entre em contato com o suporte do Éden.');
+	      if (userData?.isBlocked || isAccessExpired(userData?.accessExpiresAt)) {
+	        setLoginError(userData?.isBlocked ? 'Seu acesso está bloqueado. Entre em contato com o suporte do Éden.' : 'Seu acesso expirou. Entre em contato para renovar sua participação no Éden.');
 	        await signOut(auth);
 	      }
 	    }, (error) => {
@@ -646,6 +678,18 @@ export default function App() {
       handleFirestoreError(error, 'GET' as any, 'settings/levels');
     });
 
+    const unsubscribeVisibility = onSnapshot(doc(db, 'settings', 'tabVisibility'), (docVisibility) => {
+      if (docVisibility.exists()) {
+        const data = docVisibility.data();
+        setTabVisibility(prev => ({
+          ...prev,
+          ...(data.tabs || {})
+        }));
+      }
+    }, (error) => {
+      handleFirestoreError(error, 'GET' as any, 'settings/tabVisibility');
+    });
+
     return () => {
       unsubscribeChallenge();
       unsubscribeTodayAudio();
@@ -654,6 +698,7 @@ export default function App() {
       unsubscribeAllAudios();
       unsubscribeRanking();
       unsubscribeLevels();
+      unsubscribeVisibility();
     };
   }, [user?.uid, isAdmin]);
 
@@ -988,7 +1033,7 @@ export default function App() {
     // Identify if all questions are answered
     for (const q of todayChallenge.questions || []) {
       const resp = missionResponses[q.id];
-      if (!resp || (Array.isArray(resp) && resp.length === 0)) {
+      if (!resp || (typeof resp === 'string' && resp.trim().length === 0) || (Array.isArray(resp) && resp.length === 0)) {
         alert(`A pergunta "${q.label}" é obrigatória.`);
         return;
       }
@@ -1213,12 +1258,12 @@ export default function App() {
           <div className="space-y-6 bg-white/5 border border-white/10 p-6 rounded-2xl">
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Data (DD-MM-YYYY)</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Data</label>
                 <input 
-                  type="text" 
+                  type="date" 
                   className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
-                  value={editingMission.date}
-                  onChange={(e) => setEditingMission({ ...editingMission, date: e.target.value })}
+                  value={toInputDate(editingMission.date)}
+                  onChange={(e) => setEditingMission({ ...editingMission, date: fromInputDate(e.target.value) })}
                 />
               </div>
               <div>
@@ -1436,7 +1481,13 @@ export default function App() {
             const isEnded = isPastDate(mission.date);
 
             return (
-            <div key={mission.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 relative">
+            <div key={mission.id} className="bg-white/5 border border-white/10 rounded-2xl p-5 relative grid grid-cols-[88px_1fr] gap-5">
+              <div className="rounded-2xl bg-[#071418] border border-[#4bd3ff]/20 p-4 text-center self-start">
+                <p className="text-3xl font-black text-white">{mission.date.split('-')[0]}</p>
+                <p className="text-[10px] font-black text-[#4bd3ff] uppercase tracking-widest">{parseBrazilianDate(mission.date).toLocaleDateString('pt-BR', { month: 'short' })}</p>
+                <p className="text-[10px] text-gray-500 font-bold">{mission.date.split('-')[2]}</p>
+              </div>
+              <div>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <Calendar size={18} className="text-[#4bd3ff]" />
@@ -1504,6 +1555,7 @@ export default function App() {
                     })}
                  </div>
               </div>
+              </div>
             </div>
           )})}
         </div>
@@ -1530,12 +1582,12 @@ export default function App() {
           <div className="space-y-6 bg-white/5 border border-white/10 p-6 rounded-2xl">
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Data (DD-MM-YYYY)</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Data</label>
                 <input 
-                  type="text" 
+                  type="date" 
                   className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
-                  value={editingAudio.date}
-                  onChange={(e) => setEditingAudio({ ...editingAudio, date: e.target.value })}
+                  value={toInputDate(editingAudio.date)}
+                  onChange={(e) => setEditingAudio({ ...editingAudio, date: fromInputDate(e.target.value) })}
                 />
               </div>
               <div>
@@ -1635,50 +1687,54 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          {allAudios.map(audio => {
-            const [d,m,y] = audio.date.split('-');
-            const md = new Date(Number(y), Number(m)-1, Number(d));
-            md.setHours(23,59,59,999);
-            const isEnded = new Date() > md;
+          {[...allAudios].sort((a, b) => parseBrazilianDate(a.date).getTime() - parseBrazilianDate(b.date).getTime()).map(audio => {
+            const isEnded = isPastDate(audio.date);
 
             return (
-            <div key={audio.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 relative">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <Calendar size={18} className="text-[#4bd3ff]" />
-                  <span className="text-white font-black uppercase tracking-widest text-xs">{audio.date}</span>
-                  {isEnded && <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider ml-2">Passado</span>}
-                </div>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => setEditingAudio(audio)}
-                    className="p-2 text-gray-400 hover:text-white"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setPromptConfig({
-                        title: 'Excluir Áudio?',
-                        description: 'Tem certeza que deseja excluir este áudio permanentemente?',
-                        fields: [], 
-                        submitText: 'Excluir',
-                        onSubmit: async () => {
-                          await deleteDoc(doc(db, 'dailyAudios', audio.id!));
-                        },
-                        onCancel: () => setPromptConfig(null)
-                      });
-                    }}
-                    className="p-2 text-gray-400 hover:text-red-400"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+            <div key={audio.id} className="bg-white/5 border border-white/10 rounded-2xl p-5 relative grid grid-cols-[88px_1fr] gap-5">
+              <div className="rounded-2xl bg-[#071418] border border-[#4bd3ff]/20 p-4 text-center self-start">
+                <p className="text-3xl font-black text-white">{audio.date.split('-')[0]}</p>
+                <p className="text-[10px] font-black text-[#4bd3ff] uppercase tracking-widest">{parseBrazilianDate(audio.date).toLocaleDateString('pt-BR', { month: 'short' })}</p>
+                <p className="text-[10px] text-gray-500 font-bold">{audio.date.split('-')[2]}</p>
               </div>
-              <p className="text-[#4bd3ff] text-xs font-bold uppercase tracking-widest mb-2">{audio.subtitle}</p>
-              <h4 className="text-xl font-bold text-white mb-2">{audio.title}</h4>
-              {audio.description && <p className="text-gray-400 text-sm mb-4 max-w-3xl">{audio.description}</p>}
-              <p className="text-gray-500 text-xs truncate max-w-2xl">{audio.audioUrl}</p>
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Calendar size={18} className="text-[#4bd3ff]" />
+                    <span className="text-white font-black uppercase tracking-widest text-xs">{audio.date}</span>
+                    {isEnded && <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider ml-2">Passado</span>}
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setEditingAudio(audio)}
+                      className="p-2 text-gray-400 hover:text-white"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setPromptConfig({
+                          title: 'Excluir Áudio?',
+                          description: 'Tem certeza que deseja excluir este áudio permanentemente?',
+                          fields: [], 
+                          submitText: 'Excluir',
+                          onSubmit: async () => {
+                            await deleteDoc(doc(db, 'dailyAudios', audio.id!));
+                          },
+                          onCancel: () => setPromptConfig(null)
+                        });
+                      }}
+                      className="p-2 text-gray-400 hover:text-red-400"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[#4bd3ff] text-xs font-bold uppercase tracking-widest mb-2">{audio.subtitle}</p>
+                <h4 className="text-xl font-bold text-white mb-2">{audio.title}</h4>
+                {audio.description && <p className="text-gray-400 text-sm mb-4 max-w-3xl">{audio.description}</p>}
+                <p className="text-gray-500 text-xs truncate max-w-2xl">{audio.audioUrl}</p>
+              </div>
             </div>
           )})}
         </div>
@@ -1688,32 +1744,72 @@ export default function App() {
 
   const handleSaveLevels = async () => {
     try {
-      await setDoc(doc(db, 'settings', 'levels'), { levels: userLevels });
+      const normalizedLevels = sortLevelsByStart(userLevels).map((level, index) => ({
+        ...level,
+        level: userLevels.length - index - 1,
+        maxPoints: level.maxPoints ?? level.points,
+      }));
+      setUserLevels(normalizedLevels);
+      await setDoc(doc(db, 'settings', 'levels'), { levels: normalizedLevels });
       alert('Níveis salvos com sucesso!');
     } catch (e) {
       handleFirestoreError(e, 'WRITE' as any, 'settings/levels');
     }
   };
 
+  const handleToggleTabVisibility = async (tabId: string) => {
+    const nextVisibility = {
+      ...tabVisibility,
+      [tabId]: !tabVisibility[tabId as keyof typeof tabVisibility]
+    };
+    setTabVisibility(nextVisibility);
+    try {
+      await setDoc(doc(db, 'settings', 'tabVisibility'), { tabs: nextVisibility, updatedAt: serverTimestamp() });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'settings/tabVisibility');
+    }
+  };
+
   const renderAdminLevels = () => (
     <div className="w-full max-w-7xl space-y-6">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
         <div>
           <h3 className="text-2xl font-black text-white uppercase tracking-tight">Níveis de Acesso</h3>
-          <p className="text-gray-400 text-sm mt-1">Defina os Níveis de progresso do Éden baseado em pontos.</p>
+          <p className="text-gray-400 text-sm mt-1">Defina os intervalos de pontos, nomes e ícones de cada nível.</p>
         </div>
-        <button 
-          onClick={handleSaveLevels}
-          className="flex items-center gap-2 bg-[#4bd3ff] text-[#020507] hover:bg-[#38bdf8] px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors"
-        >
-          <CheckCircle size={16} /> Salvar Alterações
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button 
+            onClick={() => {
+              const minPoints = userLevels.length ? Math.max(...userLevels.map(level => level.maxPoints ?? level.points)) + 1 : 0;
+              setUserLevels([
+                ...userLevels,
+                {
+                  id: Math.random().toString(36).substring(2, 9),
+                  title: 'Novo Nível',
+                  points: minPoints,
+                  maxPoints: minPoints + 99,
+                  level: userLevels.length,
+                  iconName: 'Sprout'
+                }
+              ]);
+            }}
+            className="flex items-center gap-2 bg-white/10 text-white hover:bg-white/15 px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors"
+          >
+            <Plus size={16} /> Novo Nível
+          </button>
+          <button 
+            onClick={handleSaveLevels}
+            className="flex items-center gap-2 bg-[#4bd3ff] text-[#020507] hover:bg-[#38bdf8] px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors"
+          >
+            <CheckCircle size={16} /> Salvar Alterações
+          </button>
+        </div>
       </div>
       
       <div className="space-y-4">
         {userLevels.map((lvl, index) => (
-          <div key={lvl.id || index} className="flex gap-4 p-4 border border-white/5 bg-white/5 rounded-xl items-center">
-            <div className="flex-1 space-y-2">
+          <div key={lvl.id || index} className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr_1fr_1.2fr_auto] gap-4 p-4 border border-white/5 bg-white/5 rounded-xl items-end">
+            <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Nome do Nível</label>
               <input 
                 value={lvl.title} 
@@ -1725,8 +1821,8 @@ export default function App() {
                 className="w-full bg-black/40 border border-white/10 p-3 rounded-lg text-white font-bold"
               />
             </div>
-            <div className="flex-1 space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Pontos (Mínimo)</label>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Pontos início</label>
               <input 
                 type="number"
                 value={lvl.points} 
@@ -1738,22 +1834,49 @@ export default function App() {
                 className="w-full bg-black/40 border border-white/10 p-3 rounded-lg text-white"
               />
             </div>
-            <div className="w-32 space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ícone</label>
-              <select 
-                value={lvl.iconName}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Pontos final</label>
+              <input 
+                type="number"
+                value={lvl.maxPoints ?? lvl.points} 
                 onChange={(e) => {
                   const newLevels = [...userLevels];
-                  newLevels[index].iconName = e.target.value;
+                  newLevels[index].maxPoints = Number(e.target.value) || 0;
                   setUserLevels(newLevels);
                 }}
                 className="w-full bg-black/40 border border-white/10 p-3 rounded-lg text-white"
-              >
-                {Object.keys(ICON_MAP).map(key => (
-                  <option key={key} value={key}>{key}</option>
-                ))}
-              </select>
+              />
             </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ícone</label>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 flex items-center justify-center text-[#4bd3ff]">
+                  {(() => {
+                    const LevelIcon = ICON_MAP[lvl.iconName] || Trophy;
+                    return <LevelIcon size={22} />;
+                  })()}
+                </div>
+                <select 
+                  value={lvl.iconName}
+                  onChange={(e) => {
+                    const newLevels = [...userLevels];
+                    newLevels[index].iconName = e.target.value;
+                    setUserLevels(newLevels);
+                  }}
+                  className="flex-1 bg-black/40 border border-white/10 p-3 rounded-lg text-white"
+                >
+                  {Object.keys(ICON_MAP).map(key => (
+                    <option key={key} value={key}>{key}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <button
+              onClick={() => setUserLevels(userLevels.filter((_, levelIndex) => levelIndex !== index))}
+              className="h-12 px-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center gap-2 font-black uppercase tracking-widest text-[10px]"
+            >
+              <Trash2 size={16} /> Deletar
+            </button>
           </div>
         ))}
       </div>
@@ -1839,67 +1962,66 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Visual Settings / Visibility */}
-                <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-                  <h4 className="text-xl font-black text-white uppercase tracking-tight mb-6 flex items-center gap-2">
-                    <List size={22} className="text-emerald-400" />
-                    Ações Rápidas
-                  </h4>
-                  <div className="space-y-3">
-                    {[
-                      { label: 'Gerenciar Módulos', icon: Video, action: () => setAdminActiveSection('modulos') },
-                      { label: 'Gerenciar Usuários', icon: Users, action: () => setAdminActiveSection('alunos') },
-                      { label: 'Vincular Materiais', icon: FileText, action: () => setAdminActiveSection('materiais') },
-                    ].map((item, i) => (
-                      <button 
-                        key={i}
-                        onClick={item.action}
-                        className="w-full flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <item.icon size={18} className="text-gray-400 group-hover:text-white" />
-                          <span className="text-white font-bold">{item.label}</span>
-                        </div>
-                        <ChevronRight size={18} className="text-gray-600 group-hover:text-white" />
-                      </button>
-                    ))}
+              <section className="bg-white/5 border border-white/10 rounded-3xl p-8">
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-8">
+                  <div>
+                    <h4 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                      <Video size={22} className="text-[#4bd3ff]" />
+                      Aulas Mais Assistidas
+                    </h4>
+                    <p className="text-gray-400 text-sm mt-1">Baseado nos conteúdos marcados como concluídos pelos alunos.</p>
                   </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                    {adminStudents.length} alunos
+                  </span>
                 </div>
 
-                {/* System Info */}
-                <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-                  <h4 className="text-xl font-black text-white uppercase tracking-tight mb-6 flex items-center gap-2">
-                    <Settings size={22} className="text-[#4bd3ff]" />
-                    Informações do Sistema
-                  </h4>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between py-2 border-b border-white/5">
-                      <span className="text-gray-400 font-medium">Status</span>
-                      <span className="flex items-center gap-2 text-emerald-400 font-bold">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        Online
-                      </span>
+                {(() => {
+                  const lessons = trailsState.flatMap(trail => (trail.modules || []).flatMap(module => module.items || []));
+                  const watchedLessons = lessons
+                    .map(lesson => ({
+                      id: lesson.id,
+                      title: lesson.title,
+                      count: adminStudents.filter(student => student.completedChallenges?.includes(lesson.id)).length
+                    }))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 8);
+                  const maxCount = Math.max(1, ...watchedLessons.map(lesson => lesson.count));
+
+                  if (watchedLessons.length === 0) {
+                    return (
+                      <div className="border border-white/10 border-dashed rounded-2xl p-10 text-center">
+                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Ainda não há aulas cadastradas para gerar o demonstrativo.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      {watchedLessons.map((lesson, index) => (
+                        <div key={lesson.id} className="grid grid-cols-[32px_1fr_auto] gap-4 items-center">
+                          <span className="text-gray-500 font-black text-xs tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center justify-between gap-4 mb-2">
+                              <p className="text-white font-bold truncate">{lesson.title}</p>
+                              <span className="text-[#4bd3ff] font-black text-xs whitespace-nowrap">{lesson.count} conclusão{lesson.count === 1 ? '' : 'ões'}</span>
+                            </div>
+                            <div className="h-3 rounded-full bg-black/40 overflow-hidden border border-white/5">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-[#4bd3ff] to-emerald-400"
+                                style={{ width: `${Math.max(lesson.count === 0 ? 3 : 8, (lesson.count / maxCount) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                          <span className="text-gray-500 font-bold text-xs tabular-nums">
+                            {adminStudents.length ? Math.round((lesson.count / adminStudents.length) * 100) : 0}%
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex items-center justify-between py-2 border-b border-white/5">
-                      <span className="text-gray-400 font-medium">Versão</span>
-                      <span className="text-white font-mono text-sm">1.0.0</span>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span className="text-gray-400 font-medium">Plataforma</span>
-                      <span className="text-white font-bold">Éden</span>
-                    </div>
-                    <div className="pt-4">
-                      <button 
-                        onClick={() => setAdminActiveSection('perfil')}
-                        className="w-full text-center text-xs font-bold text-gray-500 uppercase tracking-widest hover:text-white transition-colors"
-                      >
-                        Ver Logs de Acesso
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                  );
+                })()}
+              </section>
 
               {/* Visibility Controls */}
               <section className="bg-white/5 border border-white/10 rounded-3xl p-8">
@@ -1918,7 +2040,7 @@ export default function App() {
                             <tab.icon size={20} />
                           </div>
                           <button 
-                            onClick={() => setTabVisibility(prev => ({ ...prev, [tab.id]: !prev[tab.id as keyof typeof prev] }))}
+                            onClick={() => handleToggleTabVisibility(tab.id)}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isVisible ? 'bg-emerald-500' : 'bg-gray-700'}`}
                           >
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isVisible ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -1986,7 +2108,6 @@ export default function App() {
                                fields: [
                                  { name: 'title', label: 'Título do conteúdo', required: true },
                                  { name: 'videoUrl', label: 'URL do Vídeo (Youtube/Vimeo)' },
-                                 { name: 'imageUrl', label: 'URL da capa da aula (opcional)' }
                                ],
                                onSubmit: async (data) => {
                                  try {
@@ -1995,7 +2116,7 @@ export default function App() {
                                      title: data.title,
                                      type: 'video',
                                      videoUrl: data.videoUrl,
-                                     imageUrl: data.imageUrl || getVideoThumbnail(data.videoUrl) || 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=800',
+                                     imageUrl: getVideoThumbnail(data.videoUrl),
                                      description: 'Nova aula adicionada'
                                    }];
 
@@ -2055,11 +2176,7 @@ export default function App() {
                         <div key={lesson.id} className="flex items-center justify-between p-4 pl-16 border-b border-white/5 last:border-0 hover:bg-white/5 group/lesson">
                           <div className="flex items-center gap-4">
                             <div className="w-20 h-12 rounded bg-gray-700 overflow-hidden border border-white/5">
-                              {lesson.imageUrl ? (
-                                <img src={lesson.imageUrl} className="w-full h-full object-cover" alt="" />
-                              ) : (
-                                <Video size={16} className="text-gray-600 mx-auto mt-4" />
-                              )}
+                              <VideoThumbnail imageUrl={lesson.imageUrl} videoUrl={lesson.videoUrl} />
                             </div>
                             <div>
                                <p className="text-white font-bold">{lesson.title}</p>
@@ -2073,7 +2190,6 @@ export default function App() {
                                 fields: [
                                   { name: 'title', label: 'Título da aula', defaultValue: lesson.title, required: true },
                                   { name: 'videoUrl', label: 'URL do Vídeo (Vimeo/Youtube)', defaultValue: lesson.videoUrl || '' },
-                                  { name: 'imageUrl', label: 'URL da capa (Thumb do vídeo/Imagem)', defaultValue: lesson.imageUrl || '' }
                                 ],
                                 onSubmit: async (data) => {
                                   try {
@@ -2082,7 +2198,7 @@ export default function App() {
 
                                     const updatedItems = (module.items || []).map((i: any) => 
                                       i.id === lesson.id 
-                                        ? { ...i, title: data.title, videoUrl: data.videoUrl, imageUrl: data.imageUrl || getVideoThumbnail(data.videoUrl) || i.imageUrl } 
+                                        ? { ...i, title: data.title, videoUrl: data.videoUrl, imageUrl: getVideoThumbnail(data.videoUrl) } 
                                         : i
                                     );
                                     
@@ -2226,8 +2342,19 @@ export default function App() {
                     </div>
                     
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                      {trail.modules?.map(mod => (
-                        <div key={mod.id} className="w-32 shrink-0 bg-black/40 rounded-xl p-2 border border-white/5">
+                      {trail.modules?.map((mod, modIndex) => (
+                        <div
+                          key={mod.id}
+                          draggable
+                          onDragStart={(event) => event.dataTransfer.setData('text/plain', String(modIndex))}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            handleReorderModules(trail, Number(event.dataTransfer.getData('text/plain')), modIndex);
+                          }}
+                          className="w-32 shrink-0 bg-black/40 rounded-xl p-2 border border-white/5 cursor-grab active:cursor-grabbing hover:border-[#4bd3ff]/40 transition-colors"
+                          title="Arraste para mudar a ordem"
+                        >
                            <img src={mod.imageUrl} className="w-full h-32 object-cover rounded-lg mb-2 opacity-60" alt="" />
                            <p className="text-[10px] font-black text-white truncate text-center uppercase tracking-tighter">{mod.title}</p>
                         </div>
@@ -2297,7 +2424,8 @@ export default function App() {
 	                      fields: [
 	                        { name: 'name', label: 'Nome do aluno', required: true },
 	                        { name: 'email', label: 'Email de acesso', type: 'email', required: true },
-	                        { name: 'phone', label: 'Telefone / WhatsApp' }
+	                        { name: 'phone', label: 'Telefone / WhatsApp' },
+	                        { name: 'accessExpiresAt', label: 'Expira em', type: 'date' }
 	                      ],
 	                      onSubmit: handleCreateStudent,
 	                      onCancel: () => setPromptConfig(null)
@@ -2330,6 +2458,7 @@ export default function App() {
                         <th className="px-6 py-6">Telefone</th>
                         <th className="px-6 py-6 text-center">Role</th>
                         <th className="px-6 py-6 text-center">Status</th>
+                        <th className="px-6 py-6">Expira em</th>
                         <th className="px-6 py-6 text-center">Folhas</th>
                         <th className="px-6 py-6">Nível</th>
                         <th className="px-8 py-6 text-right">Ações</th>
@@ -2358,10 +2487,11 @@ export default function App() {
                             </span>
                           </td>
                           <td className="px-6 py-5 text-center">
-                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${student.isBlocked ? 'bg-red-500/15 text-red-300 border border-red-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
-                              {student.isBlocked ? 'Bloqueado' : 'Ativo'}
+                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${student.isBlocked || isAccessExpired(student.accessExpiresAt) ? 'bg-red-500/15 text-red-300 border border-red-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                              {student.isBlocked ? 'Bloqueado' : isAccessExpired(student.accessExpiresAt) ? 'Expirado' : 'Ativo'}
                             </span>
                           </td>
+                          <td className="px-6 py-5 text-gray-400 font-medium text-sm tracking-tight whitespace-nowrap">{student.accessExpiresAt || '-'}</td>
                           <td className="px-6 py-5 text-center">
                             <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-black">
                               <FileText size={14} className="fill-emerald-400" />
@@ -2421,13 +2551,6 @@ export default function App() {
                                 Folhas
                               </button>
 
-                              <button 
-                                onClick={() => student.email && handleSendAccessLink(student.email)}
-                                className="p-2.5 bg-black/40 border border-white/5 rounded-lg text-emerald-400/80 hover:bg-emerald-500 hover:text-white transition-all"
-                                title="Enviar link de acesso"
-                              >
-                                <Lock size={18} />
-                              </button>
                             </div>
                           </td>
                         </tr>
@@ -2704,7 +2827,7 @@ export default function App() {
                   <div className="space-y-6">
                     {todayChallenge.questions.map(q => (
                       <div key={q.id} className="space-y-3">
-                        <label className="block text-sm font-black text-gray-400 uppercase tracking-widest">{q.label}</label>
+                        <label className="block text-sm font-black text-gray-400 uppercase tracking-widest">{q.label} <span className="text-[#4bd3ff]">*</span></label>
                         
                         {q.type === 'textarea' ? (
 	                          <textarea 
@@ -3592,6 +3715,24 @@ export default function App() {
   );
 }
 
+function VideoThumbnail({ imageUrl, videoUrl, className = '' }: { imageUrl?: string, videoUrl?: string, className?: string }) {
+  const baseClass = `w-full h-full object-cover ${className}`;
+
+  if (imageUrl) {
+    return <img src={imageUrl} className={baseClass} alt="" />;
+  }
+
+  if (isDirectVideoUrl(videoUrl)) {
+    return <video src={videoUrl} className={baseClass} muted playsInline preload="metadata" />;
+  }
+
+  return (
+    <div className={`w-full h-full bg-[#071418] flex items-center justify-center text-gray-600 ${className}`}>
+      <Video size={16} />
+    </div>
+  );
+}
+
 function ModuleAccordionItem({ 
   mod, 
   mIdx, 
@@ -3662,7 +3803,7 @@ function ModuleAccordionItem({
                   }`}
                 >
                   <div className="relative shrink-0 w-20 aspect-video rounded-sm overflow-hidden border border-white/10 bg-black">
-                    <img src={lesson.imageUrl || mod.imageUrl} className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-opacity" alt="" />
+                    <VideoThumbnail imageUrl={lesson.imageUrl} videoUrl={lesson.videoUrl} className="opacity-50 group-hover:opacity-80 transition-opacity" />
                     <div className="absolute inset-x-0 bottom-0 top-1/2 bg-gradient-to-t from-black to-transparent opacity-60"></div>
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className={`w-8 h-8 rounded-full border border-white/20 flex items-center justify-center backdrop-blur-sm transition-all ${

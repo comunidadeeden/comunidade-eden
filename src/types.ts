@@ -43,6 +43,7 @@ export interface CustomLevel {
   id: string;
   title: string;
   points: number;
+  maxPoints?: number;
   level: number;
   iconName: string;
 }
@@ -56,6 +57,7 @@ export interface UserProfile {
   role: 'admin' | 'student';
   requiresPasswordSetup?: boolean;
   isBlocked?: boolean;
+  accessExpiresAt?: string;
   profession?: string;
   instagram?: string;
   phone?: string;

@@ -50,6 +50,7 @@ service cloud.firestore {
 	               'role',
 	               'requiresPasswordSetup',
 	               'isBlocked',
+	               'accessExpiresAt',
 	               'profession',
                'instagram',
                'phone',
@@ -68,6 +69,7 @@ service cloud.firestore {
 	             data.role in ['admin', 'student'] &&
 	             (!('requiresPasswordSetup' in data) || (data.requiresPasswordSetup is bool)) &&
 	             (!('isBlocked' in data) || (data.isBlocked is bool)) &&
+	             (!('accessExpiresAt' in data) || (data.accessExpiresAt is string)) &&
              (!('profession' in data) || (data.profession is string && data.profession.size() <= 100)) &&
              (!('instagram' in data) || (data.instagram is string && data.instagram.size() <= 100)) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
@@ -90,6 +92,7 @@ service cloud.firestore {
 	             incoming().points == existing().points &&
 	             incoming().email == existing().email &&
 	             incoming().isBlocked == existing().isBlocked &&
+	             incoming().accessExpiresAt == existing().accessExpiresAt &&
 	             incoming().diff(existing()).affectedKeys().hasOnly([
                'name',
                'avatar',
@@ -174,6 +177,7 @@ service cloud.firestore {
 	               'email',
 	               'name',
 	               'phone',
+	               'accessExpiresAt',
 	               'role',
                'invitedBy',
                'status',
@@ -185,6 +189,7 @@ service cloud.firestore {
 	             data.email is string && data.email.size() <= 100 &&
 	             data.name is string && data.name.size() <= 100 &&
 	             (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+	             (!('accessExpiresAt' in data) || (data.accessExpiresAt is string)) &&
              data.role == 'student' &&
              data.status in ['invited', 'accepted'];
     }
@@ -195,6 +200,7 @@ service cloud.firestore {
 	             incoming().email == existing().email &&
 	             incoming().name == existing().name &&
 	             incoming().phone == existing().phone &&
+	             incoming().accessExpiresAt == existing().accessExpiresAt &&
 	             incoming().role == existing().role &&
              incoming().invitedBy == existing().invitedBy &&
              incoming().status == 'accepted' &&
