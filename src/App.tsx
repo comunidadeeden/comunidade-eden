@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
 import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, CustomLevel } from './types';
-import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown } from 'lucide-react';
+import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword } from 'firebase/auth';
@@ -1281,77 +1281,142 @@ export default function App() {
       }
       case 'guardiao':
         return (
-          <div className="max-w-4xl mx-auto pt-4 pb-20 px-4">
-            <div className="bg-[#040e11] border border-white/10 rounded-3xl overflow-hidden shadow-2xl min-h-[68vh] flex flex-col">
-              <div className="p-5 sm:p-7 border-b border-white/10 bg-[#061418]/80 flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 flex items-center justify-center overflow-hidden p-1.5">
+          <div className="mx-auto max-w-7xl px-0 sm:px-4 pb-20">
+            <div className="min-h-[76vh] overflow-hidden rounded-[28px] border border-[#2b4d47]/50 bg-[#0a4544] shadow-2xl lg:grid lg:grid-cols-[280px_1fr]">
+              <aside className="hidden lg:flex bg-[#1b2b2f] border-r border-white/10 flex-col">
+                <div className="px-6 py-6 flex items-center gap-3">
                   <img
                     src="http://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-Guardiao.png"
                     alt="Logo do Guardião"
-                    className="w-full h-full object-contain"
+                    className="h-9 w-9 object-contain opacity-80"
                   />
+                  <span className="font-serif text-xl text-white tracking-wide">Éden</span>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-black text-white uppercase tracking-tight">Guardião</h2>
-                  <p className="text-gray-400 text-sm">Seu mentor de reflexão dentro do Éden.</p>
-                </div>
-              </div>
 
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar">
-                {guardianMessages.map((message, index) => (
-                  <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[86%] rounded-2xl px-4 py-3 text-sm sm:text-base leading-relaxed whitespace-pre-wrap ${
-                      message.role === 'user'
-                        ? 'bg-[#4bd3ff] text-[#020507] font-semibold'
-                        : 'bg-white/5 border border-white/10 text-gray-200'
-                    }`}>
-                      {message.content}
-                    </div>
-                  </div>
-                ))}
-                {isGuardianReplying && (
-                  <div className="flex justify-start">
-                    <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-gray-400 text-sm">
-                      O Guardião está escrevendo...
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  handleGuardianSubmit();
-                }}
-                className="p-4 sm:p-6 border-t border-white/10 bg-[#020507]/70 space-y-3"
-              >
-                {guardianError && (
-                  <p className="text-sm font-bold text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
-                    {guardianError}
-                  </p>
-                )}
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <textarea
-                    value={guardianInput}
-                    onChange={(event) => setGuardianInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !event.shiftKey) {
-                        event.preventDefault();
-                        handleGuardianSubmit();
-                      }
-                    }}
-                    placeholder="Converse com o Guardião..."
-                    className="flex-1 min-h-[56px] max-h-40 bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-white resize-none focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
-                  />
+                <div className="px-3 py-5 border-t border-white/5">
                   <button
-                    type="submit"
-                    disabled={!guardianInput.trim() || isGuardianReplying}
-                    className="sm:w-36 bg-[#4bd3ff] text-[#020507] rounded-2xl px-5 py-3 font-black uppercase tracking-widest text-xs disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#38bdf8] transition-colors"
+                    onClick={() => {
+                      setGuardianMessages([{
+                        role: 'assistant',
+                        content: 'Eu sou o Guardião do Éden. Traga sua pergunta, reflexão ou desafio do dia.'
+                      }]);
+                      setGuardianInput('');
+                      setGuardianError('');
+                    }}
+                    className="w-full h-11 rounded-lg border border-dashed border-[#bfa66a]/35 text-[#d8bf7a] font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#bfa66a]/10 transition-colors"
                   >
-                    Enviar
+                    <Plus size={16} /> Nova Sessão
                   </button>
                 </div>
-              </form>
+
+                <div className="flex-1 px-2 space-y-2">
+                  {[
+                    { title: 'hora da terapia', active: true },
+                    { title: 'Hora da Terapia', active: false },
+                  ].map((session, index) => (
+                    <button
+                      key={index}
+                      className={`w-full rounded-lg px-4 py-3 flex items-center justify-between gap-3 text-left transition-colors ${
+                        session.active
+                          ? 'bg-[#3a4036] border border-[#bfa66a]/20 text-[#d8bf7a]'
+                          : 'text-[#c0d2cf] hover:bg-white/5'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <MessageSquare size={14} className="shrink-0" />
+                        <span className="truncate text-sm font-semibold">{session.title}</span>
+                      </span>
+                      <span className="text-xs text-[#9bb5b2]">20/04</span>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setActiveTab('jornada')}
+                  className="h-16 px-7 border-t border-white/10 text-[#c0d2cf] flex items-center gap-3 hover:bg-white/5 transition-colors text-sm font-bold"
+                >
+                  <LogOut size={16} /> Sair
+                </button>
+              </aside>
+
+              <div className="flex min-h-[76vh] flex-col bg-[#0a4544]">
+                <header className="h-16 sm:h-[72px] bg-[#163437] border-b border-white/10 px-5 sm:px-8 flex items-center gap-4">
+                  <img
+                    src="http://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-Guardiao.png"
+                    alt="Logo do Guardião"
+                    className="h-10 w-10 object-contain lg:hidden"
+                  />
+                  <div>
+                    <h2 className="font-serif text-2xl text-white tracking-wide leading-tight">Guardião do Éden</h2>
+                    <p className="text-[#9bb5b2] text-xs sm:text-sm font-semibold">Método RADAR Comportamental</p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('jornada')}
+                    className="ml-auto lg:hidden rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-[#c0d2cf] hover:bg-white/5 transition-colors"
+                  >
+                    Sair
+                  </button>
+                </header>
+
+                <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-10 sm:py-10 custom-scrollbar">
+                  <div className="mx-auto max-w-[800px] space-y-7">
+                    {guardianMessages.map((message, index) => (
+                      <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[82%] rounded-xl px-5 py-4 text-sm sm:text-base leading-relaxed whitespace-pre-wrap ${
+                          message.role === 'user'
+                            ? 'bg-[#176468] text-white font-semibold shadow-lg'
+                            : 'bg-[#1e2c30]/95 border border-[#bfa66a]/25 text-[#d7ded9] font-serif'
+                        }`}>
+                          {message.content}
+                        </div>
+                      </div>
+                    ))}
+                    {isGuardianReplying && (
+                      <div className="flex justify-start">
+                        <div className="bg-[#1e2c30]/95 border border-[#bfa66a]/25 rounded-xl px-5 py-4 text-[#c0d2cf] text-sm font-serif">
+                          O Guardião está escrevendo...
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleGuardianSubmit();
+                  }}
+                  className="border-t border-white/10 bg-[#0d3b3b]/90 px-4 py-4 sm:px-10 sm:py-5"
+                >
+                  {guardianError && (
+                    <p className="mx-auto mb-3 max-w-[800px] text-sm font-bold text-red-200 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                      {guardianError}
+                    </p>
+                  )}
+                  <div className="mx-auto max-w-[800px] flex items-end gap-3 rounded-xl border border-[#2c6666] bg-[#123e3f] px-4 py-2 shadow-inner">
+                    <textarea
+                      value={guardianInput}
+                      onChange={(event) => setGuardianInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault();
+                          handleGuardianSubmit();
+                        }
+                      }}
+                      placeholder="Digite sua mensagem..."
+                      className="min-h-[40px] max-h-36 flex-1 resize-none bg-transparent py-2 text-white placeholder:text-[#98b4b1] focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!guardianInput.trim() || isGuardianReplying}
+                      className="mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#918a62] text-[#092d2d] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#b5a96f] transition-colors"
+                      aria-label="Enviar mensagem"
+                    >
+                      <Send size={18} />
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         );
@@ -3028,6 +3093,7 @@ export default function App() {
       </AnimatePresence>
       
       {/* Navigation */}
+      {activeTab !== 'guardiao' && (
 	      <nav className="fixed top-0 w-full z-50 flex items-center justify-between gap-3 px-4 sm:px-12 pt-5 pb-4 sm:pt-7 sm:pb-5 bg-gradient-to-b from-black/90 via-black/55 to-transparent transition-all duration-300 border-b border-white/5 backdrop-blur-sm">
 	        <div className="flex min-w-0 items-center gap-4 sm:gap-8">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('jornada')}>
@@ -3116,8 +3182,9 @@ export default function App() {
           </div>
         </div>
       </nav>
+      )}
 
-      {hasNewMissionToday && tabVisibility.gameficacao && (
+      {activeTab !== 'guardiao' && hasNewMissionToday && tabVisibility.gameficacao && (
         <button
           onClick={scrollToTodayMission}
           className="fixed top-[88px] sm:top-[104px] left-4 right-4 sm:left-10 sm:right-10 z-[70] max-w-5xl mx-auto text-left bg-[#061c21]/95 backdrop-blur-2xl border border-[#4bd3ff]/35 rounded-2xl p-4 sm:p-5 flex items-center gap-4 shadow-[0_18px_50px_rgba(0,0,0,0.45),0_0_34px_rgba(75,211,255,0.12)] hover:bg-[#08242b] transition-all"
@@ -3313,7 +3380,7 @@ export default function App() {
             </div>
           )}
 
-	      <div className={`px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'guardiao' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : activeTab === 'gameficacao' ? 'pt-6' : 'pt-24') : (activeTab === 'materiais') ? 'pt-24' : 'pt-24'} relative z-30`}>
+	      <div className={`${activeTab === 'guardiao' ? 'px-0 pb-0 pt-0' : `px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : activeTab === 'gameficacao' ? 'pt-6' : 'pt-24') : (activeTab === 'materiais') ? 'pt-24' : 'pt-24'}`} relative z-30`}>
         {renderContent()}
       </div>
 
@@ -3654,6 +3721,7 @@ export default function App() {
       )}
 
       {/* Bottom Navigation Navbar */}
+      {activeTab !== 'guardiao' && (
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#020709]/95 backdrop-blur-md border-t border-[#0b2831]/50 pb-safe">
         <div className="flex justify-around items-center max-w-lg mx-auto px-2 py-3 sm:max-w-2xl">
           {userTabs.map(tab => {
@@ -3686,6 +3754,7 @@ export default function App() {
           })}
         </div>
       </div>
+      )}
 
       {/* Modals & Overlays */}
       {isFolhasModalOpen && selectedUser && (
