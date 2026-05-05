@@ -132,8 +132,7 @@ service cloud.firestore {
              incoming().points >= 0 &&
              incoming().diff(existing()).affectedKeys().hasOnly(['points', 'lastMissionRewardDate', 'updatedAt']) &&
              pointDelta() == 30 &&
-             incoming().lastMissionRewardDate != existing().lastMissionRewardDate &&
-             exists(/databases/$(database)/documents/dailyChallengeCompletions/$(request.auth.uid + '_' + incoming().lastMissionRewardDate));
+             incoming().lastMissionRewardDate != existing().lastMissionRewardDate;
     }
 
     match /users/{userId} {
@@ -268,7 +267,7 @@ service cloud.firestore {
     }
 
     match /dailyChallengeCompletions/{completionId} {
-      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn();
       allow get: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
       allow create: if isSignedIn() && isValidCompletion(incoming());
       allow update, delete: if isAdmin();
