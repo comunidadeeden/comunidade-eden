@@ -20,6 +20,7 @@ const INITIAL_TABS = [
 
 const ADMIN_EMAIL = "gu.correa98@gmail.com";
 const EMAIL_FOR_SIGN_IN_KEY = 'edenEmailForSignIn';
+const EXTRA_CONTENT_TRAIL_ID = 'conteudos-extras';
 const GUARDIAN_SESSIONS_KEY = 'edenGuardianSessions';
 const ACTIVE_GUARDIAN_SESSION_KEY = 'edenActiveGuardianSession';
 const GUARDIAN_INITIAL_MESSAGE = 'Eu sou o Guardião do Éden. Traga sua pergunta, reflexão ou desafio do dia.';
@@ -346,6 +347,22 @@ export default function App() {
     }
   };
 
+  const ensureExtraContentTrail = async () => {
+    const existingTrail = trailsState.find(trail => trail.id === EXTRA_CONTENT_TRAIL_ID || trail.isExtraContent);
+    if (existingTrail) return existingTrail;
+
+    const newTrail: Trail = {
+      id: EXTRA_CONTENT_TRAIL_ID,
+      title: 'Conteúdos Extras',
+      modules: [],
+      order: 9999,
+      isExtraContent: true,
+      createdAt: serverTimestamp()
+    };
+    await setDoc(doc(db, 'trails', EXTRA_CONTENT_TRAIL_ID), newTrail);
+    return newTrail;
+  };
+
   const toggleChallengeCompletion = async (challengeId: string) => {
     if (!user) return;
     
@@ -425,8 +442,13 @@ export default function App() {
   const purchasedOfferIds = user?.purchasedOfferIds || [];
   const availableOffers = offersState.filter(offer => !purchasedOfferIds.includes(offer.id));
   const purchasedOffers = offersState.filter(offer => purchasedOfferIds.includes(offer.id));
-  const createOfferModule = (offer: Offer): Module => ({
-    id: `offer-${offer.id}`,
+  const extraContentTrail = trailsState.find(trail => trail.id === EXTRA_CONTENT_TRAIL_ID || trail.isExtraContent);
+  const visibleContentTrails = trailsState.filter(trail => trail.id !== EXTRA_CONTENT_TRAIL_ID && !trail.isExtraContent);
+  const purchasedExtraModules = purchasedOffers
+    .map(offer => extraContentTrail?.modules?.find(module => module.id === offer.moduleId))
+    .filter(Boolean) as Module[];
+  const createOfferPreviewModule = (offer: Offer): Module => ({
+    id: `offer-preview-${offer.id}`,
     offerId: offer.id,
     isOffer: true,
     title: offer.title,
@@ -1274,37 +1296,7 @@ export default function App() {
             {/* Home tab showing Trails instead of simple categories */}
             <div className="space-y-8">
               <div className="space-y-4">
-                {purchasedOffers.length > 0 && (
-                  <TrailRow
-                    key="conteudos-extras"
-                    trail={{
-                      id: 'conteudos-extras',
-                      title: 'Conteúdos Extras',
-                      modules: purchasedOffers.map(createOfferModule)
-                    }}
-                    user={user}
-                    onSelectModule={(mod) => {
-                      const offer = offersState.find(item => item.id === mod.offerId);
-                      if (offer) setSelectedOffer(offer);
-                    }}
-                  />
-                )}
-                {availableOffers.length > 0 && (
-                  <TrailRow
-                    key="ofertas"
-                    trail={{
-                      id: 'ofertas',
-                      title: 'Ofertas',
-                      modules: availableOffers.map(createOfferModule)
-                    }}
-                    user={user}
-                    onSelectModule={(mod) => {
-                      const offer = offersState.find(item => item.id === mod.offerId);
-                      if (offer) setSelectedOffer(offer);
-                    }}
-                  />
-                )}
-                {trailsState.map(trail => (
+                {visibleContentTrails.map(trail => (
                   <TrailRow 
                     key={trail.id} 
                     trail={trail} 
@@ -1321,6 +1313,46 @@ export default function App() {
                     }} 
                   />
                 ))}
+                {purchasedExtraModules.length > 0 && (
+                  <TrailRow
+                    key="conteudos-extras"
+                    trail={{
+                      id: 'conteudos-extras',
+                      title: 'Conteúdos Extras',
+                      modules: purchasedExtraModules
+                    }}
+                    user={user}
+                    onSelectModule={(mod, index) => {
+                      const item = mod.items[index || 0];
+                      if (item?.type === 'desafio') {
+                        setSelectedLessonChallenge(item);
+                      } else {
+                        setSelectedTrail({
+                          id: 'conteudos-extras-visible',
+                          title: 'Conteúdos Extras',
+                          modules: purchasedExtraModules
+                        });
+                        setSelectedModule(mod);
+                        setCurrentLessonIndex(index || 0);
+                      }
+                    }}
+                  />
+                )}
+                {availableOffers.length > 0 && (
+                  <TrailRow
+                    key="ofertas"
+                    trail={{
+                      id: 'ofertas',
+                      title: 'Ofertas',
+                      modules: availableOffers.map(createOfferPreviewModule)
+                    }}
+                    user={user}
+                    onSelectModule={(mod) => {
+                      const offer = offersState.find(item => item.id === mod.offerId);
+                      if (offer) setSelectedOffer(offer);
+                    }}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -3066,12 +3098,29 @@ export default function App() {
                       ],
                       onSubmit: async (data) => {
                         try {
-                          await addDoc(collection(db, 'offers'), {
+                          const trail = await ensureExtraContentTrail();
+                          const offerRef = doc(collection(db, 'offers'));
+                          const newModule = {
+                            id: `offer-module-${offerRef.id}`,
+                            offerId: offerRef.id,
+                            title: data.title,
+                            description: data.description || '',
+                            imageUrl: data.imageUrl || '',
+                            items: []
+                          };
+                          await setDoc(offerRef, {
                             title: data.title,
                             description: data.description || '',
                             imageUrl: data.imageUrl || '',
                             checkoutUrl: data.checkoutUrl || '',
+                            moduleId: newModule.id,
                             createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp()
+                          });
+                          await setDoc(doc(db, 'trails', trail.id), {
+                            ...trail,
+                            modules: [...(trail.modules || []), newModule],
+                            isExtraContent: true,
                             updatedAt: serverTimestamp()
                           });
                         } catch (e) {
@@ -3117,11 +3166,32 @@ export default function App() {
                               ],
                               onSubmit: async (data) => {
                                 try {
+                                  const trail = await ensureExtraContentTrail();
+                                  const moduleId = offer.moduleId || `offer-module-${offer.id}`;
+                                  const syncedModule = {
+                                    id: moduleId,
+                                    offerId: offer.id,
+                                    title: data.title,
+                                    description: data.description || '',
+                                    imageUrl: data.imageUrl || '',
+                                    items: (trail.modules || []).find(module => module.id === moduleId)?.items || []
+                                  };
+                                  const hasSyncedModule = (trail.modules || []).some(module => module.id === moduleId);
+                                  const updatedModules = hasSyncedModule
+                                    ? (trail.modules || []).map(module => module.id === moduleId ? { ...module, ...syncedModule } : module)
+                                    : [...(trail.modules || []), syncedModule];
+
                                   await updateDoc(doc(db, 'offers', offer.id), {
                                     title: data.title,
                                     description: data.description || '',
                                     imageUrl: data.imageUrl || '',
                                     checkoutUrl: data.checkoutUrl || '',
+                                    moduleId,
+                                    updatedAt: serverTimestamp()
+                                  });
+                                  await updateDoc(doc(db, 'trails', trail.id), {
+                                    modules: updatedModules,
+                                    isExtraContent: true,
                                     updatedAt: serverTimestamp()
                                   });
                                 } catch (e) {
@@ -3145,6 +3215,11 @@ export default function App() {
                               onSubmit: async () => {
                                 try {
                                   await deleteDoc(doc(db, 'offers', offer.id));
+                                  const trail = await ensureExtraContentTrail();
+                                  await updateDoc(doc(db, 'trails', trail.id), {
+                                    modules: (trail.modules || []).filter(module => module.id !== offer.moduleId && module.offerId !== offer.id),
+                                    updatedAt: serverTimestamp()
+                                  });
                                 } catch (e) {
                                   handleFirestoreError(e, OperationType.DELETE, `offers/${offer.id}`);
                                 }

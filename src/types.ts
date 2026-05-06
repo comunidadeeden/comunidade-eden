@@ -32,6 +32,7 @@ export interface Trail {
   title: string;
   modules: Module[];
   order?: number;
+  isExtraContent?: boolean;
   createdAt?: any;
 }
 
@@ -80,6 +81,7 @@ export interface Offer {
   description: string;
   imageUrl: string;
   checkoutUrl: string;
+  moduleId?: string;
   createdAt?: any;
   updatedAt?: any;
 }
