@@ -40,11 +40,17 @@ APP_URL=https://comunidadeeden.com.br
 RESEND_API_KEY=
 RESEND_FROM_EMAIL="Eden <acesso@brunosimplicio.com.br>"
 RESEND_REPLY_TO=suporte@brunosimplicio.com.br
+ACCESS_EMAIL_TEST_SECRET=
 ```
 
 Antes de ativar a automacao de compras, configure o dominio na Resend e valide os
 registros DNS de SPF, DKIM e DMARC. Isso melhora a entrega dos emails de criacao
 de senha e reduz risco de cair em spam.
+
+Para testar o envio pela Vercel, configure `ACCESS_EMAIL_TEST_SECRET` com um
+valor forte e envie uma requisicao `POST` para `/api/test-access-email` usando o
+header `x-eden-test-secret`. Se a variavel nao existir, o endpoint fica
+desativado.
 
 ## Firebase
 
