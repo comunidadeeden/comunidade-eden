@@ -27,6 +27,25 @@ npm run deploy:check
 
 Esse comando roda a checagem TypeScript e o build de producao.
 
+## Emails transacionais
+
+O envio de emails de primeiro acesso fica preparado para usar a Resend pelo
+backend em `api/lib/accessEmail.js`. As chaves devem ser configuradas apenas nas
+variaveis de ambiente da Vercel/local, nunca no GitHub.
+
+Variaveis necessarias:
+
+```bash
+APP_URL=https://comunidade-eden.vercel.app
+RESEND_API_KEY=
+RESEND_FROM_EMAIL="Eden <acesso@seudominio.com>"
+RESEND_REPLY_TO=suporte@seudominio.com
+```
+
+Antes de ativar a automacao de compras, configure o dominio na Resend e valide os
+registros DNS de SPF, DKIM e DMARC. Isso melhora a entrega dos emails de criacao
+de senha e reduz risco de cair em spam.
+
 ## Firebase
 
 As regras de seguranca ficam em `firestore.rules`. Antes de publicar, aplique as
