@@ -52,6 +52,10 @@ valor forte e envie uma requisicao `POST` para `/api/test-access-email` usando o
 header `x-eden-test-secret`. Se a variavel nao existir, o endpoint fica
 desativado.
 
+O mesmo segredo tambem habilita `/api/test-firebase-integration`, usado apenas
+para diagnosticar se a Vercel consegue autenticar com a Service Account e gravar
+no Firestore.
+
 ## Webhook Hotmart
 
 O endpoint da Hotmart fica em:
