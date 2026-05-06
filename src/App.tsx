@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
-import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, CustomLevel } from './types';
+import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, CustomLevel, Offer } from './types';
 import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
@@ -382,6 +382,7 @@ export default function App() {
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [selectedTrail, setSelectedTrail] = useState<Trail | null>(null);
   const [selectedLessonChallenge, setSelectedLessonChallenge] = useState<ContentItem | null>(null);
+  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [dailyChallenges, setDailyChallenges] = useState<DailyChallenge[]>([]);
   const [allCompletions, setAllCompletions] = useState<DailyChallengeCompletion[]>([]);
   const [todayChallenge, setTodayChallenge] = useState<DailyChallenge | null>(null);
@@ -396,6 +397,7 @@ export default function App() {
   const activeLesson = selectedModule?.items[currentLessonIndex];
   const [materiaisState, setMateriaisState] = useState(materiaisDeApoio);
   const [audioState, setAudioState] = useState(audioOfTheDay);
+  const [offersState, setOffersState] = useState<Offer[]>([]);
   
   // Admin settings for tab visibility
   const [tabVisibility, setTabVisibility] = useState({
@@ -420,6 +422,18 @@ export default function App() {
   const isCurrentTabInDevelopment = !isAdmin && Boolean(INITIAL_TABS.find(t => t.id === activeTab)) && !tabVisibility[activeTab as keyof typeof tabVisibility];
   const isTodayMissionCompleted = Boolean(todayChallenge && allCompletions.some(c => c.challengeDate === todayChallenge.date && c.userId === user?.uid));
   const hasNewMissionToday = Boolean(todayChallenge && !isTodayMissionCompleted);
+  const purchasedOfferIds = user?.purchasedOfferIds || [];
+  const availableOffers = offersState.filter(offer => !purchasedOfferIds.includes(offer.id));
+  const purchasedOffers = offersState.filter(offer => purchasedOfferIds.includes(offer.id));
+  const createOfferModule = (offer: Offer): Module => ({
+    id: `offer-${offer.id}`,
+    offerId: offer.id,
+    isOffer: true,
+    title: offer.title,
+    description: offer.description,
+    imageUrl: offer.imageUrl,
+    items: []
+  });
 
   // Gamification states
   const [leaves, setLeaves] = useState(0);
@@ -532,6 +546,7 @@ export default function App() {
 	              profession: '',
 	              instagram: '',
 	              phone: (inviteData?.phone as string) || '',
+              purchasedOfferIds: [],
               maritalStatus: '',
               hasChildren: false,
               childrenCount: 0,
@@ -623,6 +638,13 @@ export default function App() {
       handleFirestoreError(error, 'LIST', 'materials');
     });
 
+    const unsubscribeOffers = onSnapshot(query(collection(db, 'offers'), orderBy('createdAt', 'desc')), (snapshot) => {
+      const offersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Offer));
+      setOffersState(offersData);
+    }, (error) => {
+      handleFirestoreError(error, 'LIST', 'offers');
+    });
+
     let unsubscribeStudents: (() => void) | null = null;
 
     if (isAdmin) {
@@ -637,6 +659,7 @@ export default function App() {
     return () => {
       unsubscribeTrails();
       unsubscribeMaterials();
+      unsubscribeOffers();
       if (unsubscribeStudents) unsubscribeStudents();
     };
   }, [user, isAdmin]);
@@ -1251,6 +1274,36 @@ export default function App() {
             {/* Home tab showing Trails instead of simple categories */}
             <div className="space-y-8">
               <div className="space-y-4">
+                {purchasedOffers.length > 0 && (
+                  <TrailRow
+                    key="conteudos-extras"
+                    trail={{
+                      id: 'conteudos-extras',
+                      title: 'Conteúdos Extras',
+                      modules: purchasedOffers.map(createOfferModule)
+                    }}
+                    user={user}
+                    onSelectModule={(mod) => {
+                      const offer = offersState.find(item => item.id === mod.offerId);
+                      if (offer) setSelectedOffer(offer);
+                    }}
+                  />
+                )}
+                {availableOffers.length > 0 && (
+                  <TrailRow
+                    key="ofertas"
+                    trail={{
+                      id: 'ofertas',
+                      title: 'Ofertas',
+                      modules: availableOffers.map(createOfferModule)
+                    }}
+                    user={user}
+                    onSelectModule={(mod) => {
+                      const offer = offersState.find(item => item.id === mod.offerId);
+                      if (offer) setSelectedOffer(offer);
+                    }}
+                  />
+                )}
                 {trailsState.map(trail => (
                   <TrailRow 
                     key={trail.id} 
@@ -2195,6 +2248,7 @@ export default function App() {
                 {id: 'missoes', label: 'Missão do Dia', icon: Calendar},
                 {id: 'alunos', label: 'Alunos', icon: Users},
                 {id: 'materiais', label: 'Materiais', icon: FileText},
+                {id: 'ofertas', label: 'Ofertas', icon: Trophy},
                 {id: 'audio', label: 'Áudio do Dia', icon: Mic},
                 {id: 'niveis', label: 'Níveis (Progresso)', icon: Crown},
               ].map(item => (
@@ -2986,6 +3040,123 @@ export default function App() {
                       >
                         <Trash2 size={18} />
                       </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {adminActiveSection === 'ofertas' && (
+            <div className="w-full max-w-7xl space-y-6">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tight">Ofertas</h3>
+                  <p className="text-gray-400 text-sm mt-1">Crie produtos que aparecem como módulos bloqueados na trilha de ofertas.</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setPromptConfig({
+                      title: 'Nova Oferta',
+                      fields: [
+                        { name: 'title', label: 'Nome da oferta', required: true },
+                        { name: 'description', label: 'Descrição da oferta', type: 'textarea', required: true },
+                        { name: 'imageUrl', label: 'Link da capa', required: true },
+                        { name: 'checkoutUrl', label: 'Link do botão / checkout', required: true },
+                      ],
+                      onSubmit: async (data) => {
+                        try {
+                          await addDoc(collection(db, 'offers'), {
+                            title: data.title,
+                            description: data.description || '',
+                            imageUrl: data.imageUrl || '',
+                            checkoutUrl: data.checkoutUrl || '',
+                            createdAt: serverTimestamp(),
+                            updatedAt: serverTimestamp()
+                          });
+                        } catch (e) {
+                          handleFirestoreError(e, OperationType.CREATE, 'offers');
+                        }
+                      },
+                      onCancel: () => setPromptConfig(null)
+                    });
+                  }}
+                  className="flex items-center gap-2 bg-[#4bd3ff] hover:bg-[#38bdf8] text-black px-6 py-2.5 rounded-xl font-black transition-all"
+                >
+                  <Plus size={20} /> Nova Oferta
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {offersState.length === 0 && (
+                  <div className="md:col-span-2 xl:col-span-3 border border-white/10 border-dashed rounded-2xl p-10 text-center">
+                    <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Nenhuma oferta cadastrada ainda.</p>
+                  </div>
+                )}
+                {offersState.map((offer) => (
+                  <div key={offer.id} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+                    <div className="aspect-[16/10] bg-black/30 overflow-hidden">
+                      <img src={offer.imageUrl} alt="" className="w-full h-full object-cover opacity-80" />
+                    </div>
+                    <div className="p-5 space-y-4">
+                      <div>
+                        <h4 className="text-white font-black text-lg tracking-tight">{offer.title}</h4>
+                        <p className="text-gray-400 text-sm mt-2 line-clamp-3">{offer.description}</p>
+                      </div>
+                      <p className="text-gray-500 text-xs truncate">{offer.checkoutUrl}</p>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setPromptConfig({
+                              title: 'Editar Oferta',
+                              fields: [
+                                { name: 'title', label: 'Nome da oferta', defaultValue: offer.title, required: true },
+                                { name: 'description', label: 'Descrição da oferta', type: 'textarea', defaultValue: offer.description || '', required: true },
+                                { name: 'imageUrl', label: 'Link da capa', defaultValue: offer.imageUrl || '', required: true },
+                                { name: 'checkoutUrl', label: 'Link do botão / checkout', defaultValue: offer.checkoutUrl || '', required: true },
+                              ],
+                              onSubmit: async (data) => {
+                                try {
+                                  await updateDoc(doc(db, 'offers', offer.id), {
+                                    title: data.title,
+                                    description: data.description || '',
+                                    imageUrl: data.imageUrl || '',
+                                    checkoutUrl: data.checkoutUrl || '',
+                                    updatedAt: serverTimestamp()
+                                  });
+                                } catch (e) {
+                                  handleFirestoreError(e, OperationType.UPDATE, `offers/${offer.id}`);
+                                }
+                              },
+                              onCancel: () => setPromptConfig(null)
+                            });
+                          }}
+                          className="p-2 text-gray-400 hover:text-[#4bd3ff]"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPromptConfig({
+                              title: 'Excluir Oferta?',
+                              description: 'A oferta será removida da vitrine. Usuários que compraram deixarão de ver esse módulo extra até ela ser recriada.',
+                              submitText: 'Excluir',
+                              fields: [],
+                              onSubmit: async () => {
+                                try {
+                                  await deleteDoc(doc(db, 'offers', offer.id));
+                                } catch (e) {
+                                  handleFirestoreError(e, OperationType.DELETE, `offers/${offer.id}`);
+                                }
+                              },
+                              onCancel: () => setPromptConfig(null)
+                            });
+                          }}
+                          className="p-2 text-gray-400 hover:text-red-400"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -3852,6 +4023,60 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Video/Resource Modal */}
+      {selectedOffer && (
+        <div className="fixed inset-0 z-[180] flex items-center justify-center p-4 sm:p-8">
+          <div
+            className="absolute inset-0 bg-black/85 backdrop-blur-md"
+            onClick={() => setSelectedOffer(null)}
+          />
+          <div className="relative w-full max-w-2xl bg-[#071418] border border-[#4bd3ff]/20 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setSelectedOffer(null)}
+              className="absolute top-4 right-4 z-20 p-2 bg-black/40 hover:bg-black/70 text-white rounded-full transition"
+            >
+              <X size={22} />
+            </button>
+            <div className="aspect-video bg-black/40 overflow-hidden">
+              <img src={selectedOffer.imageUrl} alt="" className="w-full h-full object-cover opacity-80" />
+            </div>
+            <div className="p-6 sm:p-8 space-y-5">
+              {(() => {
+                const isPurchased = purchasedOfferIds.includes(selectedOffer.id);
+                return (
+                  <>
+              <div>
+                <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-[0.28em] mb-2">
+                  {isPurchased ? 'Conteúdo Extra Liberado' : 'Oferta Exclusiva'}
+                </p>
+                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">{selectedOffer.title}</h2>
+              </div>
+              <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">{selectedOffer.description}</p>
+              {isPurchased ? (
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center">
+                  <p className="text-emerald-300 font-black uppercase tracking-widest text-xs">Você já tem acesso a este conteúdo extra.</p>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => window.open(selectedOffer.checkoutUrl, '_blank', 'noopener,noreferrer')}
+                    className="w-full bg-[#4bd3ff] hover:bg-[#38bdf8] text-[#020507] py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-colors"
+                  >
+                    Comprar agora
+                  </button>
+                  <p className="text-[11px] text-gray-500 text-center">
+                    Depois da compra, a liberação automática será conectada pelo checkout.
+                  </p>
+                </>
+              )}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Video/Resource Modal */}
       {selectedItem && (

@@ -12,7 +12,7 @@ export interface ContentItem {
   imageUrl: string;
   videoUrl?: string; // Optional video URL if clicked
   audioUrl?: string; // Optional audio URL if clicked
-  type: 'video' | 'material' | 'game' | 'guardian' | 'desafio';
+  type: 'video' | 'material' | 'game' | 'guardian' | 'desafio' | 'offer';
   duration?: string;
   isCompleted?: boolean;
 }
@@ -23,6 +23,8 @@ export interface Module {
   description?: string;
   imageUrl: string;
   items: ContentItem[];
+  offerId?: string;
+  isOffer?: boolean;
 }
 
 export interface Trail {
@@ -68,6 +70,17 @@ export interface UserProfile {
   lastMissionRewardDate?: string;
   isCofounder?: boolean;
   completedChallenges?: string[];
+  purchasedOfferIds?: string[];
+  updatedAt?: any;
+}
+
+export interface Offer {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  checkoutUrl: string;
+  createdAt?: any;
   updatedAt?: any;
 }
 
