@@ -122,7 +122,7 @@ export const createAuthUserIfNeeded = async ({ email, name }) => {
 
   if (!create.response.ok) {
     console.error('Firebase Auth create user error:', create.body);
-    throw new Error('Nao foi possivel criar o usuario no Firebase Auth.');
+    throw new Error(`Nao foi possivel criar o usuario no Firebase Auth: ${JSON.stringify(create.body)}`);
   }
 
   return { uid: create.body.localId, created: true };
