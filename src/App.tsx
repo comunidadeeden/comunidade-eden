@@ -20,6 +20,19 @@ const INITIAL_TABS = [
 
 const ADMIN_EMAIL = "gu.correa98@gmail.com";
 const EMAIL_FOR_SIGN_IN_KEY = 'edenEmailForSignIn';
+const GUARDIAN_SESSIONS_KEY = 'edenGuardianSessions';
+const ACTIVE_GUARDIAN_SESSION_KEY = 'edenActiveGuardianSession';
+const GUARDIAN_INITIAL_MESSAGE = 'Eu sou o Guardião do Éden. Traga sua pergunta, reflexão ou desafio do dia.';
+
+type GuardianMessage = { role: 'user' | 'assistant', content: string };
+type GuardianSession = { id: string, title: string, date: string, messages: GuardianMessage[] };
+
+const createGuardianSession = (): GuardianSession => ({
+  id: Math.random().toString(36).substring(2, 10),
+  title: 'Nova sessão',
+  date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+  messages: [{ role: 'assistant', content: GUARDIAN_INITIAL_MESSAGE }]
+});
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
@@ -202,15 +215,48 @@ export default function App() {
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
   const [passwordSetupError, setPasswordSetupError] = useState('');
   const [isSettingPassword, setIsSettingPassword] = useState(false);
-  const [guardianMessages, setGuardianMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([
-    {
-      role: 'assistant',
-      content: 'Eu sou o Guardião do Éden. Traga sua pergunta, reflexão ou desafio do dia.'
+  const [guardianSessions, setGuardianSessions] = useState<GuardianSession[]>(() => {
+    try {
+      const storedSessions = window.localStorage.getItem(GUARDIAN_SESSIONS_KEY);
+      const parsedSessions = storedSessions ? JSON.parse(storedSessions) : null;
+      if (Array.isArray(parsedSessions) && parsedSessions.length > 0) {
+        return parsedSessions;
+      }
+    } catch (error) {
+      console.warn('Could not load guardian sessions:', error);
     }
-  ]);
+    const session = createGuardianSession();
+    return [{ ...session, title: 'hora da terapia' }];
+  });
+  const [activeGuardianSessionId, setActiveGuardianSessionId] = useState(() => {
+    try {
+      return window.localStorage.getItem(ACTIVE_GUARDIAN_SESSION_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
   const [guardianInput, setGuardianInput] = useState('');
   const [guardianError, setGuardianError] = useState('');
   const [isGuardianReplying, setIsGuardianReplying] = useState(false);
+  const activeGuardianSession = guardianSessions.find(session => session.id === activeGuardianSessionId) || guardianSessions[0];
+  const guardianMessages = activeGuardianSession?.messages || [];
+
+  useEffect(() => {
+    if ((!activeGuardianSessionId || !guardianSessions.some(session => session.id === activeGuardianSessionId)) && guardianSessions[0]) {
+      setActiveGuardianSessionId(guardianSessions[0].id);
+    }
+  }, [activeGuardianSessionId, guardianSessions]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(GUARDIAN_SESSIONS_KEY, JSON.stringify(guardianSessions));
+      if (activeGuardianSessionId) {
+        window.localStorage.setItem(ACTIVE_GUARDIAN_SESSION_KEY, activeGuardianSessionId);
+      }
+    } catch (error) {
+      console.warn('Could not save guardian sessions:', error);
+    }
+  }, [guardianSessions, activeGuardianSessionId]);
 
   const sendLoginLink = async (email: string) => {
     const normalizedEmail = normalizeEmail(email);
@@ -1090,10 +1136,16 @@ export default function App() {
 
   const handleGuardianSubmit = async () => {
     const message = guardianInput.trim();
-    if (!message || isGuardianReplying) return;
+    if (!message || isGuardianReplying || !activeGuardianSession) return;
 
     const nextMessages = [...guardianMessages, { role: 'user' as const, content: message }];
-    setGuardianMessages(nextMessages);
+    const nextTitle = activeGuardianSession.title === 'Nova sessão'
+      ? message.slice(0, 34)
+      : activeGuardianSession.title;
+    setGuardianSessions(prev => prev.map(session => session.id === activeGuardianSession.id
+      ? { ...session, title: nextTitle, messages: nextMessages }
+      : session
+    ));
     setGuardianInput('');
     setGuardianError('');
     setIsGuardianReplying(true);
@@ -1117,10 +1169,17 @@ export default function App() {
         throw new Error(data?.error || 'Não foi possível falar com o Guardião agora.');
       }
 
-      setGuardianMessages([...nextMessages, { role: 'assistant', content: data.message || 'Estou aqui. Pode me contar um pouco mais?' }]);
+      const assistantMessages = [...nextMessages, { role: 'assistant' as const, content: data.message || 'Estou aqui. Pode me contar um pouco mais?' }];
+      setGuardianSessions(prev => prev.map(session => session.id === activeGuardianSession.id
+        ? { ...session, title: nextTitle, messages: assistantMessages }
+        : session
+      ));
     } catch (error: any) {
       setGuardianError(error?.message || 'Não foi possível falar com o Guardião agora.');
-      setGuardianMessages(nextMessages);
+      setGuardianSessions(prev => prev.map(session => session.id === activeGuardianSession.id
+        ? { ...session, title: nextTitle, messages: nextMessages }
+        : session
+      ));
     } finally {
       setIsGuardianReplying(false);
     }
@@ -1281,8 +1340,8 @@ export default function App() {
       }
       case 'guardiao':
         return (
-          <div className="mx-auto max-w-7xl px-0 sm:px-4 pb-20">
-            <div className="min-h-[76vh] overflow-hidden rounded-[28px] border border-[#2b4d47]/50 bg-[#0a4544] shadow-2xl lg:grid lg:grid-cols-[280px_1fr]">
+          <div className="h-[calc(100vh-74px)] w-full">
+            <div className="h-full overflow-hidden bg-[#0a4544] shadow-2xl lg:grid lg:grid-cols-[280px_1fr]">
               <aside className="hidden lg:flex bg-[#1b2b2f] border-r border-white/10 flex-col">
                 <div className="px-6 py-6 flex items-center gap-3">
                   <img
@@ -1296,10 +1355,9 @@ export default function App() {
                 <div className="px-3 py-5 border-t border-white/5">
                   <button
                     onClick={() => {
-                      setGuardianMessages([{
-                        role: 'assistant',
-                        content: 'Eu sou o Guardião do Éden. Traga sua pergunta, reflexão ou desafio do dia.'
-                      }]);
+                      const session = createGuardianSession();
+                      setGuardianSessions(prev => [session, ...prev]);
+                      setActiveGuardianSessionId(session.id);
                       setGuardianInput('');
                       setGuardianError('');
                     }}
@@ -1310,14 +1368,15 @@ export default function App() {
                 </div>
 
                 <div className="flex-1 px-2 space-y-2">
-                  {[
-                    { title: 'hora da terapia', active: true },
-                    { title: 'Hora da Terapia', active: false },
-                  ].map((session, index) => (
+                  {guardianSessions.map((session) => (
                     <button
-                      key={index}
+                      key={session.id}
+                      onClick={() => {
+                        setActiveGuardianSessionId(session.id);
+                        setGuardianError('');
+                      }}
                       className={`w-full rounded-lg px-4 py-3 flex items-center justify-between gap-3 text-left transition-colors ${
-                        session.active
+                        session.id === activeGuardianSession?.id
                           ? 'bg-[#3a4036] border border-[#bfa66a]/20 text-[#d8bf7a]'
                           : 'text-[#c0d2cf] hover:bg-white/5'
                       }`}
@@ -1326,7 +1385,7 @@ export default function App() {
                         <MessageSquare size={14} className="shrink-0" />
                         <span className="truncate text-sm font-semibold">{session.title}</span>
                       </span>
-                      <span className="text-xs text-[#9bb5b2]">20/04</span>
+                      <span className="text-xs text-[#9bb5b2]">{session.date}</span>
                     </button>
                   ))}
                 </div>
@@ -1339,7 +1398,7 @@ export default function App() {
                 </button>
               </aside>
 
-              <div className="flex min-h-[76vh] flex-col bg-[#0a4544]">
+              <div className="flex h-full flex-col bg-[#0a4544]">
                 <header className="h-16 sm:h-[72px] bg-[#163437] border-b border-white/10 px-5 sm:px-8 flex items-center gap-4">
                   <img
                     src="http://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-Guardiao.png"
@@ -1351,12 +1410,37 @@ export default function App() {
                     <p className="text-[#9bb5b2] text-xs sm:text-sm font-semibold">Método RADAR Comportamental</p>
                   </div>
                   <button
-                    onClick={() => setActiveTab('jornada')}
+                    onClick={() => {
+                      const session = createGuardianSession();
+                      setGuardianSessions(prev => [session, ...prev]);
+                      setActiveGuardianSessionId(session.id);
+                      setGuardianInput('');
+                      setGuardianError('');
+                    }}
                     className="ml-auto lg:hidden rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-[#c0d2cf] hover:bg-white/5 transition-colors"
                   >
-                    Sair
+                    Nova
                   </button>
                 </header>
+
+                <div className="lg:hidden flex gap-2 overflow-x-auto border-b border-white/10 bg-[#1b2b2f] px-3 py-2 scrollbar-hide">
+                  {guardianSessions.map((session) => (
+                    <button
+                      key={session.id}
+                      onClick={() => {
+                        setActiveGuardianSessionId(session.id);
+                        setGuardianError('');
+                      }}
+                      className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${
+                        session.id === activeGuardianSession?.id
+                          ? 'bg-[#3a4036] text-[#d8bf7a] border border-[#bfa66a]/20'
+                          : 'text-[#c0d2cf] bg-white/5'
+                      }`}
+                    >
+                      {session.title}
+                    </button>
+                  ))}
+                </div>
 
                 <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-10 sm:py-10 custom-scrollbar">
                   <div className="mx-auto max-w-[800px] space-y-7">
@@ -3721,7 +3805,6 @@ export default function App() {
       )}
 
       {/* Bottom Navigation Navbar */}
-      {activeTab !== 'guardiao' && (
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#020709]/95 backdrop-blur-md border-t border-[#0b2831]/50 pb-safe">
         <div className="flex justify-around items-center max-w-lg mx-auto px-2 py-3 sm:max-w-2xl">
           {userTabs.map(tab => {
@@ -3754,7 +3837,6 @@ export default function App() {
           })}
         </div>
       </div>
-      )}
 
       {/* Modals & Overlays */}
       {isFolhasModalOpen && selectedUser && (
