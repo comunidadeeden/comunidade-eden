@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-let cachedToken = null;
+const cachedTokens = new Map();
 
 const base64Url = (value) => Buffer
   .from(typeof value === 'string' ? value : JSON.stringify(value))
@@ -16,6 +16,8 @@ const getPrivateKey = () => {
 };
 
 export const getGoogleAccessToken = async (scopes = []) => {
+  const scopeKey = [...scopes].sort().join(' ');
+  const cachedToken = cachedTokens.get(scopeKey);
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
     return cachedToken.accessToken;
   }
@@ -27,7 +29,7 @@ export const getGoogleAccessToken = async (scopes = []) => {
   const header = { alg: 'RS256', typ: 'JWT' };
   const claims = {
     iss: clientEmail,
-    scope: scopes.join(' '),
+    scope: scopeKey,
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600
@@ -57,10 +59,10 @@ export const getGoogleAccessToken = async (scopes = []) => {
     throw new Error('Nao foi possivel autenticar a Service Account do Firebase.');
   }
 
-  cachedToken = {
+  cachedTokens.set(scopeKey, {
     accessToken: tokenBody.access_token,
     expiresAt: Date.now() + Number(tokenBody.expires_in || 3600) * 1000
-  };
+  });
 
-  return cachedToken.accessToken;
+  return tokenBody.access_token;
 };
