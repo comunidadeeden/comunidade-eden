@@ -63,7 +63,8 @@ const authorizedFetch = async (url, options = {}, scopes = [FIRESTORE_SCOPE]) =>
       ...(options.headers || {})
     }
   });
-  const body = await response.json().catch(() => ({}));
+  const responseText = await response.text();
+  const body = responseText ? JSON.parse(responseText) : {};
   return { response, body };
 };
 
@@ -109,7 +110,7 @@ export const createAuthUserIfNeeded = async ({ email, name }) => {
   }
 
   const temporaryPassword = crypto.randomBytes(32).toString('base64url');
-  const create = await authorizedFetch(`${authBaseUrl()}/accounts:signUp?key=${webApiKey()}`, {
+  const create = await authorizedFetch(`${authBaseUrl()}/accounts?key=${webApiKey()}`, {
     method: 'POST',
     body: JSON.stringify({
       email,
@@ -122,7 +123,7 @@ export const createAuthUserIfNeeded = async ({ email, name }) => {
 
   if (!create.response.ok) {
     console.error('Firebase Auth create user error:', create.body);
-    throw new Error(`Nao foi possivel criar o usuario no Firebase Auth: ${JSON.stringify(create.body)}`);
+    throw new Error(`Nao foi possivel criar o usuario no Firebase Auth (${create.response.status}): ${JSON.stringify(create.body)}`);
   }
 
   return { uid: create.body.localId, created: true };
