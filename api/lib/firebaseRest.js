@@ -109,7 +109,7 @@ export const createAuthUserIfNeeded = async ({ email, name }) => {
   }
 
   const temporaryPassword = crypto.randomBytes(32).toString('base64url');
-  const create = await authorizedFetch(`${authBaseUrl()}/accounts?key=${webApiKey()}`, {
+  const create = await authorizedFetch(`${authBaseUrl()}/accounts:signUp?key=${webApiKey()}`, {
     method: 'POST',
     body: JSON.stringify({
       email,
