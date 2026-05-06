@@ -159,7 +159,7 @@ export const generatePasswordSetupLink = async (email) => {
 
   if (!result.response.ok || !result.body.oobLink) {
     console.error('Firebase Auth OOB link error:', result.body);
-    throw new Error('Nao foi possivel gerar o link de criacao de senha.');
+    throw new Error(`Nao foi possivel gerar o link de criacao de senha (${result.response.status}): ${JSON.stringify(result.body)}`);
   }
 
   return result.body.oobLink;
