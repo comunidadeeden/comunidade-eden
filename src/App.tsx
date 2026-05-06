@@ -572,6 +572,10 @@ export default function App() {
 	      if (userData?.isBlocked || isAccessExpired(userData?.accessExpiresAt)) {
 	        setLoginError(userData?.isBlocked ? 'Seu acesso está bloqueado. Entre em contato com o suporte do Éden.' : 'Seu acesso expirou. Entre em contato para renovar sua participação no Éden.');
 	        await signOut(auth);
+	        return;
+	      }
+	      if (userData) {
+	        setUser(prev => prev && prev.uid === user.uid ? { ...prev, ...userData, uid: user.uid } : prev);
 	      }
 	    }, (error) => {
 	      handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
@@ -1072,6 +1076,11 @@ export default function App() {
 	                 lastAudioDate: today,
 	                 updatedAt: serverTimestamp()
 	              });
+              setUser({
+                ...user,
+                points: (user.points || 0) + 5,
+                lastAudioDate: today
+              });
            } catch(e) {
               handleFirestoreError(e, OperationType.UPDATE, `users/${user.uid}`);
            }
@@ -1115,6 +1124,11 @@ export default function App() {
 	        lastMissionRewardDate: todayChallenge.date,
 	        updatedAt: serverTimestamp()
 	      });
+      setUser({
+        ...user,
+        points: (user.points || 0) + 30,
+        lastMissionRewardDate: todayChallenge.date
+      });
 
       setIsMissionModalOpen(false);
       setAudioChecked(false);
@@ -2776,7 +2790,7 @@ export default function App() {
                           </td>
                           <td className="px-6 py-5">
                             <span className="text-gray-400 text-sm font-medium tracking-tight">
-                              {student.points && student.points >= 150 ? 'Transformador' : 'Renascido'}
+                              {getUserLevel(student.points || 0).title}
                             </span>
                           </td>
                           <td className="px-8 py-5 text-right">
@@ -2825,6 +2839,37 @@ export default function App() {
                                 className="px-4 py-2 bg-[#4bd3ff] rounded-lg text-[#020507] font-black text-[10px] uppercase tracking-widest hover:bg-[#3bc2ee] transition-colors shadow-lg"
                               >
                                 Folhas
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setPromptConfig({
+                                    title: 'Excluir Usuário?',
+                                    description: `Esta ação remove ${student.name || student.email} da plataforma e apaga o convite de acesso vinculado ao email. Deseja continuar?`,
+                                    submitText: 'Excluir',
+                                    fields: [],
+                                    onSubmit: async () => {
+                                      try {
+                                        if (student.role === 'admin' || student.email === ADMIN_EMAIL) {
+                                          alert('Admins não podem ser excluídos por aqui.');
+                                          return;
+                                        }
+                                        await deleteDoc(doc(db, 'users', student.uid));
+                                        if (student.email) {
+                                          await deleteDoc(doc(db, 'studentInvites', getInviteIdFromEmail(student.email)));
+                                        }
+                                      } catch (e) {
+                                        handleFirestoreError(e, OperationType.DELETE, `users/${student.uid}`);
+                                      }
+                                    },
+                                    onCancel: () => setPromptConfig(null)
+                                  });
+                                }}
+                                disabled={student.role === 'admin' || student.email === ADMIN_EMAIL}
+                                className="p-2.5 bg-black/40 border border-white/5 rounded-lg text-gray-400 hover:text-red-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                title={student.role === 'admin' || student.email === ADMIN_EMAIL ? 'Admins não podem ser excluídos por aqui' : 'Excluir usuário'}
+                              >
+                                <Trash2 size={16} />
                               </button>
 
                             </div>
@@ -3493,7 +3538,7 @@ export default function App() {
                       
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-2 mt-2">
                         <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
-                          <div className={`w-2.5 h-2.5 rotate-45 shrink-0 shadow-[0_0_10px_rgba(16,185,129,0.8)] bg-emerald-400`}></div>
+                          <currLvl.icon size={12} className="text-emerald-400 shrink-0" />
                           <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
                             {currLvl.title}
                           </span>

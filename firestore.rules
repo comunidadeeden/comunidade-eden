@@ -169,6 +169,7 @@ service cloud.firestore {
           isStudentMissionRewardUpdate()
         )
       );
+      allow delete: if isAdmin();
     }
 
     // --- STUDENT INVITES ---
