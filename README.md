@@ -36,10 +36,10 @@ variaveis de ambiente da Vercel/local, nunca no GitHub.
 Variaveis necessarias:
 
 ```bash
-APP_URL=https://comunidade-eden.vercel.app
+APP_URL=https://comunidadeeden.com.br
 RESEND_API_KEY=
-RESEND_FROM_EMAIL="Eden <acesso@seudominio.com>"
-RESEND_REPLY_TO=suporte@seudominio.com
+RESEND_FROM_EMAIL="Eden <acesso@brunosimplicio.com.br>"
+RESEND_REPLY_TO=suporte@brunosimplicio.com.br
 ```
 
 Antes de ativar a automacao de compras, configure o dominio na Resend e valide os
