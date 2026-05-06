@@ -9,7 +9,11 @@ const firebaseConfig = JSON.parse(fs.readFileSync(new URL('../../firebase-applet
 const projectId = () => process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId;
 const databaseId = () => process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)';
 const webApiKey = () => process.env.FIREBASE_WEB_API_KEY || firebaseConfig.apiKey;
-const appUrl = () => process.env.APP_URL || 'https://www.comunidadeeden.com.br';
+const appUrl = () => {
+  const rawUrl = process.env.APP_URL || 'https://www.comunidadeeden.com.br';
+  const normalizedUrl = rawUrl.replace(/^APP_URL=/, '').trim();
+  return normalizedUrl.startsWith('http') ? normalizedUrl : `https://${normalizedUrl}`;
+};
 
 const firestoreBaseUrl = () => (
   `https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents`
@@ -169,7 +173,7 @@ export const generatePasswordSetupLink = async (email) => {
     body: JSON.stringify({
       requestType: 'PASSWORD_RESET',
       email,
-      continueUrl: appUrl(),
+      continueUrl: `${appUrl()}/auth/action`,
       returnOobLink: true
     })
   }, scopes);

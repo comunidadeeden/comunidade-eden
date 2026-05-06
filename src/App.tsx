@@ -4,7 +4,7 @@ import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment
 import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
-import { isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword } from 'firebase/auth';
+import { confirmPasswordReset, isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword, verifyPasswordResetCode } from 'firebase/auth';
 import { doc, getDoc, where, getDocs, collection, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp, increment } from 'firebase/firestore';
 
 export const ICON_MAP: Record<string, React.FC<any>> = {
@@ -27,6 +27,100 @@ const GUARDIAN_INITIAL_MESSAGE = 'Eu sou o Guardião do Éden. Traga sua pergunt
 
 type GuardianMessage = { role: 'user' | 'assistant', content: string };
 type GuardianSession = { id: string, title: string, date: string, messages: GuardianMessage[] };
+
+function PasswordActionPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'success' | 'error'>('loading');
+  const [message, setMessage] = useState('Validando seu link de acesso...');
+  const oobCode = new URLSearchParams(window.location.search).get('oobCode') || '';
+
+  useEffect(() => {
+    if (!oobCode) {
+      setStatus('error');
+      setMessage('Link inválido ou incompleto.');
+      return;
+    }
+
+    verifyPasswordResetCode(auth, oobCode)
+      .then((verifiedEmail) => {
+        setEmail(verifiedEmail);
+        setStatus('ready');
+        setMessage('Crie sua senha para acessar a Comunidade Éden.');
+      })
+      .catch(() => {
+        setStatus('error');
+        setMessage('Este link expirou ou já foi utilizado. Solicite um novo acesso.');
+      });
+  }, [oobCode]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (password.length < 6) {
+      setMessage('A senha precisa ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMessage('As senhas não conferem.');
+      return;
+    }
+
+    try {
+      setStatus('loading');
+      setMessage('Salvando sua senha...');
+      await confirmPasswordReset(auth, oobCode, password);
+      setStatus('success');
+      setMessage('Senha criada com sucesso. Você já pode entrar na comunidade.');
+    } catch (error) {
+      console.error('Password setup error:', error);
+      setStatus('error');
+      setMessage('Não foi possível criar sua senha. Solicite um novo link de acesso.');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#020507] text-white flex items-center justify-center px-6">
+      <div className="w-full max-w-md bg-[#071418] border border-[#4bd3ff]/20 rounded-3xl p-8 shadow-2xl">
+        <p className="text-[#4bd3ff] text-xs font-black uppercase tracking-[0.25em] mb-3">Primeiro acesso</p>
+        <h1 className="text-3xl font-black tracking-tight mb-3">Crie sua senha</h1>
+        <p className="text-gray-400 text-sm leading-relaxed mb-8">{message}</p>
+
+        {status === 'ready' && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Email</label>
+              <input value={email} disabled className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-gray-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Nova senha</label>
+              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]" />
+            </div>
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Confirmar senha</label>
+              <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]" />
+            </div>
+            <button type="submit" className="w-full bg-[#4bd3ff] text-[#020507] rounded-xl py-4 font-black uppercase tracking-widest text-xs hover:bg-[#38bdf8] transition-colors">
+              Criar senha
+            </button>
+          </form>
+        )}
+
+        {status === 'success' && (
+          <a href="/" className="block w-full text-center bg-[#4bd3ff] text-[#020507] rounded-xl py-4 font-black uppercase tracking-widest text-xs hover:bg-[#38bdf8] transition-colors">
+            Entrar na comunidade
+          </a>
+        )}
+
+        {status === 'error' && (
+          <a href="/" className="block w-full text-center bg-white/10 border border-white/10 text-white rounded-xl py-4 font-black uppercase tracking-widest text-xs hover:bg-white/15 transition-colors">
+            Voltar para o login
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const createGuardianSession = (): GuardianSession => ({
   id: Math.random().toString(36).substring(2, 10),
@@ -150,6 +244,10 @@ const JOURNEY_LEVELS = [
 ];
 
 export default function App() {
+  if (window.location.pathname === '/auth/action') {
+    return <PasswordActionPage />;
+  }
+
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const isAdmin = user?.role === 'admin' || user?.email === ADMIN_EMAIL;

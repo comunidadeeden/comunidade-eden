@@ -7,7 +7,8 @@ const escapeHtml = (value = '') => String(value)
 
 const getConfiguredAppUrl = () => {
   const url = process.env.APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || 'https://www.comunidadeeden.com.br';
-  return url.startsWith('http') ? url : `https://${url}`;
+  const normalizedUrl = url.replace(/^APP_URL=/, '').trim();
+  return normalizedUrl.startsWith('http') ? normalizedUrl : `https://${normalizedUrl}`;
 };
 
 export const buildAccessEmail = ({
