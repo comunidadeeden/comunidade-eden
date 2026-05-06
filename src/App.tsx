@@ -279,22 +279,63 @@ export default function App() {
     }
 
     try {
-      await setDoc(doc(db, 'studentInvites', getInviteIdFromEmail(email)), {
-        email,
-        name,
-        phone,
-        accessExpiresAt,
-        role: 'student',
-        invitedBy: user?.uid || '',
-        status: 'invited',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão de admin expirada.');
+
+      const response = await fetch('/api/admin/students', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          student: { email, name, phone, accessExpiresAt }
+        })
       });
-      await sendLoginLink(email);
-      alert(`Convite criado. Enviamos o link de primeiro acesso para ${email}.`);
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || result.results?.[0]?.error || 'Erro ao criar aluno.');
+      alert(`Aluno criado. Enviamos o email para ${email} criar a senha de acesso.`);
     } catch (error) {
       console.error('Error creating student invite:', error);
-      alert('Erro ao criar convite. Confira as regras do Firestore e se o login por link de email está habilitado no Firebase Authentication.');
+      alert(error instanceof Error ? error.message : 'Erro ao criar aluno.');
+    }
+  };
+
+  const handleImportStudents = async (data: Record<string, string>) => {
+    const lines = (data.students || '')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean);
+    const students = lines.map(line => {
+      const [name = '', email = '', phone = '', accessExpiresAt = ''] = line.split(',').map(value => value.trim());
+      return { name, email: normalizeEmail(email), phone, accessExpiresAt };
+    });
+
+    if (students.length === 0) {
+      alert('Cole ao menos um aluno para importar.');
+      return;
+    }
+
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão de admin expirada.');
+
+      const response = await fetch('/api/admin/students', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ students })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao importar alunos.');
+
+      const failedText = result.failed > 0 ? ` ${result.failed} falharam.` : '';
+      alert(`${result.created} aluno(s) importado(s) e notificado(s).${failedText}`);
+    } catch (error) {
+      console.error('Error importing students:', error);
+      alert(error instanceof Error ? error.message : 'Erro ao importar alunos.');
     }
   };
 
@@ -2791,26 +2832,45 @@ export default function App() {
 	                  <h3 className="text-3xl font-black text-white tracking-tight">Gerenciar Usuários</h3>
 	                  <p className="text-gray-400 font-medium tracking-tight">Gerencie alunos, roles e permissões</p>
 	                </div>
-	                <button
-	                  onClick={() => {
-	                    setPromptConfig({
-	                      title: 'Adicionar Aluno',
-	                      description: 'O aluno receberá um link de primeiro acesso por email. A conta no Auth será criada quando ele abrir o link.',
-	                      submitText: 'Criar Aluno',
-	                      fields: [
-	                        { name: 'name', label: 'Nome do aluno', required: true },
-	                        { name: 'email', label: 'Email de acesso', type: 'email', required: true },
-	                        { name: 'phone', label: 'Telefone / WhatsApp' },
-	                        { name: 'accessExpiresAt', label: 'Expira em', type: 'date' }
-	                      ],
-	                      onSubmit: handleCreateStudent,
-	                      onCancel: () => setPromptConfig(null)
-	                    });
-	                  }}
-	                  className="flex items-center justify-center gap-2 bg-[#4bd3ff] hover:bg-[#38bdf8] text-[#020507] px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all"
-	                >
-	                  <Plus size={18} /> Adicionar Aluno
-	                </button>
+	                <div className="flex flex-col sm:flex-row gap-3">
+	                  <button
+	                    onClick={() => {
+	                      setPromptConfig({
+	                        title: 'Importar Alunos',
+	                        description: 'Cole um aluno por linha no formato: Nome, email, telefone, data de expiração. O telefone e a data são opcionais.',
+	                        submitText: 'Importar e Enviar Acesso',
+	                        fields: [
+	                          { name: 'students', label: 'Alunos', type: 'textarea', required: true, placeholder: 'Maria Silva, maria@email.com, 11999999999, 2026-12-31' }
+	                        ],
+	                        onSubmit: handleImportStudents,
+	                        onCancel: () => setPromptConfig(null)
+	                      });
+	                    }}
+	                    className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 border border-white/10 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all"
+	                  >
+	                    <Users size={18} /> Importar
+	                  </button>
+	                  <button
+	                    onClick={() => {
+	                      setPromptConfig({
+	                        title: 'Adicionar Aluno',
+	                        description: 'O aluno será criado no Firebase e receberá um email para definir a senha de acesso.',
+	                        submitText: 'Criar e Enviar Acesso',
+	                        fields: [
+	                          { name: 'name', label: 'Nome do aluno', required: true },
+	                          { name: 'email', label: 'Email de acesso', type: 'email', required: true },
+	                          { name: 'phone', label: 'Telefone / WhatsApp' },
+	                          { name: 'accessExpiresAt', label: 'Expira em', type: 'date' }
+	                        ],
+	                        onSubmit: handleCreateStudent,
+	                        onCancel: () => setPromptConfig(null)
+	                      });
+	                    }}
+	                    className="flex items-center justify-center gap-2 bg-[#4bd3ff] hover:bg-[#38bdf8] text-[#020507] px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all"
+	                  >
+	                    <Plus size={18} /> Adicionar Aluno
+	                  </button>
+	                </div>
 	              </div>
 
               <div className="mt-6 max-w-xl">

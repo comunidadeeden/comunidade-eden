@@ -1,0 +1,94 @@
+import { sendAccessEmail } from './accessEmail.js';
+import {
+  createAuthUserIfNeeded,
+  generatePasswordSetupLink,
+  getDocument,
+  setDocument
+} from './firebaseRest.js';
+
+export const addDays = (date, days) => {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate.toISOString().slice(0, 10);
+};
+
+export const getDefaultAccessExpiresAt = () => {
+  const days = Number(process.env.DEFAULT_ACCESS_DAYS || 365);
+  return addDays(new Date(), Number.isFinite(days) ? days : 365);
+};
+
+export const provisionStudentAccess = async ({
+  email,
+  name,
+  phone = '',
+  accessExpiresAt = '',
+  offerId = '',
+  grantMainAccess = true,
+  productName = 'Comunidade Eden',
+  sendEmail = true
+}) => {
+  const authUser = await createAuthUserIfNeeded({ email, name });
+  const existingUser = await getDocument('users', authUser.uid);
+  const purchasedOfferIds = new Set(existingUser?.purchasedOfferIds || []);
+  if (offerId) purchasedOfferIds.add(offerId);
+
+  const finalAccessExpiresAt = accessExpiresAt ||
+    (grantMainAccess ? getDefaultAccessExpiresAt() : (existingUser?.accessExpiresAt || getDefaultAccessExpiresAt()));
+
+  await setDocument('users', authUser.uid, {
+    uid: authUser.uid,
+    name: existingUser?.name || name || email.split('@')[0],
+    email,
+    avatar: existingUser?.avatar || '',
+    points: existingUser?.points || 0,
+    role: existingUser?.role || 'student',
+    requiresPasswordSetup: true,
+    isBlocked: false,
+    accessExpiresAt: finalAccessExpiresAt,
+    profession: existingUser?.profession || '',
+    instagram: existingUser?.instagram || '',
+    phone: phone || existingUser?.phone || '',
+    maritalStatus: existingUser?.maritalStatus || '',
+    hasChildren: existingUser?.hasChildren || false,
+    childrenCount: existingUser?.childrenCount || 0,
+    lastAudioDate: existingUser?.lastAudioDate || '',
+    lastMissionRewardDate: existingUser?.lastMissionRewardDate || '',
+    isCofounder: existingUser?.isCofounder || false,
+    completedChallenges: existingUser?.completedChallenges || [],
+    purchasedOfferIds: Array.from(purchasedOfferIds),
+    updatedAt: new Date()
+  });
+
+  await setDocument('studentInvites', encodeURIComponent(email), {
+    email,
+    name: name || existingUser?.name || email.split('@')[0],
+    phone: phone || existingUser?.phone || '',
+    accessExpiresAt: finalAccessExpiresAt,
+    role: 'student',
+    invitedBy: 'backend',
+    status: 'accepted',
+    acceptedBy: authUser.uid,
+    acceptedAt: new Date(),
+    updatedAt: new Date()
+  });
+
+  let emailSent = false;
+  if (sendEmail) {
+    const setupPasswordUrl = await generatePasswordSetupLink(email);
+    await sendAccessEmail({
+      to: email,
+      name: name || existingUser?.name,
+      productName,
+      setupPasswordUrl
+    });
+    emailSent = true;
+  }
+
+  return {
+    uid: authUser.uid,
+    created: authUser.created,
+    emailSent,
+    accessExpiresAt: finalAccessExpiresAt,
+    purchasedOfferIds: Array.from(purchasedOfferIds)
+  };
+};

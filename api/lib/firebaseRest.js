@@ -145,6 +145,23 @@ export const getAuthUserByEmail = async (email) => {
   return user?.localId ? { uid: user.localId, email: user.email } : null;
 };
 
+export const getAuthUserByIdToken = async (idToken) => {
+  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${webApiKey()}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken })
+  });
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    console.error('Firebase Auth idToken lookup error:', body);
+    throw new Error('Token de autenticacao invalido.');
+  }
+
+  const user = body.users?.[0];
+  return user?.localId ? { uid: user.localId, email: user.email } : null;
+};
+
 export const generatePasswordSetupLink = async (email) => {
   const scopes = [IDENTITY_TOOLKIT_SCOPE];
   const result = await authorizedFetch(`${authBaseUrl()}/accounts:sendOobCode?key=${webApiKey()}`, {

@@ -1,7 +1,5 @@
-import { sendAccessEmail } from '../lib/accessEmail.js';
+import { provisionStudentAccess } from '../lib/accessProvisioning.js';
 import {
-  createAuthUserIfNeeded,
-  generatePasswordSetupLink,
   getAuthUserByEmail,
   getDocument,
   setDocument
@@ -16,61 +14,8 @@ import {
   verifyHotmartRequest
 } from '../lib/hotmart.js';
 
-const addDays = (date, days) => {
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
-  return nextDate.toISOString().slice(0, 10);
-};
-
-const getAccessExpiresAt = () => {
-  const days = Number(process.env.DEFAULT_ACCESS_DAYS || 365);
-  return addDays(new Date(), Number.isFinite(days) ? days : 365);
-};
-
 const upsertStudentAccess = async ({ email, name, offerId, grantMainAccess }) => {
-  const authUser = await createAuthUserIfNeeded({ email, name });
-  const existingUser = await getDocument('users', authUser.uid);
-  const purchasedOfferIds = new Set(existingUser?.purchasedOfferIds || []);
-  if (offerId) purchasedOfferIds.add(offerId);
-
-  await setDocument('users', authUser.uid, {
-    uid: authUser.uid,
-    name: existingUser?.name || name || email.split('@')[0],
-    email,
-    avatar: existingUser?.avatar || '',
-    points: existingUser?.points || 0,
-    role: existingUser?.role || 'student',
-    requiresPasswordSetup: true,
-    isBlocked: false,
-    accessExpiresAt: grantMainAccess ? getAccessExpiresAt() : (existingUser?.accessExpiresAt || getAccessExpiresAt()),
-    profession: existingUser?.profession || '',
-    instagram: existingUser?.instagram || '',
-    phone: existingUser?.phone || '',
-    maritalStatus: existingUser?.maritalStatus || '',
-    hasChildren: existingUser?.hasChildren || false,
-    childrenCount: existingUser?.childrenCount || 0,
-    lastAudioDate: existingUser?.lastAudioDate || '',
-    lastMissionRewardDate: existingUser?.lastMissionRewardDate || '',
-    isCofounder: existingUser?.isCofounder || false,
-    completedChallenges: existingUser?.completedChallenges || [],
-    purchasedOfferIds: Array.from(purchasedOfferIds),
-    updatedAt: new Date()
-  });
-
-  const setupPasswordUrl = await generatePasswordSetupLink(email);
-  await sendAccessEmail({
-    to: email,
-    name: name || existingUser?.name,
-    productName: 'Comunidade Eden',
-    setupPasswordUrl
-  });
-
-  return {
-    uid: authUser.uid,
-    created: authUser.created,
-    emailSent: true,
-    purchasedOfferIds: Array.from(purchasedOfferIds)
-  };
+  return provisionStudentAccess({ email, name, offerId, grantMainAccess });
 };
 
 const revokeStudentAccess = async ({ email, offerId, revokeMainAccess }) => {
@@ -172,9 +117,6 @@ export default async function handler(request, response) {
     return response.status(200).json({ ok: true, eventId, result });
   } catch (error) {
     console.error('Hotmart webhook error:', error);
-    return response.status(500).json({
-      error: 'Erro interno ao processar webhook da Hotmart.',
-      detail: error.message
-    });
+    return response.status(500).json({ error: 'Erro interno ao processar webhook da Hotmart.' });
   }
 }
