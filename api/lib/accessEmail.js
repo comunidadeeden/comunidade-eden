@@ -6,7 +6,7 @@ const escapeHtml = (value = '') => String(value)
   .replace(/'/g, '&#039;');
 
 const getConfiguredAppUrl = () => {
-  const url = process.env.APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || 'https://comunidadeeden.com.br';
+  const url = process.env.APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || 'https://www.comunidadeeden.com.br';
   return url.startsWith('http') ? url : `https://${url}`;
 };
 

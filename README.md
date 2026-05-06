@@ -36,7 +36,7 @@ variaveis de ambiente da Vercel/local, nunca no GitHub.
 Variaveis necessarias:
 
 ```bash
-APP_URL=https://comunidadeeden.com.br
+APP_URL=https://www.comunidadeeden.com.br
 RESEND_API_KEY=
 RESEND_FROM_EMAIL="Eden <acesso@brunosimplicio.com.br>"
 RESEND_REPLY_TO=suporte@brunosimplicio.com.br
@@ -57,7 +57,7 @@ desativado.
 O endpoint da Hotmart fica em:
 
 ```bash
-https://comunidadeeden.com.br/api/webhooks/hotmart
+https://www.comunidadeeden.com.br/api/webhooks/hotmart
 ```
 
 Variaveis de ambiente necessarias na Vercel:

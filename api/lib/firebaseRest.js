@@ -9,7 +9,7 @@ const firebaseConfig = JSON.parse(fs.readFileSync(new URL('../../firebase-applet
 const projectId = () => process.env.FIREBASE_PROJECT_ID || firebaseConfig.projectId;
 const databaseId = () => process.env.FIRESTORE_DATABASE_ID || firebaseConfig.firestoreDatabaseId || '(default)';
 const webApiKey = () => process.env.FIREBASE_WEB_API_KEY || firebaseConfig.apiKey;
-const appUrl = () => process.env.APP_URL || 'https://comunidadeeden.com.br';
+const appUrl = () => process.env.APP_URL || 'https://www.comunidadeeden.com.br';
 
 const firestoreBaseUrl = () => (
   `https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents`
