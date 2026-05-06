@@ -52,6 +52,38 @@ valor forte e envie uma requisicao `POST` para `/api/test-access-email` usando o
 header `x-eden-test-secret`. Se a variavel nao existir, o endpoint fica
 desativado.
 
+## Webhook Hotmart
+
+O endpoint da Hotmart fica em:
+
+```bash
+https://comunidadeeden.com.br/api/webhooks/hotmart
+```
+
+Variaveis de ambiente necessarias na Vercel:
+
+```bash
+HOTMART_HOTTOK=
+HOTMART_MAIN_PRODUCT_IDS=123456,789012
+HOTMART_OFFER_MAP={"123456":"id_da_oferta_no_firestore","123456:ABCDEF":"id_da_oferta_no_firestore"}
+DEFAULT_ACCESS_DAYS=365
+
+FIREBASE_PROJECT_ID=gen-lang-client-0773439289
+FIRESTORE_DATABASE_ID=ai-studio-7894fd20-6f3b-4479-9bc3-4af439615a46
+FIREBASE_WEB_API_KEY=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=
+```
+
+`HOTMART_MAIN_PRODUCT_IDS` libera o acesso principal da comunidade. `HOTMART_OFFER_MAP`
+liga produtos/ofertas da Hotmart a ofertas criadas no painel do Eden; a chave pode
+ser o ID do produto, o codigo da oferta, ou `produto:oferta`.
+
+Quando a Hotmart enviar uma compra aprovada, o backend cria/encontra o usuario no
+Firebase Auth, atualiza `users/{uid}`, gera um link de criacao de senha e envia o
+email pelo Resend. Reembolso, chargeback e cancelamento removem a oferta comprada
+ou bloqueiam o acesso quando o produto for de acesso principal.
+
 ## Firebase
 
 As regras de seguranca ficam em `firestore.rules`. Antes de publicar, aplique as
