@@ -172,6 +172,9 @@ export default async function handler(request, response) {
     return response.status(200).json({ ok: true, eventId, result });
   } catch (error) {
     console.error('Hotmart webhook error:', error);
-    return response.status(500).json({ error: 'Erro interno ao processar webhook da Hotmart.' });
+    return response.status(500).json({
+      error: 'Erro interno ao processar webhook da Hotmart.',
+      detail: error.message
+    });
   }
 }
