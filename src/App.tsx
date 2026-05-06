@@ -2889,8 +2889,58 @@ export default function App() {
                       <p className="text-gray-400 text-xs truncate">{item.description}</p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button className="p-2 text-gray-400 hover:text-[#4bd3ff]"><Edit2 size={18} /></button>
-                      <button className="p-2 text-gray-400 hover:text-red-400"><Trash2 size={18} /></button>
+                      <button
+                        onClick={() => {
+                          setPromptConfig({
+                            title: 'Editar Material',
+                            fields: [
+                              { name: 'title', label: 'Nome do Material', defaultValue: item.title, required: true },
+                              { name: 'description', label: 'Descrição Curta', defaultValue: item.description || '', type: 'textarea' },
+                              { name: 'imageUrl', label: 'URL da Imagem de Capa', defaultValue: item.imageUrl || '' },
+                              { name: 'videoUrl', label: 'URL do Arquivo PDF/Doc', defaultValue: item.videoUrl || '' }
+                            ],
+                            onSubmit: async (data) => {
+                              try {
+                                await updateDoc(doc(db, 'materials', item.id), {
+                                  title: data.title,
+                                  description: data.description || '',
+                                  imageUrl: data.imageUrl || '',
+                                  videoUrl: data.videoUrl || '',
+                                  type: item.type || 'material',
+                                  duration: item.duration || 'Documento'
+                                });
+                              } catch (e) {
+                                handleFirestoreError(e, OperationType.UPDATE, `materials/${item.id}`);
+                              }
+                            },
+                            onCancel: () => setPromptConfig(null)
+                          });
+                        }}
+                        className="p-2 text-gray-400 hover:text-[#4bd3ff]"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setPromptConfig({
+                            title: 'Excluir Material?',
+                            description: 'Tem certeza que deseja excluir este material permanentemente?',
+                            submitText: 'Excluir',
+                            fields: [],
+                            onSubmit: async () => {
+                              try {
+                                await deleteDoc(doc(db, 'materials', item.id));
+                              } catch (e) {
+                                handleFirestoreError(e, OperationType.DELETE, `materials/${item.id}`);
+                              }
+                            },
+                            onCancel: () => setPromptConfig(null)
+                          });
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-400"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </div>
                 ))}
