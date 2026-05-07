@@ -56,6 +56,9 @@ O mesmo segredo tambem habilita `/api/test-firebase-integration`, usado apenas
 para diagnosticar se a Vercel consegue autenticar com a Service Account e gravar
 no Firestore.
 
+Em producao, remova `ACCESS_EMAIL_TEST_SECRET` depois dos testes para manter os
+endpoints de diagnostico desativados.
+
 ## Webhook Hotmart
 
 O endpoint da Hotmart fica em:

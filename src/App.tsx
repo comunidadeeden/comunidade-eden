@@ -5,7 +5,7 @@ import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Awar
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { confirmPasswordReset, isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword, verifyPasswordResetCode } from 'firebase/auth';
-import { doc, getDoc, where, getDocs, collection, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp, increment } from 'firebase/firestore';
+import { doc, getDoc, where, getDocs, collection, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp, increment, documentId } from 'firebase/firestore';
 
 export const ICON_MAP: Record<string, React.FC<any>> = {
   Crown, Star, Zap, Award, Trophy, Sprout, Shield, Compass, FileText, CheckCircle, Leaf, Key
@@ -481,12 +481,25 @@ export default function App() {
 
   const handleToggleStudentBlock = async (student: UserProfile) => {
     try {
-      await updateDoc(doc(db, 'users', student.uid), {
-        isBlocked: !student.isBlocked,
-        updatedAt: serverTimestamp()
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão de admin expirada.');
+
+      const response = await fetch('/api/admin/student-access', {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          uid: student.uid,
+          email: student.email,
+          isBlocked: !student.isBlocked
+        })
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Não foi possível atualizar o acesso do aluno.');
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${student.uid}`);
+      alert(error instanceof Error ? error.message : 'Não foi possível atualizar o acesso do aluno.');
     }
   };
 
@@ -784,9 +797,14 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    // Real-time trails/modules listener
-    const unsubscribeTrails = onSnapshot(query(collection(db, 'trails'), orderBy('order')), (snapshot) => {
-       const trailsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+    const trailsQuery = !isAdmin && purchasedOfferIds.length === 0
+      ? query(collection(db, 'trails'), where(documentId(), '!=', EXTRA_CONTENT_TRAIL_ID), orderBy(documentId()))
+      : query(collection(db, 'trails'), orderBy('order'));
+
+    const unsubscribeTrails = onSnapshot(trailsQuery, (snapshot) => {
+       const trailsData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as any))
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
        setTrailsState(trailsData.length > 0 ? trailsData : [
         {
           id: 'trail-1',
@@ -925,15 +943,31 @@ export default function App() {
       handleFirestoreError(error, 'LIST' as any, 'dailyAudios');
     });
 
-    // Fetch Ranking (Top 5)
-    const usersRef = collection(db, 'users');
-    const qRanking = query(usersRef, orderBy('points', 'desc'), limit(5));
-    const unsubscribeRanking = onSnapshot(qRanking, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
-      setRankingUsers(docs);
-    }, (error) => {
-      handleFirestoreError(error, 'LIST' as any, 'users');
-    });
+    let unsubscribeRanking: (() => void) | null = null;
+    if (isAdmin) {
+      const usersRef = collection(db, 'users');
+      const qRanking = query(usersRef, orderBy('points', 'desc'), limit(5));
+      unsubscribeRanking = onSnapshot(qRanking, (snapshot) => {
+        const docs = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+        setRankingUsers(docs);
+      }, (error) => {
+        handleFirestoreError(error, 'LIST' as any, 'users');
+      });
+    } else {
+      auth.currentUser?.getIdToken()
+        .then((idToken) => fetch('/api/ranking', {
+          headers: { 'Authorization': `Bearer ${idToken}` }
+        }))
+        .then(async (response) => {
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data?.error || 'Não foi possível carregar o ranking.');
+          setRankingUsers(data.users || []);
+        })
+        .catch((error) => {
+          console.warn('Could not load ranking:', error);
+          setRankingUsers([]);
+        });
+    }
 
     const unsubscribeLevels = onSnapshot(doc(db, 'settings', 'levels'), (docLevel) => {
        if (docLevel.exists()) {
@@ -976,7 +1010,7 @@ export default function App() {
       unsubscribeAllChallenges();
       unsubscribeAllCompletions();
       unsubscribeAllAudios();
-      unsubscribeRanking();
+      if (unsubscribeRanking) unsubscribeRanking();
       unsubscribeLevels();
       unsubscribeVisibility();
       unsubscribeEmailTemplates();
@@ -1383,16 +1417,17 @@ export default function App() {
     setIsGuardianReplying(true);
 
     try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão expirada. Entre novamente para falar com o Guardião.');
+
       const response = await fetch('/api/guardian', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
-          messages: nextMessages.slice(-12),
-          user: user ? {
-            name: user.name,
-            points: user.points || 0,
-            level: getUserLevel(user.points || 0).title
-          } : null
+          messages: nextMessages.slice(-12)
         })
       });
 
@@ -3257,12 +3292,23 @@ export default function App() {
                                           alert('Admins não podem ser excluídos por aqui.');
                                           return;
                                         }
-                                        await deleteDoc(doc(db, 'users', student.uid));
-                                        if (student.email) {
-                                          await deleteDoc(doc(db, 'studentInvites', getInviteIdFromEmail(student.email)));
-                                        }
+                                        const idToken = await auth.currentUser?.getIdToken();
+                                        if (!idToken) throw new Error('Sessão de admin expirada.');
+                                        const response = await fetch('/api/admin/student-access', {
+                                          method: 'DELETE',
+                                          headers: {
+                                            'Authorization': `Bearer ${idToken}`,
+                                            'Content-Type': 'application/json'
+                                          },
+                                          body: JSON.stringify({
+                                            uid: student.uid,
+                                            email: student.email
+                                          })
+                                        });
+                                        const data = await response.json().catch(() => ({}));
+                                        if (!response.ok) throw new Error(data?.error || 'Não foi possível excluir o usuário.');
                                       } catch (e) {
-                                        handleFirestoreError(e, OperationType.DELETE, `users/${student.uid}`);
+                                        alert(e instanceof Error ? e.message : 'Não foi possível excluir o usuário.');
                                       }
                                     },
                                     onCancel: () => setPromptConfig(null)

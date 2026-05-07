@@ -1,4 +1,4 @@
-import { getAuthUserByIdToken, getDocument, incrementDocumentField } from '../lib/firebaseRest.js';
+import { getAuthUserByIdToken, getDocument, queryTopUsersByPoints } from './lib/firebaseRest.js';
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
@@ -18,8 +18,8 @@ const isAccessExpired = (date) => {
 };
 
 export default async function handler(request, response) {
-  if (request.method !== 'POST') {
-    response.setHeader('Allow', 'POST');
+  if (request.method !== 'GET') {
+    response.setHeader('Allow', 'GET');
     return response.status(405).json({ error: 'Metodo nao permitido.' });
   }
 
@@ -30,23 +30,22 @@ export default async function handler(request, response) {
     const authUser = await getAuthUserByIdToken(idToken);
     if (!authUser?.uid) return response.status(401).json({ error: 'Token invalido.' });
 
-    const userProfile = await getDocument('users', authUser.uid);
-    if (!userProfile || userProfile.isBlocked || isAccessExpired(userProfile.accessExpiresAt)) {
+    const requester = await getDocument('users', authUser.uid);
+    if (!requester || requester.isBlocked || isAccessExpired(requester.accessExpiresAt)) {
       return response.status(403).json({ error: 'Acesso indisponivel.' });
     }
 
-    const offerId = String(request.body?.offerId || '').trim();
-    if (!offerId || offerId.length > 160 || !/^[a-zA-Z0-9_-]+$/.test(offerId)) {
-      return response.status(400).json({ error: 'Oferta invalida.' });
-    }
-
-    const offer = await getDocument('offers', offerId);
-    if (!offer) return response.status(404).json({ error: 'Oferta nao encontrada.' });
-
-    await incrementDocumentField('offers', offerId, 'clickCount', 1);
-    return response.status(200).json({ ok: true });
+    const users = await queryTopUsersByPoints(5);
+    return response.status(200).json({
+      users: users.map((user) => ({
+        uid: user.uid,
+        name: user.name || 'Aluna',
+        avatar: user.avatar || '',
+        points: user.points || 0
+      }))
+    });
   } catch (error) {
-    console.error('Offer click API error:', error);
-    return response.status(500).json({ error: 'Nao foi possivel registrar o clique.' });
+    console.error('Ranking API error:', error);
+    return response.status(500).json({ error: 'Nao foi possivel carregar o ranking.' });
   }
 }

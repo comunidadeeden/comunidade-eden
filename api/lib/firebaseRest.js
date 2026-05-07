@@ -106,6 +106,47 @@ export const setDocument = async (collection, id, data) => {
   return fromFirestoreDocument(body);
 };
 
+export const deleteDocument = async (collection, id) => {
+  const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}/${collection}/${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
+
+  if (response.status === 404) return false;
+  if (!response.ok) {
+    console.error('Firestore delete error:', body);
+    throw new Error(`Nao foi possivel excluir ${collection}/${id}.`);
+  }
+
+  return true;
+};
+
+export const queryTopUsersByPoints = async (limit = 5) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 5, 20));
+  const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'users' }],
+        orderBy: [{ field: { fieldPath: 'points' }, direction: 'DESCENDING' }],
+        limit: safeLimit
+      }
+    })
+  });
+
+  if (!response.ok) {
+    console.error('Firestore ranking query error:', body);
+    throw new Error('Nao foi possivel carregar o ranking.');
+  }
+
+  return (Array.isArray(body) ? body : [])
+    .map(item => item.document)
+    .filter(Boolean)
+    .map(document => ({
+      uid: String(document.name || '').split('/').pop(),
+      ...fromFirestoreDocument(document)
+    }));
+};
+
 export const incrementDocumentField = async (collection, id, fieldPath, amount = 1) => {
   const { response, body } = await authorizedFetch(`https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents:commit`, {
     method: 'POST',
@@ -196,6 +237,40 @@ export const getAuthUserByIdToken = async (idToken) => {
 
   const user = body.users?.[0];
   return user?.localId ? { uid: user.localId, email: user.email } : null;
+};
+
+export const setAuthUserDisabled = async (uid, disabled) => {
+  const scopes = [IDENTITY_TOOLKIT_SCOPE];
+  const result = await authorizedFetch(`${authBaseUrl()}/accounts:update?key=${webApiKey()}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      localId: uid,
+      disableUser: Boolean(disabled)
+    })
+  }, scopes);
+
+  if (!result.response.ok) {
+    console.error('Firebase Auth disable user error:', result.body);
+    throw new Error('Nao foi possivel atualizar o acesso do usuario no Firebase Auth.');
+  }
+
+  return true;
+};
+
+export const deleteAuthUser = async (uid) => {
+  const scopes = [IDENTITY_TOOLKIT_SCOPE];
+  const result = await authorizedFetch(`${authBaseUrl()}/accounts:delete?key=${webApiKey()}`, {
+    method: 'POST',
+    body: JSON.stringify({ localId: uid })
+  }, scopes);
+
+  if (!result.response.ok) {
+    if (result.body?.error?.message === 'USER_NOT_FOUND') return false;
+    console.error('Firebase Auth delete user error:', result.body);
+    throw new Error('Nao foi possivel excluir o usuario no Firebase Auth.');
+  }
+
+  return true;
 };
 
 export const generatePasswordSetupLink = async (email) => {

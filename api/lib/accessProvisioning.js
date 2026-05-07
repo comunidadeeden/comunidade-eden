@@ -3,6 +3,7 @@ import {
   createAuthUserIfNeeded,
   generatePasswordSetupLink,
   getDocument,
+  setAuthUserDisabled,
   setDocument
 } from './firebaseRest.js';
 
@@ -36,6 +37,9 @@ export const provisionStudentAccess = async ({
   sendEmail = true
 }) => {
   const authUser = await createAuthUserIfNeeded({ email, name });
+  if (grantMainAccess) {
+    await setAuthUserDisabled(authUser.uid, false);
+  }
   const existingUser = await getDocument('users', authUser.uid);
   const purchasedOfferIds = new Set(existingUser?.purchasedOfferIds || []);
   if (offerId) purchasedOfferIds.add(offerId);

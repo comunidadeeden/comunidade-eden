@@ -1,3 +1,5 @@
+import { getAuthUserByIdToken, getDocument } from './lib/firebaseRest.js';
+
 const DEFAULT_GUARDIAN_PROMPT = [
   'Você é o Guardião do Éden, um mentor conversacional para uma área de membros fechada.',
   'Responda em português do Brasil, com acolhimento, clareza e objetividade.',
@@ -16,6 +18,23 @@ const extractOutputText = (responseBody) => {
     .trim();
 };
 
+const getBearerToken = (request) => {
+  const authorization = request.headers.authorization || '';
+  return authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+};
+
+const isAccessExpired = (date) => {
+  if (!date) return false;
+  const parsedDate = date.includes('-') && date.split('-')[0].length === 4
+    ? new Date(`${date}T23:59:59`)
+    : (() => {
+      const [day, month, year] = String(date).split('-').map(Number);
+      return new Date(year || 0, (month || 1) - 1, day || 1, 23, 59, 59, 999);
+    })();
+  parsedDate.setHours(23, 59, 59, 999);
+  return new Date() > parsedDate;
+};
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -28,7 +47,18 @@ export default async function handler(request, response) {
   }
 
   try {
-    const { messages = [], user = null } = request.body || {};
+    const idToken = getBearerToken(request);
+    if (!idToken) return response.status(401).json({ error: 'Sessão ausente.' });
+
+    const authUser = await getAuthUserByIdToken(idToken);
+    if (!authUser?.uid) return response.status(401).json({ error: 'Sessão inválida.' });
+
+    const userProfile = await getDocument('users', authUser.uid);
+    if (!userProfile || userProfile.isBlocked || isAccessExpired(userProfile.accessExpiresAt)) {
+      return response.status(403).json({ error: 'Acesso indisponível para este usuário.' });
+    }
+
+    const { messages = [] } = request.body || {};
     const sanitizedMessages = Array.isArray(messages)
       ? messages
           .filter((message) => ['user', 'assistant'].includes(message?.role) && typeof message?.content === 'string')
@@ -43,9 +73,7 @@ export default async function handler(request, response) {
       return response.status(400).json({ error: 'Envie uma mensagem para o Guardião.' });
     }
 
-    const userContext = user
-      ? `\nContexto da aluna: nome=${user.name || 'não informado'}, folhas=${user.points || 0}, nível=${user.level || 'não informado'}.`
-      : '';
+    const userContext = `\nContexto da aluna: nome=${userProfile.name || 'não informado'}, folhas=${userProfile.points || 0}.`;
 
     const openaiResponse = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',

@@ -2,6 +2,7 @@ import { provisionStudentAccess } from '../lib/accessProvisioning.js';
 import {
   getAuthUserByEmail,
   getDocument,
+  setAuthUserDisabled,
   setDocument
 } from '../lib/firebaseRest.js';
 import {
@@ -27,6 +28,9 @@ const revokeStudentAccess = async ({ email, offerId, revokeMainAccess }) => {
 
   const purchasedOfferIds = new Set(existingUser.purchasedOfferIds || []);
   if (offerId) purchasedOfferIds.delete(offerId);
+  if (revokeMainAccess) {
+    await setAuthUserDisabled(lookupUser.uid, true);
+  }
 
   await setDocument('users', lookupUser.uid, {
     ...existingUser,

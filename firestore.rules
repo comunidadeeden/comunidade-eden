@@ -27,6 +27,13 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function hasPurchasedExtraContent() {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.purchasedOfferIds is list &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.purchasedOfferIds.size() > 0;
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -145,7 +152,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isSignedIn();
+      allow get: if isAdmin() || isOwner(userId);
       allow list: if isAdmin();
       
       allow create: if (
@@ -222,7 +229,11 @@ service cloud.firestore {
 
     // --- TRAILS, MODULES, CONTENTS ---
     match /trails/{trailId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        (!((('isExtraContent' in resource.data) && resource.data.isExtraContent == true) || trailId == 'conteudos-extras')) ||
+        hasPurchasedExtraContent()
+      );
       allow write: if isAdmin();
     }
     
@@ -281,14 +292,16 @@ service cloud.firestore {
 
     // --- DAILY COMPLETIONS ---
     function isValidCompletion(data) {
-      return data.userId == request.auth.uid &&
+      return data.keys().hasOnly(['userId', 'challengeDate', 'audioChecked', 'responses', 'completedAt']) &&
+             data.userId == request.auth.uid &&
              data.challengeDate is string &&
              data.audioChecked is bool &&
+             (!('responses' in data) || data.responses is map) &&
              data.completedAt == request.time;
     }
 
     match /dailyChallengeCompletions/{completionId} {
-      allow list: if isSignedIn();
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow get: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
       allow create: if isSignedIn() && isValidCompletion(incoming());
       allow update, delete: if isAdmin();
