@@ -4411,17 +4411,18 @@ export default function App() {
             className="absolute inset-0 bg-black/85 backdrop-blur-md"
             onClick={() => setSelectedOffer(null)}
           />
-          <div className="relative w-full max-w-2xl bg-[#071418] border border-[#4bd3ff]/20 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative w-full max-w-5xl bg-[#071418] border border-[#4bd3ff]/20 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             <button
               onClick={() => setSelectedOffer(null)}
               className="absolute top-4 right-4 z-20 p-2 bg-black/40 hover:bg-black/70 text-white rounded-full transition"
             >
               <X size={22} />
             </button>
-            <div className="bg-black/40 overflow-hidden flex items-center justify-center py-5 sm:py-6">
-              <img src={selectedOffer.imageUrl} alt="" className="max-h-[360px] sm:max-h-[420px] w-auto max-w-full object-contain opacity-90" />
-            </div>
-            <div className="p-6 sm:p-8 space-y-5">
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,0.82fr)_1fr]">
+              <div className="bg-black/40 overflow-hidden flex items-center justify-center p-5 sm:p-6 lg:p-8">
+                <img src={selectedOffer.imageUrl} alt="" className="max-h-[360px] sm:max-h-[460px] lg:max-h-[560px] w-auto max-w-full object-contain opacity-90" />
+              </div>
+              <div className="p-6 sm:p-8 lg:p-10 space-y-5 flex flex-col justify-center">
               {(() => {
                 const isPurchased = purchasedOfferIds.includes(selectedOffer.id);
                 return (
@@ -4453,6 +4454,7 @@ export default function App() {
                   </>
                 );
               })()}
+              </div>
             </div>
           </div>
         </div>
