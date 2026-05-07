@@ -613,6 +613,7 @@ export default function App() {
     title: offer.title,
     description: offer.description,
     imageUrl: offer.imageUrl,
+    lessonCount: offer.lessonCount || 0,
     items: []
   });
 
@@ -3390,6 +3391,7 @@ export default function App() {
                         { name: 'description', label: 'Descrição da oferta', type: 'textarea', required: true },
                         { name: 'imageUrl', label: 'Link da capa', required: true },
                         { name: 'checkoutUrl', label: 'Link do botão / checkout', required: true },
+                        { name: 'lessonCount', label: 'Quantidade de aulas', type: 'number', placeholder: '0' },
                       ],
                       onSubmit: async (data) => {
                         try {
@@ -3401,6 +3403,7 @@ export default function App() {
                             title: data.title,
                             description: data.description || '',
                             imageUrl: data.imageUrl || '',
+                            lessonCount: Number(data.lessonCount || 0),
                             items: []
                           };
                           await setDoc(offerRef, {
@@ -3408,6 +3411,7 @@ export default function App() {
                             description: data.description || '',
                             imageUrl: data.imageUrl || '',
                             checkoutUrl: data.checkoutUrl || '',
+                            lessonCount: Number(data.lessonCount || 0),
                             moduleId: newModule.id,
                             createdAt: serverTimestamp(),
                             updatedAt: serverTimestamp()
@@ -3448,6 +3452,7 @@ export default function App() {
                         <p className="text-gray-400 text-sm mt-2 line-clamp-3">{offer.description}</p>
                       </div>
                       <p className="text-gray-500 text-xs truncate">{offer.checkoutUrl}</p>
+                      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{offer.lessonCount ? `${offer.lessonCount} aula(s)` : 'Sem tag de aulas'}</p>
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => {
@@ -3458,6 +3463,7 @@ export default function App() {
                                 { name: 'description', label: 'Descrição da oferta', type: 'textarea', defaultValue: offer.description || '', required: true },
                                 { name: 'imageUrl', label: 'Link da capa', defaultValue: offer.imageUrl || '', required: true },
                                 { name: 'checkoutUrl', label: 'Link do botão / checkout', defaultValue: offer.checkoutUrl || '', required: true },
+                                { name: 'lessonCount', label: 'Quantidade de aulas', type: 'number', defaultValue: String(offer.lessonCount || 0), placeholder: '0' },
                               ],
                               onSubmit: async (data) => {
                                 try {
@@ -3469,6 +3475,7 @@ export default function App() {
                                     title: data.title,
                                     description: data.description || '',
                                     imageUrl: data.imageUrl || '',
+                                    lessonCount: Number(data.lessonCount || 0),
                                     items: (trail.modules || []).find(module => module.id === moduleId)?.items || []
                                   };
                                   const hasSyncedModule = (trail.modules || []).some(module => module.id === moduleId);
@@ -3481,6 +3488,7 @@ export default function App() {
                                     description: data.description || '',
                                     imageUrl: data.imageUrl || '',
                                     checkoutUrl: data.checkoutUrl || '',
+                                    lessonCount: Number(data.lessonCount || 0),
                                     moduleId,
                                     updatedAt: serverTimestamp()
                                   });
@@ -4866,22 +4874,28 @@ function TrailRow({ trail, onSelectModule, user }: { trail: Trail, onSelectModul
            className="flex gap-3 sm:gap-4 overflow-x-auto scrollbar-hide px-2 pb-4 pt-2 -mt-2 smooth-scroll"
            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {trail.modules.map(mod => (
-            <div 
-              key={mod.id}
-              onClick={() => onSelectModule(mod)}
-              className="relative shrink-0 w-36 sm:w-44 md:w-52 aspect-[9/16] rounded-none bg-[#0b2831]/20 cursor-pointer overflow-hidden transition-all duration-300 hover:scale-105 hover:z-20 shadow-lg hover:shadow-2xl group/card border border-white/5 hover:border-white/20"
-            >
-              <img src={mod.imageUrl} alt={mod.title} className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110 opacity-90 group-hover/card:opacity-100" />
-              
-              <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-              <div className="absolute inset-x-0 bottom-0 p-3 flex justify-start">
-                 <span className="text-[9px] sm:text-[10px] font-bold text-[#4bd3ff] bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 backdrop-blur-sm px-2 py-1 rounded tracking-wider uppercase shadow-lg">
-                   {mod.items?.length || 0} Aulas
-                 </span>
+          {trail.modules.map(mod => {
+            const lessonCount = mod.isOffer ? (mod.lessonCount || 0) : (mod.items?.length || 0);
+            const shouldShowLessonCount = !mod.isOffer || lessonCount > 0;
+            return (
+              <div 
+                key={mod.id}
+                onClick={() => onSelectModule(mod)}
+                className="relative shrink-0 w-36 sm:w-44 md:w-52 aspect-[9/16] rounded-none bg-[#0b2831]/20 cursor-pointer overflow-hidden transition-all duration-300 hover:scale-105 hover:z-20 shadow-lg hover:shadow-2xl group/card border border-white/5 hover:border-white/20"
+              >
+                <img src={mod.imageUrl} alt={mod.title} className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110 opacity-90 group-hover/card:opacity-100" />
+                
+                <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                {shouldShowLessonCount && (
+                  <div className="absolute inset-x-0 bottom-0 p-3 flex justify-start">
+                     <span className="text-[9px] sm:text-[10px] font-bold text-[#4bd3ff] bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 backdrop-blur-sm px-2 py-1 rounded tracking-wider uppercase shadow-lg">
+                       {lessonCount} Aulas
+                     </span>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <button 

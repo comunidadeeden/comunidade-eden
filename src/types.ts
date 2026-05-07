@@ -25,6 +25,7 @@ export interface Module {
   items: ContentItem[];
   offerId?: string;
   isOffer?: boolean;
+  lessonCount?: number;
 }
 
 export interface Trail {
@@ -82,6 +83,7 @@ export interface Offer {
   imageUrl: string;
   checkoutUrl: string;
   moduleId?: string;
+  lessonCount?: number;
   createdAt?: any;
   updatedAt?: any;
 }
