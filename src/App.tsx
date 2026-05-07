@@ -24,6 +24,17 @@ const EXTRA_CONTENT_TRAIL_ID = 'conteudos-extras';
 const GUARDIAN_SESSIONS_KEY = 'edenGuardianSessions';
 const ACTIVE_GUARDIAN_SESSION_KEY = 'edenActiveGuardianSession';
 const GUARDIAN_INITIAL_MESSAGE = 'Eu sou o Guardião do Éden. Traga sua pergunta, reflexão ou desafio do dia.';
+const DEFAULT_ACCESS_EMAIL_TEMPLATE = {
+  subject: 'Seu acesso ao {{productName}}',
+  preview: 'Crie sua senha para acessar o {{productName}}.',
+  eyebrow: 'Acesso liberado',
+  heading: 'Bem-vinda ao {{productName}}',
+  intro: 'Olá, {{name}}.',
+  body: 'Seu acesso foi liberado. Agora falta apenas criar sua senha para entrar na área de membros.',
+  buttonLabel: 'Criar minha senha',
+  footer: 'Depois de criar a senha, você pode acessar diretamente por {{appUrl}}.',
+  note: 'Se você não reconhece essa compra, ignore este email.'
+};
 
 type GuardianMessage = { role: 'user' | 'assistant', content: string };
 type GuardianSession = { id: string, title: string, date: string, messages: GuardianMessage[] };
@@ -570,6 +581,7 @@ export default function App() {
     gameficacao: true,
     guardiao: true,
   });
+  const [accessEmailTemplate, setAccessEmailTemplate] = useState(DEFAULT_ACCESS_EMAIL_TEMPLATE);
 
   type PromptConfig = {
     title: string;
@@ -945,6 +957,18 @@ export default function App() {
       handleFirestoreError(error, 'GET' as any, 'settings/tabVisibility');
     });
 
+    const unsubscribeEmailTemplates = onSnapshot(doc(db, 'settings', 'emailTemplates'), (docEmail) => {
+      if (docEmail.exists()) {
+        const data = docEmail.data();
+        setAccessEmailTemplate({
+          ...DEFAULT_ACCESS_EMAIL_TEMPLATE,
+          ...(data.access || {})
+        });
+      }
+    }, (error) => {
+      handleFirestoreError(error, 'GET' as any, 'settings/emailTemplates');
+    });
+
     return () => {
       unsubscribeChallenge();
       unsubscribeTodayAudio();
@@ -954,6 +978,7 @@ export default function App() {
       unsubscribeRanking();
       unsubscribeLevels();
       unsubscribeVisibility();
+      unsubscribeEmailTemplates();
     };
   }, [user?.uid, isAdmin]);
 
@@ -2285,6 +2310,109 @@ export default function App() {
     }
   };
 
+  const handleSaveAccessEmailTemplate = async () => {
+    try {
+      await setDoc(doc(db, 'settings', 'emailTemplates'), {
+        access: accessEmailTemplate,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      alert('Email automático salvo com sucesso!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'settings/emailTemplates');
+      alert('Não foi possível salvar o email automático.');
+    }
+  };
+
+  const renderEmailTemplateField = (
+    key: keyof typeof DEFAULT_ACCESS_EMAIL_TEMPLATE,
+    label: string,
+    type: 'input' | 'textarea' = 'input'
+  ) => (
+    <div className="space-y-2">
+      <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">{label}</label>
+      {type === 'textarea' ? (
+        <textarea
+          value={accessEmailTemplate[key]}
+          onChange={(event) => setAccessEmailTemplate(prev => ({ ...prev, [key]: event.target.value }))}
+          className="w-full min-h-[110px] bg-black/40 border border-white/10 p-3 rounded-lg text-white text-sm focus:outline-none focus:border-[#4bd3ff]"
+        />
+      ) : (
+        <input
+          value={accessEmailTemplate[key]}
+          onChange={(event) => setAccessEmailTemplate(prev => ({ ...prev, [key]: event.target.value }))}
+          className="w-full bg-black/40 border border-white/10 p-3 rounded-lg text-white text-sm focus:outline-none focus:border-[#4bd3ff]"
+        />
+      )}
+    </div>
+  );
+
+  const renderAdminEmails = () => (
+    <div className="w-full max-w-7xl space-y-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+        <div>
+          <h3 className="text-2xl font-black text-white uppercase tracking-tight">Emails Automáticos</h3>
+          <p className="text-gray-400 text-sm mt-1">Edite o email enviado quando um aluno recebe acesso pela Hotmart ou pelo painel admin.</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => setAccessEmailTemplate(DEFAULT_ACCESS_EMAIL_TEMPLATE)}
+            className="flex items-center gap-2 bg-white/10 text-white hover:bg-white/15 px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors"
+          >
+            Restaurar Padrão
+          </button>
+          <button
+            onClick={handleSaveAccessEmailTemplate}
+            className="flex items-center gap-2 bg-[#4bd3ff] text-[#020507] hover:bg-[#38bdf8] px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors"
+          >
+            <CheckCircle size={16} /> Salvar Email
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-6">
+        <div className="space-y-4 bg-white/5 border border-white/10 rounded-2xl p-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {renderEmailTemplateField('subject', 'Assunto')}
+            {renderEmailTemplateField('preview', 'Texto de prévia')}
+            {renderEmailTemplateField('eyebrow', 'Tag superior')}
+            {renderEmailTemplateField('buttonLabel', 'Texto do botão')}
+          </div>
+          {renderEmailTemplateField('heading', 'Título')}
+          {renderEmailTemplateField('intro', 'Abertura')}
+          {renderEmailTemplateField('body', 'Corpo do email', 'textarea')}
+          {renderEmailTemplateField('footer', 'Rodapé')}
+          {renderEmailTemplateField('note', 'Observação final')}
+
+          <div className="rounded-xl border border-[#4bd3ff]/20 bg-[#4bd3ff]/10 p-4">
+            <p className="text-[#4bd3ff] text-xs font-black uppercase tracking-widest mb-2">Variáveis disponíveis</p>
+            <p className="text-gray-300 text-sm leading-relaxed">
+              Use <span className="font-mono text-white">{'{{name}}'}</span>, <span className="font-mono text-white">{'{{productName}}'}</span>, <span className="font-mono text-white">{'{{appUrl}}'}</span> e <span className="font-mono text-white">{'{{setupPasswordUrl}}'}</span>.
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-[#020607] border border-white/10 rounded-2xl p-5">
+          <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-4">Prévia visual</p>
+          <div className="bg-[#071418] border border-[#4bd3ff]/20 rounded-2xl overflow-hidden">
+            <div className="p-6 border-b border-white/10">
+              <p className="text-[#4bd3ff] text-[10px] font-black uppercase tracking-[0.25em] mb-2">{accessEmailTemplate.eyebrow.replace('{{productName}}', 'Comunidade Eden')}</p>
+              <h4 className="text-white text-2xl font-black leading-tight">{accessEmailTemplate.heading.replace('{{productName}}', 'Comunidade Eden').replace('{{name}}', 'Maria')}</h4>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-line">{accessEmailTemplate.intro.replace('{{name}}', 'Maria').replace('{{productName}}', 'Comunidade Eden')}</p>
+              <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-line">{accessEmailTemplate.body.replace('{{name}}', 'Maria').replace('{{productName}}', 'Comunidade Eden')}</p>
+              <div className="inline-flex bg-[#4bd3ff] text-[#020507] px-5 py-3 rounded-xl font-black uppercase tracking-widest text-xs">
+                {accessEmailTemplate.buttonLabel}
+              </div>
+              <p className="text-gray-400 text-xs leading-relaxed whitespace-pre-line">{accessEmailTemplate.footer.replace('{{appUrl}}', 'https://www.comunidadeeden.com.br')}</p>
+              <p className="text-gray-500 text-xs leading-relaxed whitespace-pre-line">{accessEmailTemplate.note}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderAdminLevels = () => (
     <div className="w-full max-w-7xl space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
@@ -2426,6 +2554,7 @@ export default function App() {
                 {id: 'modulos', label: 'Módulos', icon: Video},
                 {id: 'missoes', label: 'Missão do Dia', icon: Calendar},
                 {id: 'alunos', label: 'Alunos', icon: Users},
+                {id: 'emails', label: 'Emails', icon: Send},
                 {id: 'materiais', label: 'Materiais', icon: FileText},
                 {id: 'ofertas', label: 'Ofertas', icon: Trophy},
                 {id: 'audio', label: 'Áudio do Dia', icon: Mic},
@@ -3404,6 +3533,8 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {adminActiveSection === 'emails' && renderAdminEmails()}
 
           {adminActiveSection === 'audio' && renderAdminAudios()}
 

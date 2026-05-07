@@ -6,6 +6,14 @@ import {
   setDocument
 } from './firebaseRest.js';
 
+const getAccessEmailTemplate = async () => {
+  const settings = await getDocument('settings', 'emailTemplates').catch((error) => {
+    console.error('Email template read error:', error);
+    return null;
+  });
+  return settings?.access || null;
+};
+
 export const addDays = (date, days) => {
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() + days);
@@ -75,11 +83,13 @@ export const provisionStudentAccess = async ({
   let emailSent = false;
   if (sendEmail) {
     const setupPasswordUrl = await generatePasswordSetupLink(email);
+    const template = await getAccessEmailTemplate();
     await sendAccessEmail({
       to: email,
       name: name || existingUser?.name,
       productName,
-      setupPasswordUrl
+      setupPasswordUrl,
+      template
     });
     emailSent = true;
   }

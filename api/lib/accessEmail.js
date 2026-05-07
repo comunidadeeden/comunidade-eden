@@ -11,28 +11,61 @@ const getConfiguredAppUrl = () => {
   return normalizedUrl.startsWith('http') ? normalizedUrl : `https://${normalizedUrl}`;
 };
 
+export const DEFAULT_ACCESS_EMAIL_TEMPLATE = {
+  subject: 'Seu acesso ao {{productName}}',
+  preview: 'Crie sua senha para acessar o {{productName}}.',
+  eyebrow: 'Acesso liberado',
+  heading: 'Bem-vinda ao {{productName}}',
+  intro: 'Ola, {{name}}.',
+  body: 'Seu acesso foi liberado. Agora falta apenas criar sua senha para entrar na area de membros.',
+  buttonLabel: 'Criar minha senha',
+  footer: 'Depois de criar a senha, voce pode acessar diretamente por {{appUrl}}.',
+  note: 'Se voce nao reconhece essa compra, ignore este email.'
+};
+
+const applyTemplate = (value = '', variables = {}) => String(value).replace(/\{\{(\w+)\}\}/g, (_, key) => {
+  return variables[key] ?? '';
+});
+
+const nl2br = (value = '') => escapeHtml(value).replace(/\n/g, '<br>');
+
 export const buildAccessEmail = ({
   name = '',
   setupPasswordUrl,
-  productName = 'Comunidade Eden'
+  productName = 'Comunidade Eden',
+  template = DEFAULT_ACCESS_EMAIL_TEMPLATE
 }) => {
-  const safeName = escapeHtml(name || 'aluna');
-  const safeProductName = escapeHtml(productName);
+  const appUrlRaw = getConfiguredAppUrl();
+  const variables = {
+    name: name || 'aluna',
+    productName,
+    setupPasswordUrl,
+    appUrl: appUrlRaw
+  };
+  const resolvedTemplate = { ...DEFAULT_ACCESS_EMAIL_TEMPLATE, ...(template || {}) };
   const safeSetupPasswordUrl = escapeHtml(setupPasswordUrl);
-  const appUrl = escapeHtml(getConfiguredAppUrl());
+  const appUrl = escapeHtml(appUrlRaw);
 
-  const subject = `Seu acesso ao ${safeProductName}`;
-  const preview = `Crie sua senha para acessar o ${safeProductName}.`;
+  const subject = applyTemplate(resolvedTemplate.subject, variables);
+  const preview = applyTemplate(resolvedTemplate.preview, variables);
+  const eyebrow = applyTemplate(resolvedTemplate.eyebrow, variables);
+  const heading = applyTemplate(resolvedTemplate.heading, variables);
+  const intro = applyTemplate(resolvedTemplate.intro, variables);
+  const body = applyTemplate(resolvedTemplate.body, variables);
+  const buttonLabel = applyTemplate(resolvedTemplate.buttonLabel, variables);
+  const footer = applyTemplate(resolvedTemplate.footer, variables);
+  const note = applyTemplate(resolvedTemplate.note, variables);
   const text = [
-    `Ola, ${name || 'aluna'}!`,
+    intro,
     '',
-    `Seu acesso ao ${productName} foi liberado.`,
-    'Para criar sua senha e entrar na area de membros, acesse:',
+    body,
+    '',
+    buttonLabel,
     setupPasswordUrl,
     '',
-    `Depois disso, voce pode entrar normalmente por ${getConfiguredAppUrl()}.`,
+    footer,
     '',
-    'Se voce nao reconhece essa compra, ignore este email.'
+    note
   ].join('\n');
 
   const html = `<!doctype html>
@@ -40,7 +73,7 @@ export const buildAccessEmail = ({
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${subject}</title>
+    <title>${escapeHtml(subject)}</title>
   </head>
   <body style="margin:0;background:#020607;font-family:Arial,Helvetica,sans-serif;color:#f7fbfb;">
     <span style="display:none;max-height:0;overflow:hidden;color:transparent;">${escapeHtml(preview)}</span>
@@ -50,17 +83,17 @@ export const buildAccessEmail = ({
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#071418;border:1px solid rgba(75,211,255,0.22);border-radius:24px;overflow:hidden;">
             <tr>
               <td style="padding:34px 32px 22px;border-bottom:1px solid rgba(255,255,255,0.08);">
-                <p style="margin:0 0 10px;color:#4bd3ff;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;">Acesso liberado</p>
-                <h1 style="margin:0;color:#ffffff;font-size:28px;line-height:1.15;">Bem-vinda ao ${safeProductName}</h1>
+                <p style="margin:0 0 10px;color:#4bd3ff;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;">${escapeHtml(eyebrow)}</p>
+                <h1 style="margin:0;color:#ffffff;font-size:28px;line-height:1.15;">${escapeHtml(heading)}</h1>
               </td>
             </tr>
             <tr>
               <td style="padding:30px 32px 34px;">
-                <p style="margin:0 0 18px;color:#d8e5e5;font-size:16px;line-height:1.6;">Ola, ${safeName}.</p>
-                <p style="margin:0 0 24px;color:#d8e5e5;font-size:16px;line-height:1.6;">Seu acesso foi liberado. Agora falta apenas criar sua senha para entrar na area de membros.</p>
-                <a href="${safeSetupPasswordUrl}" style="display:inline-block;background:#4bd3ff;color:#001014;text-decoration:none;font-size:13px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;padding:15px 22px;border-radius:14px;">Criar minha senha</a>
-                <p style="margin:26px 0 0;color:#8fa1a6;font-size:13px;line-height:1.6;">Depois de criar a senha, voce pode acessar diretamente por <a href="${appUrl}" style="color:#4bd3ff;text-decoration:none;">${appUrl}</a>.</p>
-                <p style="margin:22px 0 0;color:#65767c;font-size:12px;line-height:1.6;">Se voce nao reconhece essa compra, ignore este email.</p>
+                <p style="margin:0 0 18px;color:#d8e5e5;font-size:16px;line-height:1.6;">${nl2br(intro)}</p>
+                <p style="margin:0 0 24px;color:#d8e5e5;font-size:16px;line-height:1.6;">${nl2br(body)}</p>
+                <a href="${safeSetupPasswordUrl}" style="display:inline-block;background:#4bd3ff;color:#001014;text-decoration:none;font-size:13px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;padding:15px 22px;border-radius:14px;">${escapeHtml(buttonLabel)}</a>
+                <p style="margin:26px 0 0;color:#8fa1a6;font-size:13px;line-height:1.6;">${nl2br(footer).replace(escapeHtml(appUrlRaw), `<a href="${appUrl}" style="color:#4bd3ff;text-decoration:none;">${appUrl}</a>`)}</p>
+                <p style="margin:22px 0 0;color:#65767c;font-size:12px;line-height:1.6;">${nl2br(note)}</p>
               </td>
             </tr>
           </table>
@@ -77,7 +110,8 @@ export const sendAccessEmail = async ({
   to,
   name,
   setupPasswordUrl,
-  productName
+  productName,
+  template
 }) => {
   if (!process.env.RESEND_API_KEY) {
     throw new Error('RESEND_API_KEY nao foi configurada no ambiente.');
@@ -91,7 +125,7 @@ export const sendAccessEmail = async ({
     throw new Error('Email de destino e link de criacao de senha sao obrigatorios.');
   }
 
-  const email = buildAccessEmail({ name, setupPasswordUrl, productName });
+  const email = buildAccessEmail({ name, setupPasswordUrl, productName, template });
 
   const resendResponse = await fetch('https://api.resend.com/emails', {
     method: 'POST',
