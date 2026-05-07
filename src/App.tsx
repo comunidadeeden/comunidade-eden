@@ -1515,7 +1515,7 @@ export default function App() {
                     key="ofertas"
                     trail={{
                       id: 'ofertas',
-                      title: 'Ofertas',
+                      title: 'Ofertas Exclusivas 🔒',
                       modules: availableOffers.map(createOfferPreviewModule)
                     }}
                     user={user}
