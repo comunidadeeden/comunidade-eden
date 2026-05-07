@@ -82,6 +82,8 @@ export interface Offer {
   description: string;
   imageUrl: string;
   checkoutUrl: string;
+  buttonLabel?: string;
+  helperText?: string;
   moduleId?: string;
   lessonCount?: number;
   createdAt?: any;

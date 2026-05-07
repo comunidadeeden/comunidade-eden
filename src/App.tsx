@@ -3391,6 +3391,8 @@ export default function App() {
                         { name: 'description', label: 'Descrição da oferta', type: 'textarea', required: true },
                         { name: 'imageUrl', label: 'Link da capa', required: true },
                         { name: 'checkoutUrl', label: 'Link do botão / checkout', required: true },
+                        { name: 'buttonLabel', label: 'Texto do botão', defaultValue: 'Comprar agora' },
+                        { name: 'helperText', label: 'Texto abaixo do botão', type: 'textarea' },
                         { name: 'lessonCount', label: 'Quantidade de aulas', type: 'number', placeholder: '0' },
                       ],
                       onSubmit: async (data) => {
@@ -3411,6 +3413,8 @@ export default function App() {
                             description: data.description || '',
                             imageUrl: data.imageUrl || '',
                             checkoutUrl: data.checkoutUrl || '',
+                            buttonLabel: data.buttonLabel || 'Comprar agora',
+                            helperText: data.helperText || '',
                             lessonCount: Number(data.lessonCount || 0),
                             moduleId: newModule.id,
                             createdAt: serverTimestamp(),
@@ -3463,6 +3467,8 @@ export default function App() {
                                 { name: 'description', label: 'Descrição da oferta', type: 'textarea', defaultValue: offer.description || '', required: true },
                                 { name: 'imageUrl', label: 'Link da capa', defaultValue: offer.imageUrl || '', required: true },
                                 { name: 'checkoutUrl', label: 'Link do botão / checkout', defaultValue: offer.checkoutUrl || '', required: true },
+                                { name: 'buttonLabel', label: 'Texto do botão', defaultValue: offer.buttonLabel || 'Comprar agora' },
+                                { name: 'helperText', label: 'Texto abaixo do botão', type: 'textarea', defaultValue: offer.helperText || '' },
                                 { name: 'lessonCount', label: 'Quantidade de aulas', type: 'number', defaultValue: String(offer.lessonCount || 0), placeholder: '0' },
                               ],
                               onSubmit: async (data) => {
@@ -3488,6 +3494,8 @@ export default function App() {
                                     description: data.description || '',
                                     imageUrl: data.imageUrl || '',
                                     checkoutUrl: data.checkoutUrl || '',
+                                    buttonLabel: data.buttonLabel || 'Comprar agora',
+                                    helperText: data.helperText || '',
                                     lessonCount: Number(data.lessonCount || 0),
                                     moduleId,
                                     updatedAt: serverTimestamp()
@@ -4444,11 +4452,13 @@ export default function App() {
                     onClick={() => window.open(selectedOffer.checkoutUrl, '_blank', 'noopener,noreferrer')}
                     className="w-full bg-[#4bd3ff] hover:bg-[#38bdf8] text-[#020507] py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-colors"
                   >
-                    Comprar agora
+                    {selectedOffer.buttonLabel || 'Comprar agora'}
                   </button>
-                  <p className="text-[11px] text-gray-500 text-center">
-                    Depois da compra, a liberação automática será conectada pelo checkout.
-                  </p>
+                  {selectedOffer.helperText && (
+                    <p className="text-[11px] text-gray-500 text-center whitespace-pre-wrap">
+                      {selectedOffer.helperText}
+                    </p>
+                  )}
                 </>
               )}
                   </>
