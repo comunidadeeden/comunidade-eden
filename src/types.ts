@@ -86,6 +86,7 @@ export interface Offer {
   helperText?: string;
   moduleId?: string;
   lessonCount?: number;
+  clickCount?: number;
   createdAt?: any;
   updatedAt?: any;
 }

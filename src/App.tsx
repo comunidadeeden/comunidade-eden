@@ -1417,6 +1417,27 @@ export default function App() {
     }
   };
 
+  const handleOfferCheckoutClick = async (offer: Offer) => {
+    const checkoutUrl = offer.checkoutUrl;
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (idToken) {
+        await fetch('/api/offers/click', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ offerId: offer.id })
+        });
+      }
+    } catch (error) {
+      console.warn('Could not track offer click:', error);
+    } finally {
+      window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
 
   const renderAudioCard = () => (
     <div className="relative group cursor-pointer w-full max-w-2xl mx-auto -mt-2 sm:-mt-6" onClick={toggleAudio}>
@@ -3456,7 +3477,10 @@ export default function App() {
                         <p className="text-gray-400 text-sm mt-2 line-clamp-3">{offer.description}</p>
                       </div>
                       <p className="text-gray-500 text-xs truncate">{offer.checkoutUrl}</p>
-                      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">{offer.lessonCount ? `${offer.lessonCount} aula(s)` : 'Sem tag de aulas'}</p>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-gray-500 text-xs font-bold uppercase tracking-widest">{offer.lessonCount ? `${offer.lessonCount} aula(s)` : 'Sem tag de aulas'}</span>
+                        <span className="text-[#4bd3ff] text-xs font-black uppercase tracking-widest">{offer.clickCount || 0} clique(s)</span>
+                      </div>
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => {
@@ -4449,7 +4473,7 @@ export default function App() {
               ) : (
                 <>
                   <button
-                    onClick={() => window.open(selectedOffer.checkoutUrl, '_blank', 'noopener,noreferrer')}
+                    onClick={() => handleOfferCheckoutClick(selectedOffer)}
                     className="w-full bg-[#4bd3ff] hover:bg-[#38bdf8] text-[#020507] py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-colors"
                   >
                     {selectedOffer.buttonLabel || 'Comprar agora'}

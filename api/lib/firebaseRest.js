@@ -19,6 +19,10 @@ const firestoreBaseUrl = () => (
   `https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents`
 );
 
+const firestoreDocumentName = (collection, id) => (
+  `projects/${projectId()}/databases/${databaseId()}/documents/${collection}/${id}`
+);
+
 const authBaseUrl = () => `https://identitytoolkit.googleapis.com/v1/projects/${projectId()}`;
 
 const toFirestoreValue = (value) => {
@@ -100,6 +104,34 @@ export const setDocument = async (collection, id, data) => {
   }
 
   return fromFirestoreDocument(body);
+};
+
+export const incrementDocumentField = async (collection, id, fieldPath, amount = 1) => {
+  const { response, body } = await authorizedFetch(`https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents:commit`, {
+    method: 'POST',
+    body: JSON.stringify({
+      writes: [
+        {
+          transform: {
+            document: firestoreDocumentName(collection, encodeURIComponent(id)),
+            fieldTransforms: [
+              {
+                fieldPath,
+                increment: { integerValue: String(amount) }
+              }
+            ]
+          }
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    console.error('Firestore increment error:', body);
+    throw new Error(`Nao foi possivel incrementar ${collection}/${id}.${fieldPath}.`);
+  }
+
+  return body;
 };
 
 export const createAuthUserIfNeeded = async ({ email, name }) => {
