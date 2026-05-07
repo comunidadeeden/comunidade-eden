@@ -70,8 +70,16 @@ function PasswordActionPage() {
       setStatus('loading');
       setMessage('Salvando sua senha...');
       await confirmPasswordReset(auth, oobCode, password);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      await updateDoc(doc(db, 'users', credential.user.uid), {
+        requiresPasswordSetup: false,
+        updatedAt: serverTimestamp()
+      });
       setStatus('success');
-      setMessage('Senha criada com sucesso. Você já pode entrar na comunidade.');
+      setMessage('Senha criada com sucesso. Entrando na comunidade...');
+      window.setTimeout(() => {
+        window.location.assign('/');
+      }, 800);
     } catch (error) {
       console.error('Password setup error:', error);
       setStatus('error');
@@ -108,7 +116,7 @@ function PasswordActionPage() {
 
         {status === 'success' && (
           <a href="/" className="block w-full text-center bg-[#4bd3ff] text-[#020507] rounded-xl py-4 font-black uppercase tracking-widest text-xs hover:bg-[#38bdf8] transition-colors">
-            Entrar na comunidade
+            Entrando...
           </a>
         )}
 

@@ -183,7 +183,12 @@ export const generatePasswordSetupLink = async (email) => {
     throw new Error(`Nao foi possivel gerar o link de criacao de senha (${result.response.status}): ${JSON.stringify(result.body)}`);
   }
 
-  return result.body.oobLink;
+  const firebaseActionUrl = new URL(result.body.oobLink);
+  const customActionUrl = new URL('/auth/action', appUrl());
+  customActionUrl.searchParams.set('mode', 'resetPassword');
+  customActionUrl.searchParams.set('oobCode', firebaseActionUrl.searchParams.get('oobCode') || '');
+  customActionUrl.searchParams.set('apiKey', webApiKey());
+  return customActionUrl.toString();
 };
 
 export const findOfferByHotmartId = async (hotmartKey) => {
