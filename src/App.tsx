@@ -4410,8 +4410,8 @@ export default function App() {
             >
               <X size={22} />
             </button>
-            <div className="aspect-video bg-black/40 overflow-hidden">
-              <img src={selectedOffer.imageUrl} alt="" className="w-full h-full object-cover opacity-80" />
+            <div className="bg-black/40 overflow-hidden flex items-center justify-center py-5 sm:py-6">
+              <img src={selectedOffer.imageUrl} alt="" className="max-h-[360px] sm:max-h-[420px] w-auto max-w-full object-contain opacity-90" />
             </div>
             <div className="p-6 sm:p-8 space-y-5">
               {(() => {
