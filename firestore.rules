@@ -61,6 +61,7 @@ service cloud.firestore {
 	               'profession',
                'instagram',
                'phone',
+               'birthDate',
                'maritalStatus',
                'hasChildren',
                'childrenCount',
@@ -81,6 +82,7 @@ service cloud.firestore {
              (!('profession' in data) || (data.profession is string && data.profession.size() <= 100)) &&
              (!('instagram' in data) || (data.instagram is string && data.instagram.size() <= 100)) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+             (!('birthDate' in data) || (data.birthDate is string && data.birthDate.size() <= 20)) &&
              (!('maritalStatus' in data) || (data.maritalStatus is string && data.maritalStatus.size() <= 50)) &&
              (!('hasChildren' in data) || (data.hasChildren is bool)) &&
              (!('childrenCount' in data) || (data.childrenCount is int)) &&
@@ -105,6 +107,7 @@ service cloud.firestore {
                'profession',
                'instagram',
                'phone',
+               'birthDate',
                'maritalStatus',
                'hasChildren',
                'childrenCount',

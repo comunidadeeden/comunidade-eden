@@ -477,6 +477,90 @@ export default function App() {
     }
   };
 
+  const handleExportStudents = () => {
+    const students = adminStudents
+      .filter((student) => student.role !== 'admin')
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'));
+
+    if (students.length === 0) {
+      alert('Nenhuma aluna encontrada para exportar.');
+      return;
+    }
+
+    const formatValue = (value: unknown) => {
+      const normalized = value === undefined || value === null ? '' : String(value);
+      return `"${normalized.replace(/"/g, '""')}"`;
+    };
+
+    const formatBoolean = (value?: boolean) => {
+      if (value === true) return 'Sim';
+      if (value === false) return 'Não';
+      return '';
+    };
+
+    const headers = [
+      'Nome',
+      'Email',
+      'Telefone / WhatsApp',
+      'Data de nascimento',
+      'Profissão',
+      'Instagram',
+      'Estado civil',
+      'Tem filhos',
+      'Quantidade de filhos',
+      'Folhas',
+      'Nível',
+      'Status',
+      'Expira em',
+      'Co-fundadora',
+      'Aulas / desafios concluídos',
+      'Ofertas compradas',
+      'UID'
+    ];
+
+    const rows = students.map((student) => {
+      const status = student.isBlocked
+        ? 'Bloqueado'
+        : isAccessExpired(student.accessExpiresAt)
+          ? 'Expirado'
+          : 'Ativo';
+
+      return [
+        student.name || '',
+        student.email || '',
+        student.phone || '',
+        student.birthDate || '',
+        student.profession || '',
+        student.instagram || '',
+        student.maritalStatus || '',
+        formatBoolean(student.hasChildren),
+        student.childrenCount || 0,
+        student.points || 0,
+        getUserLevel(student.points || 0).title,
+        status,
+        student.accessExpiresAt || '',
+        formatBoolean(student.isCofounder),
+        student.completedChallenges?.length || 0,
+        student.purchasedOfferIds?.join(', ') || '',
+        student.uid || ''
+      ];
+    });
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(formatValue).join(';'))
+      .join('\n');
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const today = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `alunas-comunidade-eden-${today}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleUpdateLeaves = async () => {
     if (!selectedUser) return;
     try {
@@ -800,6 +884,7 @@ export default function App() {
 	              profession: '',
 	              instagram: '',
 	              phone: (inviteData?.phone as string) || '',
+              birthDate: '',
               purchasedOfferIds: [],
               maritalStatus: '',
               hasChildren: false,
@@ -1283,6 +1368,17 @@ export default function App() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                    <Calendar size={14} /> Data de nascimento
+                  </label>
+                  <input
+                    type="date"
+                    value={user.birthDate || ''}
+                    onChange={(e) => setUser({...user, birthDate: e.target.value})}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-[#4bd3ff] transition-colors"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
                     <Heart size={14} /> Estado Civil
                   </label>
                   <select 
@@ -1361,6 +1457,7 @@ export default function App() {
                           profession: user.profession || '',
                           instagram: user.instagram || '',
                           phone: user.phone || '',
+                          birthDate: user.birthDate || '',
                           maritalStatus: user.maritalStatus || '',
                           hasChildren: !!user.hasChildren,
                           childrenCount: user.childrenCount || 0,
@@ -3308,6 +3405,12 @@ export default function App() {
 	                </div>
 	                <div className="flex flex-col sm:flex-row gap-3">
 	                  <button
+	                    onClick={handleExportStudents}
+	                    className="flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 text-emerald-300 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all"
+	                  >
+	                    <Download size={18} /> Exportar CSV
+	                  </button>
+	                  <button
 	                    onClick={() => {
 	                      setPromptConfig({
 	                        title: 'Importar Alunos',
@@ -3378,7 +3481,7 @@ export default function App() {
                       {adminStudents.filter((student) => {
                         const search = studentSearchTerm.trim().toLowerCase();
                         if (!search) return true;
-                        return [student.name, student.email, student.phone].some((value) => (value || '').toLowerCase().includes(search));
+                        return [student.name, student.email, student.phone, student.birthDate, student.profession, student.instagram, student.maritalStatus].some((value) => (value || '').toLowerCase().includes(search));
                       }).map((student) => (
                         <tr key={student.uid} className="hover:bg-white/5 transition-colors group">
                           <td className="px-8 py-5">

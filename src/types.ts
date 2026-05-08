@@ -66,6 +66,7 @@ export interface UserProfile {
   profession?: string;
   instagram?: string;
   phone?: string;
+  birthDate?: string;
   maritalStatus?: string;
   hasChildren?: boolean;
   childrenCount?: number;
