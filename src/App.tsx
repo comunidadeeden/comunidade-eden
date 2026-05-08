@@ -1705,7 +1705,7 @@ export default function App() {
         );
       case 'gameficacao': {
         return (
-          <div className="max-w-4xl mx-auto pt-2 pb-12 px-4 space-y-8">
+          <div className="max-w-4xl mx-auto pt-16 sm:pt-20 pb-12 px-4 space-y-8">
             {/* Missão do Dia - Simplified Section */}
             <section ref={missionSectionRef} className="space-y-6 scroll-mt-32">
               <div className="flex items-center gap-4 mb-8">
@@ -4381,7 +4381,7 @@ export default function App() {
           </div>
         </div>
       )}
-	      <div className={`${activeTab === 'guardiao' ? 'px-0 pb-0 pt-0' : `px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'ranking' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : activeTab === 'gameficacao' ? 'pt-6' : activeTab === 'ranking' ? 'pt-0' : 'pt-24') : (activeTab === 'materiais') ? 'pt-24' : 'pt-24'}`} relative z-30`}>
+	      <div className={`${activeTab === 'guardiao' ? 'px-0 pb-0 pt-0' : `px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'ranking' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : activeTab === 'gameficacao' ? 'pt-16 sm:pt-20' : activeTab === 'ranking' ? 'pt-0' : 'pt-24') : (activeTab === 'materiais') ? 'pt-24' : 'pt-24'}`} relative z-30`}>
         {renderContent()}
       </div>
 
