@@ -35,6 +35,7 @@ const DEFAULT_ACCESS_EMAIL_TEMPLATE = {
   footer: 'Depois de criar a senha, você pode acessar diretamente por {{appUrl}}.',
   note: 'Se você não reconhece essa compra, ignore este email.'
 };
+const DEFAULT_MONTHLY_RANKING_PRIZE = '1 sessão individual com Bruno Simplicio';
 
 type GuardianMessage = { role: 'user' | 'assistant', content: string };
 type GuardianSession = { id: string, title: string, date: string, messages: GuardianMessage[] };
@@ -601,8 +602,9 @@ export default function App() {
   const [monthlyRankingMeta, setMonthlyRankingMeta] = useState({
     monthKey: '',
     daysRemaining: 0,
-    prize: '1 sessão individual com Bruno Simplicio'
+    prize: DEFAULT_MONTHLY_RANKING_PRIZE
   });
+  const [monthlyRankingPrize, setMonthlyRankingPrize] = useState(DEFAULT_MONTHLY_RANKING_PRIZE);
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   const [commentInput, setCommentInput] = useState('');
   const [comments, setComments] = useState<LessonComment[]>([]);
@@ -1002,7 +1004,7 @@ export default function App() {
         setMonthlyRankingMeta({
           monthKey: data.monthly?.monthKey || '',
           daysRemaining: data.monthly?.daysRemaining || 0,
-          prize: data.monthly?.prize || '1 sessão individual com Bruno Simplicio'
+          prize: data.monthly?.prize || DEFAULT_MONTHLY_RANKING_PRIZE
         });
       } catch (error) {
         console.warn('Could not load ranking:', error);
@@ -1059,6 +1061,16 @@ export default function App() {
       handleFirestoreError(error, 'GET' as any, 'settings/emailTemplates');
     });
 
+    const unsubscribeMonthlyRankingSettings = onSnapshot(doc(db, 'settings', 'monthlyRanking'), (docRanking) => {
+      const prize = docRanking.exists()
+        ? String(docRanking.data().prize || DEFAULT_MONTHLY_RANKING_PRIZE)
+        : DEFAULT_MONTHLY_RANKING_PRIZE;
+      setMonthlyRankingPrize(prize);
+      setMonthlyRankingMeta(prev => ({ ...prev, prize }));
+    }, (error) => {
+      handleFirestoreError(error, 'GET' as any, 'settings/monthlyRanking');
+    });
+
     return () => {
       unsubscribeChallenge();
       unsubscribeTodayAudio();
@@ -1069,6 +1081,7 @@ export default function App() {
       unsubscribeLevels();
       unsubscribeVisibility();
       unsubscribeEmailTemplates();
+      unsubscribeMonthlyRankingSettings();
     };
   }, [user?.uid, isAdmin]);
 
@@ -2457,6 +2470,22 @@ export default function App() {
     }
   };
 
+  const handleSaveMonthlyRankingPrize = async () => {
+    try {
+      const prize = monthlyRankingPrize.trim() || DEFAULT_MONTHLY_RANKING_PRIZE;
+      await setDoc(doc(db, 'settings', 'monthlyRanking'), {
+        prize,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      setMonthlyRankingPrize(prize);
+      setMonthlyRankingMeta(prev => ({ ...prev, prize }));
+      alert('Prêmio mensal salvo com sucesso!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'settings/monthlyRanking');
+      alert('Não foi possível salvar o prêmio mensal.');
+    }
+  };
+
   const renderEmailTemplateField = (
     key: keyof typeof DEFAULT_ACCESS_EMAIL_TEMPLATE,
     label: string,
@@ -2720,6 +2749,30 @@ export default function App() {
                   <p className="text-gray-400 font-medium">Visão geral da plataforma Éden</p>
                 </div>
               </div>
+
+              <section className="bg-[#061418] border border-[#4bd3ff]/20 rounded-3xl p-6 sm:p-8">
+                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+                  <div className="min-w-0">
+                    <p className="text-[#4bd3ff] text-[10px] font-black uppercase tracking-[0.28em] mb-2">Ranking mensal</p>
+                    <h4 className="text-xl sm:text-2xl font-black text-white tracking-tight">Prêmio do mês</h4>
+                    <p className="text-gray-400 text-sm mt-1">Esse texto aparece no card do ranking mensal para as alunas.</p>
+                  </div>
+                  <div className="w-full lg:max-w-xl flex flex-col sm:flex-row gap-3">
+                    <input
+                      value={monthlyRankingPrize}
+                      onChange={(event) => setMonthlyRankingPrize(event.target.value)}
+                      placeholder={DEFAULT_MONTHLY_RANKING_PRIZE}
+                      className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
+                    />
+                    <button
+                      onClick={handleSaveMonthlyRankingPrize}
+                      className="bg-[#4bd3ff] hover:bg-[#38bdf8] text-[#020507] px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-colors whitespace-nowrap"
+                    >
+                      Salvar prêmio
+                    </button>
+                  </div>
+                </div>
+              </section>
 
               {/* Stats Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

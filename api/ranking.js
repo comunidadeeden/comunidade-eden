@@ -1,5 +1,7 @@
 import { getAuthUserByIdToken, getDocument, queryMonthlyScores, queryTopUsersByPoints } from './lib/firebaseRest.js';
 
+const DEFAULT_MONTHLY_PRIZE = '1 sessão individual com Bruno Simplicio';
+
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
   return authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
@@ -59,9 +61,10 @@ export default async function handler(request, response) {
     }
 
     const monthKey = String(request.query?.month || getSaoPauloMonthKey()).trim();
-    const [users, monthlyScores] = await Promise.all([
+    const [users, monthlyScores, monthlyRankingSettings] = await Promise.all([
       queryTopUsersByPoints(5),
-      queryMonthlyScores(monthKey, 20)
+      queryMonthlyScores(monthKey, 20),
+      getDocument('settings', 'monthlyRanking').catch(() => null)
     ]);
     return response.status(200).json({
       users: users.map((user) => ({
@@ -74,7 +77,7 @@ export default async function handler(request, response) {
       monthly: {
         monthKey,
         daysRemaining: monthKey === getSaoPauloMonthKey() ? getDaysRemainingInMonth() : 0,
-        prize: '1 sessão individual com Bruno Simplicio',
+        prize: monthlyRankingSettings?.prize || DEFAULT_MONTHLY_PRIZE,
         users: monthlyScores.map((score) => ({
           uid: score.uid,
           name: score.name || 'Aluna',
