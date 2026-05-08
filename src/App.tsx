@@ -15,6 +15,7 @@ const INITIAL_TABS = [
   { id: 'jornada', label: 'Início', icon: Compass },
   { id: 'materiais', label: 'Materiais', icon: FileText },
   { id: 'gameficacao', label: 'Desafios', icon: Trophy },
+  { id: 'ranking', label: 'Ranking', icon: Crown },
   { id: 'guardiao', label: 'Guardião', icon: Shield },
 ];
 
@@ -620,6 +621,7 @@ export default function App() {
     jornada: true,
     materiais: true,
     gameficacao: true,
+    ranking: true,
     guardiao: true,
   });
   const [accessEmailTemplate, setAccessEmailTemplate] = useState(DEFAULT_ACCESS_EMAIL_TEMPLATE);
@@ -1756,6 +1758,8 @@ export default function App() {
           </div>
         );
       }
+      case 'ranking':
+        return null;
       case 'guardiao':
         return (
           <div className="h-[calc(100vh-74px)] w-full">
@@ -4160,7 +4164,7 @@ export default function App() {
 	        </div>
       )}
 
-      {activeTab === 'gameficacao' && !isCurrentTabInDevelopment && (
+      {activeTab === 'ranking' && !isCurrentTabInDevelopment && (
         <div className="relative w-full z-0 pt-24 pb-16 px-4 sm:px-12 flex justify-center">
           <div className="w-full max-w-2xl bg-[#040e11] border border-white/10 p-6 sm:p-10 rounded-2xl shadow-2xl relative">
             <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[100px] rounded-full -mr-32 -mt-32"></div>
@@ -4377,7 +4381,7 @@ export default function App() {
             </div>
           )}
 
-	      <div className={`${activeTab === 'guardiao' ? 'px-0 pb-0 pt-0' : `px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : activeTab === 'gameficacao' ? 'pt-6' : 'pt-24') : (activeTab === 'materiais') ? 'pt-24' : 'pt-24'}`} relative z-30`}>
+	      <div className={`${activeTab === 'guardiao' ? 'px-0 pb-0 pt-0' : `px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'ranking' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : activeTab === 'gameficacao' ? 'pt-6' : activeTab === 'ranking' ? 'pt-0' : 'pt-24') : (activeTab === 'materiais') ? 'pt-24' : 'pt-24'}`} relative z-30`}>
         {renderContent()}
       </div>
 
