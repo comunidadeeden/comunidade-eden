@@ -326,10 +326,12 @@ export default function App() {
   const [isFolhasModalOpen, setIsFolhasModalOpen] = useState(false);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [isMissionModalOpen, setIsMissionModalOpen] = useState(false);
+  const [showMissionToast, setShowMissionToast] = useState(false);
   const [adminMissionView, setAdminMissionView] = useState<'scheduled' | 'past'>('scheduled');
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [missionResponses, setMissionResponses] = useState<Record<string, string | string[]>>({});
   const missionSectionRef = useRef<HTMLElement>(null);
+  const missionToastShownKeyRef = useRef('');
   const [audioChecked, setAudioChecked] = useState(false);
   const [isSubmittingMission, setIsSubmittingMission] = useState(false);
   const [leavesAmount, setLeavesAmount] = useState(0);
@@ -1491,6 +1493,22 @@ export default function App() {
       missionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
   };
+
+  useEffect(() => {
+    if (!user?.uid || !todayChallenge?.date || !hasNewMissionToday || !tabVisibility.gameficacao) return;
+
+    const toastKey = `${user.uid}_${todayChallenge.date}`;
+    if (missionToastShownKeyRef.current === toastKey) return;
+
+    missionToastShownKeyRef.current = toastKey;
+    setShowMissionToast(true);
+
+    const timeout = window.setTimeout(() => {
+      setShowMissionToast(false);
+    }, 5200);
+
+    return () => window.clearTimeout(timeout);
+  }, [user?.uid, todayChallenge?.date, hasNewMissionToday, tabVisibility.gameficacao]);
 
   const handleGuardianSubmit = async () => {
     const message = guardianInput.trim();
@@ -4126,21 +4144,30 @@ export default function App() {
       </nav>
       )}
 
-      {activeTab !== 'guardiao' && hasNewMissionToday && tabVisibility.gameficacao && (
-        <button
-          onClick={scrollToTodayMission}
-          className="fixed top-[88px] sm:top-[104px] left-4 right-4 sm:left-10 sm:right-10 z-[70] max-w-5xl mx-auto text-left bg-[#061c21]/95 backdrop-blur-2xl border border-[#4bd3ff]/35 rounded-2xl p-4 sm:p-5 flex items-center gap-4 shadow-[0_18px_50px_rgba(0,0,0,0.45),0_0_34px_rgba(75,211,255,0.12)] hover:bg-[#08242b] transition-all"
-        >
-          <div className="w-11 h-11 shrink-0 rounded-2xl bg-[#4bd3ff] text-[#020507] flex items-center justify-center">
-            <Zap size={22} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-black text-[#4bd3ff] uppercase tracking-[0.3em]">Nova missão disponível</p>
-            <p className="text-white font-black tracking-tight truncate">Você tem uma nova missão hoje</p>
-          </div>
-          <ChevronRight size={22} className="ml-auto text-[#4bd3ff]" />
-        </button>
-      )}
+      <AnimatePresence>
+        {activeTab !== 'guardiao' && showMissionToast && hasNewMissionToday && tabVisibility.gameficacao && (
+          <motion.button
+            initial={{ opacity: 0, y: -12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            transition={{ duration: 0.22 }}
+            onClick={() => {
+              setShowMissionToast(false);
+              scrollToTodayMission();
+            }}
+            className="fixed top-[92px] right-4 sm:right-8 z-[70] w-[min(360px,calc(100vw-32px))] text-left bg-[#061418]/95 backdrop-blur-2xl border border-[#4bd3ff]/25 rounded-2xl p-3.5 flex items-center gap-3 shadow-[0_16px_42px_rgba(0,0,0,0.35),0_0_24px_rgba(75,211,255,0.08)] hover:border-[#4bd3ff]/45 hover:bg-[#071b20] transition-all"
+          >
+            <div className="w-9 h-9 shrink-0 rounded-xl bg-[#4bd3ff]/15 border border-[#4bd3ff]/25 text-[#4bd3ff] flex items-center justify-center">
+              <Zap size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-black text-[#4bd3ff] uppercase tracking-[0.24em]">Missão disponível</p>
+              <p className="text-white text-sm font-bold tracking-tight truncate">Você tem uma nova missão hoje</p>
+            </div>
+            <ChevronRight size={18} className="ml-auto text-[#4bd3ff]/80" />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* Hero Section & Header Assets */}
       {activeTab === 'jornada' && (
