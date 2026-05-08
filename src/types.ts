@@ -26,6 +26,7 @@ export interface Module {
   offerId?: string;
   isOffer?: boolean;
   lessonCount?: number;
+  requiredPoints?: number;
 }
 
 export interface Trail {

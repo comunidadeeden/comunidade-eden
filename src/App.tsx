@@ -201,6 +201,19 @@ const isAccessExpired = (date?: string) => {
   return new Date() > parsedDate;
 };
 
+const getModuleRequiredPoints = (module?: Module | null) => Math.max(0, Number(module?.requiredPoints || 0));
+
+const isModuleLockedForUser = (module: Module, user: UserProfile | null) => {
+  if (module.isOffer) return false;
+  return getModuleRequiredPoints(module) > (user?.points || 0);
+};
+
+const getModuleLockMessage = (module: Module, user: UserProfile | null) => {
+  const requiredPoints = getModuleRequiredPoints(module);
+  const userPoints = user?.points || 0;
+  return `Este módulo libera com ${requiredPoints} folhas. Você tem ${userPoints} folha${userPoints === 1 ? '' : 's'} agora.`;
+};
+
 const getAuthErrorMessage = (error: any) => {
   switch (error?.code) {
     case 'auth/invalid-credential':
@@ -2951,9 +2964,17 @@ export default function App() {
                         
                         <div>
                           <h4 className="text-xl font-extrabold text-white mb-1">{module.title}</h4>
-                          <div className="flex items-center gap-2 text-gray-500 text-sm">
-                            <List size={14} />
-                            <span>{module.items?.length || 0}</span>
+                          <div className="flex flex-wrap items-center gap-3 text-gray-500 text-sm">
+                            <span className="flex items-center gap-2">
+                              <List size={14} />
+                              {module.items?.length || 0}
+                            </span>
+                            {getModuleRequiredPoints(module) > 0 && (
+                              <span className="flex items-center gap-1.5 text-[#4bd3ff] text-xs font-black uppercase tracking-widest">
+                                <Lock size={12} />
+                                {getModuleRequiredPoints(module)} folhas
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -3003,7 +3024,8 @@ export default function App() {
                               title: 'Editar Módulo',
                               fields: [
                                 { name: 'title', label: 'Nome do módulo', defaultValue: module.title, required: true },
-                                { name: 'imageUrl', label: 'URL da imagem de capa (opcional)', defaultValue: module.imageUrl || '' }
+                                { name: 'imageUrl', label: 'URL da imagem de capa (opcional)', defaultValue: module.imageUrl || '' },
+                                { name: 'requiredPoints', label: 'Folhas mínimas para liberar', type: 'number', defaultValue: String(module.requiredPoints || 0), placeholder: '0' }
                               ],
                               onSubmit: async (data) => {
                                 try {
@@ -3012,7 +3034,7 @@ export default function App() {
 
                                   const updatedModules = (trail.modules || []).map(m => 
                                     m.id === module.id 
-                                      ? { ...m, title: data.title, imageUrl: data.imageUrl || m.imageUrl } 
+                                      ? { ...m, title: data.title, imageUrl: data.imageUrl || m.imageUrl, requiredPoints: Number(data.requiredPoints || 0) || 0 }
                                       : m
                                   );
                                   await updateDoc(doc(db, 'trails', trail.id), { modules: updatedModules });
@@ -3203,7 +3225,9 @@ export default function App() {
                     </div>
                     
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                      {trail.modules?.map((mod, modIndex) => (
+                      {trail.modules?.map((mod, modIndex) => {
+                        const moduleRequiredPoints = getModuleRequiredPoints(mod);
+                        return (
                         <div
                           key={mod.id}
                           draggable
@@ -3218,8 +3242,14 @@ export default function App() {
                         >
                            <img src={mod.imageUrl} className="w-full h-32 object-cover rounded-lg mb-2 opacity-60" alt="" />
                            <p className="text-[10px] font-black text-white truncate text-center uppercase tracking-tighter">{mod.title}</p>
+                           {moduleRequiredPoints > 0 && (
+                             <p className="mt-1 text-center text-[9px] font-black uppercase tracking-widest text-[#4bd3ff]">
+                               {moduleRequiredPoints} folhas
+                             </p>
+                           )}
                         </div>
-                      ))}
+                      );
+                      })}
                       <button 
                         onClick={() => {
                           const isLegacyMock = trail.id === 'trail-1' && !trailsState.some(t => t.id !== 'trail-1');
@@ -3228,7 +3258,8 @@ export default function App() {
                             description: 'Este módulo será adicionado à trilha atual.',
                             fields: [
                               { name: 'title', label: 'Nome do módulo', required: true },
-                              { name: 'imageUrl', label: 'URL da capa do módulo (opcional)' }
+                              { name: 'imageUrl', label: 'URL da capa do módulo (opcional)' },
+                              { name: 'requiredPoints', label: 'Folhas mínimas para liberar', type: 'number', placeholder: '0' }
                             ],
                             onSubmit: async (data) => {
                               try {
@@ -3236,6 +3267,7 @@ export default function App() {
                                   id: Math.random().toString(36).substr(2, 9),
                                   title: data.title,
                                   imageUrl: data.imageUrl || 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=600&h=900',
+                                  requiredPoints: Number(data.requiredPoints || 0) || 0,
                                   items: []
                                 };
                                 
@@ -4500,12 +4532,15 @@ export default function App() {
 
                 {/* Description */}
                 {activeLesson?.description && (
-                  <div className="px-4 sm:px-0 bg-white/5 border border-white/10 rounded-none p-6">
-                    <h3 className="text-white font-bold mb-3 uppercase tracking-widest text-xs">Descrição da Aula</h3>
-                    <p className="text-gray-300 text-sm sm:text-base leading-relaxed whitespace-pre-wrap">
+                  <section className="mx-4 sm:mx-0 rounded-2xl border border-white/10 bg-[#061418]/70 p-5 sm:p-6 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
+                    <div className="mb-3 flex items-center gap-2">
+                      <FileText size={16} className="text-[#4bd3ff]" />
+                      <h3 className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-300">Descrição da aula</h3>
+                    </div>
+                    <p className="text-gray-300 text-sm sm:text-base leading-7 whitespace-pre-wrap">
                       {activeLesson.description}
                     </p>
-                  </div>
+                  </section>
                 )}
 
                 {/* Comments Section */}
@@ -5056,27 +5091,41 @@ function ModuleAccordionItem({
   key?: any
 }) {
   const [isExpanded, setIsExpanded] = useState(isCurrentModule);
+  const requiredPoints = getModuleRequiredPoints(mod);
+  const isLocked = isModuleLockedForUser(mod, user);
 
   return (
     <div className="border-b border-white/5">
       <button 
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => {
+          if (isLocked) {
+            alert(getModuleLockMessage(mod, user));
+            return;
+          }
+          setIsExpanded(!isExpanded);
+        }}
         className={`w-full flex items-center justify-between p-5 text-left transition-all ${
-          isCurrentModule ? 'bg-white/[0.03]' : 'hover:bg-white/[0.02]'
+          isLocked ? 'opacity-60' : isCurrentModule ? 'bg-white/[0.03]' : 'hover:bg-white/[0.02]'
         }`}
       >
         <div className="flex items-center gap-4">
-          <span className={`text-xs font-black transition-colors ${isCurrentModule ? 'text-[#4bd3ff]' : 'text-gray-600'}`}>{mIdx + 1}</span>
+          <span className={`text-xs font-black transition-colors ${isLocked ? 'text-gray-700' : isCurrentModule ? 'text-[#4bd3ff]' : 'text-gray-600'}`}>{mIdx + 1}</span>
           <div className="text-left">
-            <p className={`font-bold text-xs uppercase tracking-tight truncate w-48 ${isCurrentModule ? 'text-white' : 'text-gray-400'}`}>{mod.title}</p>
-            <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">{mod.items.length} conteúdo(s)</p>
+            <p className={`font-bold text-xs uppercase tracking-tight truncate w-48 ${isLocked ? 'text-gray-500' : isCurrentModule ? 'text-white' : 'text-gray-400'}`}>{mod.title}</p>
+            <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-0.5">
+              {isLocked ? `Libera com ${requiredPoints} folhas` : `${mod.items.length} conteúdo(s)`}
+            </p>
           </div>
         </div>
-        <ChevronDown size={14} className={`text-gray-600 transition-transform ${isExpanded ? 'rotate-180 text-white' : ''}`} />
+        {isLocked ? (
+          <Lock size={14} className="text-gray-600" />
+        ) : (
+          <ChevronDown size={14} className={`text-gray-600 transition-transform ${isExpanded ? 'rotate-180 text-white' : ''}`} />
+        )}
       </button>
 
       <AnimatePresence>
-        {isExpanded && (
+        {isExpanded && !isLocked && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
@@ -5179,15 +5228,36 @@ function TrailRow({ trail, onSelectModule, user }: { trail: Trail, onSelectModul
           {trail.modules.map(mod => {
             const lessonCount = mod.isOffer ? (mod.lessonCount || 0) : (mod.items?.length || 0);
             const shouldShowLessonCount = !mod.isOffer || lessonCount > 0;
+            const requiredPoints = getModuleRequiredPoints(mod);
+            const isLocked = isModuleLockedForUser(mod, user);
             return (
               <div 
                 key={mod.id}
-                onClick={() => onSelectModule(mod)}
-                className="relative shrink-0 w-36 sm:w-44 md:w-52 aspect-[9/16] rounded-none bg-[#0b2831]/20 cursor-pointer overflow-hidden transition-all duration-300 hover:scale-105 hover:z-20 shadow-lg hover:shadow-2xl group/card border border-white/5 hover:border-white/20"
+                onClick={() => {
+                  if (isLocked) {
+                    alert(getModuleLockMessage(mod, user));
+                    return;
+                  }
+                  onSelectModule(mod);
+                }}
+                className={`relative shrink-0 w-36 sm:w-44 md:w-52 aspect-[9/16] rounded-none bg-[#0b2831]/20 cursor-pointer overflow-hidden transition-all duration-300 hover:z-20 shadow-lg hover:shadow-2xl group/card border ${
+                  isLocked
+                    ? 'border-white/5 opacity-60 grayscale hover:opacity-75'
+                    : 'border-white/5 hover:border-white/20 hover:scale-105'
+                }`}
               >
                 <img src={mod.imageUrl} alt={mod.title} className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110 opacity-90 group-hover/card:opacity-100" />
                 
-                <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                <div className={`absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t ${isLocked ? 'from-black/90 to-transparent' : 'from-black/60 to-transparent'} pointer-events-none`} />
+                {isLocked && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/25 px-4 text-center">
+                    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-[#4bd3ff]/30 bg-[#061418]/80 text-[#4bd3ff] backdrop-blur-sm">
+                      <Lock size={20} />
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white">Bloqueado</p>
+                    <p className="mt-1 text-[10px] font-bold text-gray-300">{requiredPoints} folhas para liberar</p>
+                  </div>
+                )}
                 {shouldShowLessonCount && (
                   <div className="absolute inset-x-0 bottom-0 p-3 flex justify-start">
                      <span className="text-[9px] sm:text-[10px] font-bold text-[#4bd3ff] bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 backdrop-blur-sm px-2 py-1 rounded tracking-wider uppercase shadow-lg">
