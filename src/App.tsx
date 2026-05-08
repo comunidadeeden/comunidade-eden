@@ -1319,22 +1319,36 @@ export default function App() {
       if (isPlayingAudio) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play();
+        await audioRef.current.play();
         const today = new Date().toLocaleDateString('pt-BR').split('/').join('-');
         if (user && user.lastAudioDate !== today) {
            try {
-	              await updateDoc(doc(db, 'users', user.uid), {
-	                 points: increment(5),
-	                 lastAudioDate: today,
-	                 updatedAt: serverTimestamp()
-	              });
-              setUser({
-                ...user,
-                points: (user.points || 0) + 5,
-                lastAudioDate: today
+              const idToken = await auth.currentUser?.getIdToken();
+              if (!idToken) throw new Error('Sessão expirada.');
+
+              const response = await fetch('/api/audio/reward', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${idToken}`,
+                  'Content-Type': 'application/json'
+                }
               });
+              const data = await response.json().catch(() => ({}));
+              if (!response.ok) throw new Error(data?.error || 'Não foi possível registrar o áudio diário.');
+              if (data.rewarded) {
+                setUser({
+                  ...user,
+                  points: (user.points || 0) + (data.pointsAwarded || 5),
+                  lastAudioDate: data.rewardDate || today
+                });
+              } else if (data.rewardDate) {
+                setUser({
+                  ...user,
+                  lastAudioDate: data.rewardDate
+                });
+              }
            } catch(e) {
-              handleFirestoreError(e, OperationType.UPDATE, `users/${user.uid}`);
+              console.warn('Could not register daily audio reward:', e);
            }
         }
       }

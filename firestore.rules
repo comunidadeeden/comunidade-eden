@@ -133,15 +133,6 @@ service cloud.firestore {
              (pointDelta() == 7 || pointDelta() == -7);
     }
 
-    function isStudentAudioRewardUpdate() {
-      return incoming().role == existing().role &&
-             incoming().email == existing().email &&
-             incoming().points >= 0 &&
-             incoming().diff(existing()).affectedKeys().hasOnly(['points', 'lastAudioDate', 'updatedAt']) &&
-             pointDelta() == 5 &&
-             incoming().lastAudioDate != existing().lastAudioDate;
-    }
-
     function isStudentMissionRewardUpdate() {
       return incoming().role == existing().role &&
              incoming().email == existing().email &&
@@ -175,7 +166,6 @@ service cloud.firestore {
           isStudentProfileUpdate() ||
           isStudentPasswordSetupFlagUpdate() ||
           isStudentProgressUpdate() ||
-          isStudentAudioRewardUpdate() ||
           isStudentMissionRewardUpdate()
         )
       );
@@ -288,6 +278,10 @@ service cloud.firestore {
     match /dailyAudios/{date} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    match /dailyAudioRewards/{rewardId} {
+      allow read, write: if isAdmin();
     }
 
     // --- DAILY COMPLETIONS ---

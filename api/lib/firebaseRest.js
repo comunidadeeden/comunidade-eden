@@ -175,6 +175,62 @@ export const incrementDocumentField = async (collection, id, fieldPath, amount =
   return body;
 };
 
+export const commitDailyAudioReward = async ({ uid, rewardDate, points = 5 }) => {
+  const rewardId = `${uid}_${rewardDate}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const now = new Date();
+  const rewardDocument = firestoreDocumentName('dailyAudioRewards', rewardId);
+  const userDocument = firestoreDocumentName('users', uid);
+
+  const { response, body } = await authorizedFetch(`https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents:commit`, {
+    method: 'POST',
+    body: JSON.stringify({
+      writes: [
+        {
+          update: {
+            name: rewardDocument,
+            fields: {
+              userId: toFirestoreValue(uid),
+              rewardDate: toFirestoreValue(rewardDate),
+              points: toFirestoreValue(points),
+              createdAt: toFirestoreValue(now)
+            }
+          },
+          currentDocument: { exists: false }
+        },
+        {
+          update: {
+            name: userDocument,
+            fields: {
+              lastAudioDate: toFirestoreValue(rewardDate),
+              updatedAt: toFirestoreValue(now)
+            }
+          },
+          updateMask: { fieldPaths: ['lastAudioDate', 'updatedAt'] },
+          updateTransforms: [
+            {
+              fieldPath: 'points',
+              increment: { integerValue: String(points) }
+            }
+          ],
+          currentDocument: { exists: true }
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const status = body?.error?.status || '';
+    const message = body?.error?.message || '';
+    if (status === 'ALREADY_EXISTS' || message.includes('already exists')) {
+      return { rewarded: false, rewardDate, pointsAwarded: 0 };
+    }
+    console.error('Daily audio reward commit error:', body);
+    throw new Error('Nao foi possivel registrar a recompensa do audio diario.');
+  }
+
+  return { rewarded: true, rewardDate, pointsAwarded: points };
+};
+
 export const createAuthUserIfNeeded = async ({ email, name }) => {
   const scopes = [IDENTITY_TOOLKIT_SCOPE];
   const lookup = await authorizedFetch(`${authBaseUrl()}/accounts:lookup?key=${webApiKey()}`, {
