@@ -208,12 +208,6 @@ const isModuleLockedForUser = (module: Module, user: UserProfile | null) => {
   return getModuleRequiredPoints(module) > (user?.points || 0);
 };
 
-const getModuleLockMessage = (module: Module, user: UserProfile | null) => {
-  const requiredPoints = getModuleRequiredPoints(module);
-  const userPoints = user?.points || 0;
-  return `Este módulo libera com ${requiredPoints} folhas. Você tem ${userPoints} folha${userPoints === 1 ? '' : 's'} agora.`;
-};
-
 const getAuthErrorMessage = (error: any) => {
   switch (error?.code) {
     case 'auth/invalid-credential':
@@ -607,6 +601,7 @@ export default function App() {
   const [selectedTrail, setSelectedTrail] = useState<Trail | null>(null);
   const [selectedLessonChallenge, setSelectedLessonChallenge] = useState<ContentItem | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+  const [lockedModule, setLockedModule] = useState<Module | null>(null);
   const [dailyChallenges, setDailyChallenges] = useState<DailyChallenge[]>([]);
   const [allCompletions, setAllCompletions] = useState<DailyChallengeCompletion[]>([]);
   const [todayChallenge, setTodayChallenge] = useState<DailyChallenge | null>(null);
@@ -1653,6 +1648,7 @@ export default function App() {
                     key={trail.id} 
                     trail={trail} 
                     user={user}
+                    onLockedModule={setLockedModule}
                     onSelectModule={(mod, index) => {
                       const item = mod.items[index || 0];
                       if (item?.type === 'desafio') {
@@ -1674,6 +1670,7 @@ export default function App() {
                       modules: purchasedExtraModules
                     }}
                     user={user}
+                    onLockedModule={setLockedModule}
                     onSelectModule={(mod, index) => {
                       const item = mod.items[index || 0];
                       if (item?.type === 'desafio') {
@@ -1699,6 +1696,7 @@ export default function App() {
                       modules: availableOffers.map(createOfferPreviewModule)
                     }}
                     user={user}
+                    onLockedModule={setLockedModule}
                     onSelectModule={(mod) => {
                       const offer = offersState.find(item => item.id === mod.offerId);
                       if (offer) setSelectedOffer(offer);
@@ -4645,6 +4643,7 @@ export default function App() {
                     isCurrentModule={mod.id === selectedModule.id}
                     currentLessonIndex={currentLessonIndex}
                     user={user}
+                    onLockedModule={setLockedModule}
                     onSelectLesson={(m, idx) => {
                       setSelectedModule(m);
                       setCurrentLessonIndex(idx);
@@ -4657,6 +4656,84 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Locked Module Popup */}
+      <AnimatePresence>
+        {lockedModule && (
+          <div className="fixed inset-0 z-[320] flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setLockedModule(null)}
+              className="fixed inset-0 bg-black/85 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 18 }}
+              className="relative z-10 w-full max-w-lg overflow-hidden rounded-3xl border border-[#4bd3ff]/20 bg-[#061418] shadow-[0_30px_100px_rgba(0,0,0,0.55)]"
+            >
+              <button
+                onClick={() => setLockedModule(null)}
+                className="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-gray-400 transition-colors hover:text-white"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="relative h-56 overflow-hidden bg-black">
+                <img src={lockedModule.imageUrl} alt="" className="h-full w-full object-cover opacity-45 blur-[1px]" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#061418] via-[#061418]/30 to-transparent" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full border border-[#4bd3ff]/30 bg-[#061418]/85 text-[#4bd3ff] shadow-[0_0_40px_rgba(75,211,255,0.25)] backdrop-blur">
+                    <Lock size={34} />
+                  </div>
+                </div>
+              </div>
+
+              {(() => {
+                const requiredPoints = getModuleRequiredPoints(lockedModule);
+                const currentPoints = user?.points || 0;
+                const missingPoints = Math.max(0, requiredPoints - currentPoints);
+                const progress = requiredPoints > 0 ? Math.min(100, Math.round((currentPoints / requiredPoints) * 100)) : 100;
+
+                return (
+                  <div className="p-6 sm:p-8">
+                    <p className="mb-3 text-[10px] font-black uppercase tracking-[0.3em] text-[#4bd3ff]">Módulo bloqueado</p>
+                    <h3 className="text-2xl font-black leading-tight tracking-tight text-white">{lockedModule.title}</h3>
+                    <p className="mt-4 text-sm leading-7 text-gray-300">
+                      Você está no caminho. Continue completando aulas, missões e desafios para juntar folhas e liberar este conteúdo.
+                    </p>
+
+                    <div className="mt-6 rounded-2xl border border-white/10 bg-black/25 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Seu progresso</span>
+                        <span className="text-sm font-black text-emerald-400">🍃 {currentPoints} / {requiredPoints}</span>
+                      </div>
+                      <div className="h-3 overflow-hidden rounded-full border border-white/10 bg-black/40">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-[#4bd3ff] to-emerald-400 transition-all"
+                          style={{ width: `${Math.max(progress, currentPoints > 0 ? 6 : 0)}%` }}
+                        />
+                      </div>
+                      <p className="mt-3 text-xs font-bold text-gray-400">
+                        Faltam <span className="text-white">{missingPoints}</span> folha{missingPoints === 1 ? '' : 's'} para abrir este módulo.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => setLockedModule(null)}
+                      className="mt-6 w-full rounded-2xl bg-[#4bd3ff] py-4 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-[#38bdf8]"
+                    >
+                      Continuar jornada
+                    </button>
+                  </div>
+                );
+              })()}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Challenge Popup */}
       <AnimatePresence>
@@ -5078,6 +5155,7 @@ function ModuleAccordionItem({
   isCurrentModule, 
   currentLessonIndex, 
   user, 
+  onLockedModule,
   onSelectLesson,
   onSelectChallenge
 }: { 
@@ -5086,6 +5164,7 @@ function ModuleAccordionItem({
   isCurrentModule: boolean, 
   currentLessonIndex: number, 
   user: UserProfile | null,
+  onLockedModule: (mod: Module) => void,
   onSelectLesson: (mod: Module, idx: number) => void,
   onSelectChallenge: (challenge: ContentItem) => void,
   key?: any
@@ -5099,7 +5178,7 @@ function ModuleAccordionItem({
       <button 
         onClick={() => {
           if (isLocked) {
-            alert(getModuleLockMessage(mod, user));
+            onLockedModule(mod);
             return;
           }
           setIsExpanded(!isExpanded);
@@ -5195,7 +5274,7 @@ function ModuleAccordionItem({
 }
 
 // Component for a horizontal scrolling Trail row containing Modules
-function TrailRow({ trail, onSelectModule, user }: { trail: Trail, onSelectModule: (mod: Module, index?: number) => void, user: UserProfile | null, key?: any }) {
+function TrailRow({ trail, onSelectModule, onLockedModule, user }: { trail: Trail, onSelectModule: (mod: Module, index?: number) => void, onLockedModule: (mod: Module) => void, user: UserProfile | null, key?: any }) {
   const rowRef = useRef<HTMLDivElement>(null);
   
   const scroll = (direction: 'left' | 'right') => {
@@ -5235,7 +5314,7 @@ function TrailRow({ trail, onSelectModule, user }: { trail: Trail, onSelectModul
                 key={mod.id}
                 onClick={() => {
                   if (isLocked) {
-                    alert(getModuleLockMessage(mod, user));
+                    onLockedModule(mod);
                     return;
                   }
                   onSelectModule(mod);
