@@ -76,6 +76,15 @@ export interface UserProfile {
   updatedAt?: any;
 }
 
+export interface MonthlyRankingUser {
+  uid: string;
+  name: string;
+  avatar?: string;
+  points: number;
+  totalPoints?: number;
+  isCofounder?: boolean;
+}
+
 export interface Offer {
   id: string;
   title: string;

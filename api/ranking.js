@@ -1,4 +1,4 @@
-import { getAuthUserByIdToken, getDocument, queryTopUsersByPoints } from './lib/firebaseRest.js';
+import { getAuthUserByIdToken, getDocument, queryMonthlyScores, queryTopUsersByPoints } from './lib/firebaseRest.js';
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
@@ -15,6 +15,29 @@ const isAccessExpired = (date) => {
     })();
   parsedDate.setHours(23, 59, 59, 999);
   return new Date() > parsedDate;
+};
+
+const getSaoPauloMonthKey = () => {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    month: '2-digit',
+    year: 'numeric'
+  }).formatToParts(new Date());
+  const month = parts.find(part => part.type === 'month')?.value || '01';
+  const year = parts.find(part => part.type === 'year')?.value || '1970';
+  return `${year}-${month}`;
+};
+
+const getDaysRemainingInMonth = () => {
+  const now = new Date();
+  const saoPauloDate = new Date(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric'
+  }).format(now));
+  const lastDay = new Date(saoPauloDate.getFullYear(), saoPauloDate.getMonth() + 1, 0).getDate();
+  return Math.max(0, lastDay - saoPauloDate.getDate());
 };
 
 export default async function handler(request, response) {
@@ -35,14 +58,32 @@ export default async function handler(request, response) {
       return response.status(403).json({ error: 'Acesso indisponivel.' });
     }
 
-    const users = await queryTopUsersByPoints(5);
+    const monthKey = String(request.query?.month || getSaoPauloMonthKey()).trim();
+    const [users, monthlyScores] = await Promise.all([
+      queryTopUsersByPoints(5),
+      queryMonthlyScores(monthKey, 20)
+    ]);
     return response.status(200).json({
       users: users.map((user) => ({
         uid: user.uid,
         name: user.name || 'Aluna',
         avatar: user.avatar || '',
-        points: user.points || 0
-      }))
+        points: user.points || 0,
+        isCofounder: Boolean(user.isCofounder)
+      })),
+      monthly: {
+        monthKey,
+        daysRemaining: monthKey === getSaoPauloMonthKey() ? getDaysRemainingInMonth() : 0,
+        prize: '1 sessão individual com Bruno Simplicio',
+        users: monthlyScores.map((score) => ({
+          uid: score.uid,
+          name: score.name || 'Aluna',
+          avatar: score.avatar || '',
+          points: score.points || 0,
+          totalPoints: score.totalPoints || 0,
+          isCofounder: Boolean(score.isCofounder)
+        }))
+      }
     });
   } catch (error) {
     console.error('Ranking API error:', error);

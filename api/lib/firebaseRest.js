@@ -147,6 +147,41 @@ export const queryTopUsersByPoints = async (limit = 5) => {
     }));
 };
 
+export const queryMonthlyScores = async (monthKey, limit = 20) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
+  const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'monthlyScores' }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: 'monthKey' },
+            op: 'EQUAL',
+            value: toFirestoreValue(monthKey)
+          }
+        },
+        limit: 500
+      }
+    })
+  });
+
+  if (!response.ok) {
+    console.error('Firestore monthly ranking query error:', body);
+    throw new Error('Nao foi possivel carregar o ranking mensal.');
+  }
+
+  return (Array.isArray(body) ? body : [])
+    .map(item => item.document)
+    .filter(Boolean)
+    .map(document => ({
+      id: String(document.name || '').split('/').pop(),
+      ...fromFirestoreDocument(document)
+    }))
+    .sort((a, b) => (b.points || 0) - (a.points || 0))
+    .slice(0, safeLimit);
+};
+
 export const incrementDocumentField = async (collection, id, fieldPath, amount = 1) => {
   const { response, body } = await authorizedFetch(`https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents:commit`, {
     method: 'POST',
@@ -175,7 +210,85 @@ export const incrementDocumentField = async (collection, id, fieldPath, amount =
   return body;
 };
 
-export const commitDailyAudioReward = async ({ uid, rewardDate, points = 5 }) => {
+const monthlyScoreWrite = ({ uid, userProfile = {}, monthKey, points, now }) => ({
+  update: {
+    name: firestoreDocumentName('monthlyScores', `${monthKey}_${uid}`),
+    fields: {
+      uid: toFirestoreValue(uid),
+      monthKey: toFirestoreValue(monthKey),
+      name: toFirestoreValue(userProfile.name || userProfile.email || 'Aluna'),
+      avatar: toFirestoreValue(userProfile.avatar || ''),
+      totalPoints: toFirestoreValue((userProfile.points || 0) + points),
+      isCofounder: toFirestoreValue(Boolean(userProfile.isCofounder)),
+      updatedAt: toFirestoreValue(now)
+    }
+  },
+  updateMask: { fieldPaths: ['uid', 'monthKey', 'name', 'avatar', 'totalPoints', 'isCofounder', 'updatedAt'] },
+  updateTransforms: [
+    {
+      fieldPath: 'points',
+      increment: { integerValue: String(points) }
+    }
+  ]
+});
+
+const monthlyPointEventWrite = ({ uid, userProfile = {}, monthKey, points, source, sourceId, now }) => ({
+  update: {
+    name: firestoreDocumentName('monthlyPointEvents', `${uid}_${monthKey}_${source}_${sourceId}_${now.getTime()}`.replace(/[^a-zA-Z0-9_-]/g, '_')),
+    fields: {
+      userId: toFirestoreValue(uid),
+      monthKey: toFirestoreValue(monthKey),
+      points: toFirestoreValue(points),
+      source: toFirestoreValue(source),
+      sourceId: toFirestoreValue(sourceId || ''),
+      userName: toFirestoreValue(userProfile.name || userProfile.email || 'Aluna'),
+      createdAt: toFirestoreValue(now)
+    }
+  }
+});
+
+export const commitUserPointDelta = async ({ uid, userProfile = {}, points, monthKey, source, sourceId, userFields = {} }) => {
+  if (!points) return { pointsAwarded: 0 };
+  const now = new Date();
+  const userDocument = firestoreDocumentName('users', uid);
+  const userFieldsPayload = Object.fromEntries(Object.entries({
+    ...userFields,
+    updatedAt: now
+  }).map(([key, value]) => [key, toFirestoreValue(value)]));
+
+  const { response, body } = await authorizedFetch(`https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents:commit`, {
+    method: 'POST',
+    body: JSON.stringify({
+      writes: [
+        {
+          update: {
+            name: userDocument,
+            fields: userFieldsPayload
+          },
+          updateMask: { fieldPaths: Object.keys(userFieldsPayload) },
+          updateTransforms: [
+            {
+              fieldPath: 'points',
+              increment: { integerValue: String(points) }
+            }
+          ],
+          currentDocument: { exists: true }
+        },
+        monthlyScoreWrite({ uid, userProfile, monthKey, points, now }),
+        monthlyPointEventWrite({ uid, userProfile, monthKey, points, source, sourceId, now })
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    console.error('User point delta commit error:', body);
+    throw new Error('Nao foi possivel registrar a pontuacao.');
+  }
+
+  return { pointsAwarded: points, monthKey };
+};
+
+export const commitDailyAudioReward = async ({ uid, userProfile = {}, rewardDate, monthKey, points = 5 }) => {
   const rewardId = `${uid}_${rewardDate}`.replace(/[^a-zA-Z0-9_-]/g, '_');
   const now = new Date();
   const rewardDocument = firestoreDocumentName('dailyAudioRewards', rewardId);
@@ -197,6 +310,8 @@ export const commitDailyAudioReward = async ({ uid, rewardDate, points = 5 }) =>
           },
           currentDocument: { exists: false }
         },
+        monthlyScoreWrite({ uid, userProfile, monthKey, points, now }),
+        monthlyPointEventWrite({ uid, userProfile, monthKey, points, source: 'daily_audio', sourceId: rewardDate, now }),
         {
           update: {
             name: userDocument,
@@ -229,6 +344,64 @@ export const commitDailyAudioReward = async ({ uid, rewardDate, points = 5 }) =>
   }
 
   return { rewarded: true, rewardDate, pointsAwarded: points };
+};
+
+export const commitDailyMissionReward = async ({ uid, userProfile = {}, completionId, challengeDate, audioChecked, responses, monthKey, points = 30 }) => {
+  const now = new Date();
+  const completionDocument = firestoreDocumentName('dailyChallengeCompletions', completionId);
+  const userDocument = firestoreDocumentName('users', uid);
+
+  const { response, body } = await authorizedFetch(`https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents:commit`, {
+    method: 'POST',
+    body: JSON.stringify({
+      writes: [
+        {
+          update: {
+            name: completionDocument,
+            fields: {
+              userId: toFirestoreValue(uid),
+              challengeDate: toFirestoreValue(challengeDate),
+              audioChecked: toFirestoreValue(Boolean(audioChecked)),
+              responses: toFirestoreValue(responses || {}),
+              completedAt: toFirestoreValue(now)
+            }
+          },
+          currentDocument: { exists: false }
+        },
+        {
+          update: {
+            name: userDocument,
+            fields: {
+              lastMissionRewardDate: toFirestoreValue(challengeDate),
+              updatedAt: toFirestoreValue(now)
+            }
+          },
+          updateMask: { fieldPaths: ['lastMissionRewardDate', 'updatedAt'] },
+          updateTransforms: [
+            {
+              fieldPath: 'points',
+              increment: { integerValue: String(points) }
+            }
+          ],
+          currentDocument: { exists: true }
+        },
+        monthlyScoreWrite({ uid, userProfile, monthKey, points, now }),
+        monthlyPointEventWrite({ uid, userProfile, monthKey, points, source: 'daily_mission', sourceId: challengeDate, now })
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const status = body?.error?.status || '';
+    const message = body?.error?.message || '';
+    if (status === 'ALREADY_EXISTS' || message.includes('already exists')) {
+      return { rewarded: false, challengeDate, pointsAwarded: 0 };
+    }
+    console.error('Daily mission reward commit error:', body);
+    throw new Error('Nao foi possivel registrar a missao diaria.');
+  }
+
+  return { rewarded: true, challengeDate, pointsAwarded: points };
 };
 
 export const createAuthUserIfNeeded = async ({ email, name }) => {

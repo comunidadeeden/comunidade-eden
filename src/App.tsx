@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
-import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, CustomLevel, Offer } from './types';
+import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, CustomLevel, Offer, MonthlyRankingUser } from './types';
 import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { confirmPasswordReset, isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword, verifyPasswordResetCode } from 'firebase/auth';
-import { doc, getDoc, where, getDocs, collection, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp, increment, documentId } from 'firebase/firestore';
+import { doc, getDoc, where, collection, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp, documentId } from 'firebase/firestore';
 
 export const ICON_MAP: Record<string, React.FC<any>> = {
   Crown, Star, Zap, Award, Trophy, Sprout, Shield, Compass, FileText, CheckCircle, Leaf, Key
@@ -172,6 +172,16 @@ const fromInputDate = (date: string) => {
   const [year, month, day] = date.split('-');
   if (!day || !month || !year) return '';
   return `${day}-${month}-${year}`;
+};
+
+const formatMonthKey = (monthKey: string) => {
+  if (!monthKey) return 'Este mês';
+  const [year, month] = monthKey.split('-').map(Number);
+  if (!year || !month) return 'Este mês';
+  return new Date(year, month - 1, 1).toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric'
+  });
 };
 
 const isPastDate = (date: string) => {
@@ -459,13 +469,26 @@ export default function App() {
   const handleUpdateLeaves = async () => {
     if (!selectedUser) return;
     try {
-      await updateDoc(doc(db, 'users', selectedUser.uid), {
-        points: (selectedUser.points || 0) + leavesAmount
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão de admin expirada.');
+      const response = await fetch('/api/admin/points', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          uid: selectedUser.uid,
+          points: leavesAmount
+        })
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Não foi possível atualizar as folhas.');
       setIsFolhasModalOpen(false);
       setLeavesAmount(0);
     } catch (error) {
       console.error("Error updating leaves:", error);
+      alert(error instanceof Error ? error.message : 'Não foi possível atualizar as folhas.');
     }
   };
 
@@ -536,30 +559,26 @@ export default function App() {
 
   const toggleChallengeCompletion = async (challengeId: string) => {
     if (!user) return;
-    
-    const isCompleted = user.completedChallenges?.includes(challengeId);
-    let newCompletedChallenges = [...(user.completedChallenges || [])];
-    let pointsToAdd = 0;
-
-    if (isCompleted) {
-      newCompletedChallenges = newCompletedChallenges.filter(id => id !== challengeId);
-      pointsToAdd = -7;
-    } else {
-      newCompletedChallenges.push(challengeId);
-      pointsToAdd = 7;
-    }
 
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        completedChallenges: newCompletedChallenges,
-        points: (user.points || 0) + pointsToAdd,
-        updatedAt: serverTimestamp()
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão expirada.');
+      const response = await fetch('/api/points/challenge', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ challengeId })
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Não foi possível atualizar o desafio.');
       setUser({
         ...user,
-        completedChallenges: newCompletedChallenges,
-        points: Math.max(0, (user.points || 0) + pointsToAdd)
+        completedChallenges: data.completedChallenges || user.completedChallenges || [],
+        points: Math.max(0, (user.points || 0) + (data.pointsAwarded || 0))
       });
+      applyMonthlyRankingDelta(data.pointsAwarded || 0);
     } catch (error) {
       console.error("Error updating challenge completion:", error);
     }
@@ -577,6 +596,13 @@ export default function App() {
   const [allAudios, setAllAudios] = useState<DailyAudio[]>([]);
   const [editingAudio, setEditingAudio] = useState<DailyAudio | null>(null);
   const [rankingUsers, setRankingUsers] = useState<UserProfile[]>([]);
+  const [monthlyRankingUsers, setMonthlyRankingUsers] = useState<MonthlyRankingUser[]>([]);
+  const [rankingMode, setRankingMode] = useState<'geral' | 'mensal'>('mensal');
+  const [monthlyRankingMeta, setMonthlyRankingMeta] = useState({
+    monthKey: '',
+    daysRemaining: 0,
+    prize: '1 sessão individual com Bruno Simplicio'
+  });
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   const [commentInput, setCommentInput] = useState('');
   const [comments, setComments] = useState<LessonComment[]>([]);
@@ -629,6 +655,25 @@ export default function App() {
     lessonCount: offer.lessonCount || 0,
     items: []
   });
+  const applyMonthlyRankingDelta = (pointsDelta: number) => {
+    if (!user || !pointsDelta) return;
+    setMonthlyRankingUsers(prev => {
+      const existing = prev.find(item => item.uid === user.uid);
+      const nextUser = {
+        uid: user.uid,
+        name: user.name || 'Aluna',
+        avatar: user.avatar || '',
+        points: Math.max(0, (existing?.points || 0) + pointsDelta),
+        totalPoints: Math.max(0, (user.points || 0) + pointsDelta),
+        isCofounder: Boolean(user.isCofounder)
+      };
+      const withoutCurrentUser = prev.filter(item => item.uid !== user.uid);
+      return [...withoutCurrentUser, nextUser]
+        .filter(item => item.points > 0)
+        .sort((a, b) => (b.points || 0) - (a.points || 0))
+        .slice(0, 20);
+    });
+  };
 
   // Gamification states
   const [leaves, setLeaves] = useState(0);
@@ -943,6 +988,29 @@ export default function App() {
       handleFirestoreError(error, 'LIST' as any, 'dailyAudios');
     });
 
+    const loadRankingSummary = async () => {
+      try {
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) return;
+        const response = await fetch('/api/ranking', {
+          headers: { 'Authorization': `Bearer ${idToken}` }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error || 'Não foi possível carregar o ranking.');
+        if (!isAdmin) setRankingUsers(data.users || []);
+        setMonthlyRankingUsers(data.monthly?.users || []);
+        setMonthlyRankingMeta({
+          monthKey: data.monthly?.monthKey || '',
+          daysRemaining: data.monthly?.daysRemaining || 0,
+          prize: data.monthly?.prize || '1 sessão individual com Bruno Simplicio'
+        });
+      } catch (error) {
+        console.warn('Could not load ranking:', error);
+        if (!isAdmin) setRankingUsers([]);
+        setMonthlyRankingUsers([]);
+      }
+    };
+
     let unsubscribeRanking: (() => void) | null = null;
     if (isAdmin) {
       const usersRef = collection(db, 'users');
@@ -953,21 +1021,8 @@ export default function App() {
       }, (error) => {
         handleFirestoreError(error, 'LIST' as any, 'users');
       });
-    } else {
-      auth.currentUser?.getIdToken()
-        .then((idToken) => fetch('/api/ranking', {
-          headers: { 'Authorization': `Bearer ${idToken}` }
-        }))
-        .then(async (response) => {
-          const data = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(data?.error || 'Não foi possível carregar o ranking.');
-          setRankingUsers(data.users || []);
-        })
-        .catch((error) => {
-          console.warn('Could not load ranking:', error);
-          setRankingUsers([]);
-        });
     }
+    loadRankingSummary();
 
     const unsubscribeLevels = onSnapshot(doc(db, 'settings', 'levels'), (docLevel) => {
        if (docLevel.exists()) {
@@ -1336,6 +1391,7 @@ export default function App() {
               const data = await response.json().catch(() => ({}));
               if (!response.ok) throw new Error(data?.error || 'Não foi possível registrar o áudio diário.');
               if (data.rewarded) {
+                applyMonthlyRankingDelta(data.pointsAwarded || 5);
                 setUser({
                   ...user,
                   points: (user.points || 0) + (data.pointsAwarded || 5),
@@ -1375,33 +1431,40 @@ export default function App() {
 
     setIsSubmittingMission(true);
     try {
-      const completionId = `${user.uid}_${todayChallenge.date}`;
-      await setDoc(doc(db, 'dailyChallengeCompletions', completionId), {
-        userId: user.uid,
-        challengeDate: todayChallenge.date,
-        audioChecked,
-        responses: missionResponses,
-        completedAt: serverTimestamp()
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão expirada.');
+      const response = await fetch('/api/points/mission', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          challengeDate: todayChallenge.date,
+          audioChecked,
+          responses: missionResponses
+        })
       });
-
-      // Award 30 points
-	      await updateDoc(doc(db, 'users', user.uid), {
-	        points: increment(30),
-	        lastMissionRewardDate: todayChallenge.date,
-	        updatedAt: serverTimestamp()
-	      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Não foi possível concluir a missão.');
+      if (!data.rewarded) {
+        alert('Essa missão já foi concluída hoje.');
+        setIsMissionModalOpen(false);
+        return;
+      }
       setUser({
         ...user,
-        points: (user.points || 0) + 30,
+        points: (user.points || 0) + (data.pointsAwarded || 30),
         lastMissionRewardDate: todayChallenge.date
       });
+      applyMonthlyRankingDelta(data.pointsAwarded || 30);
 
       setIsMissionModalOpen(false);
       setAudioChecked(false);
       setMissionResponses({});
       alert('Parabéns! Missão concluída com sucesso. +30 Folhas');
     } catch (e) {
-      handleFirestoreError(e, 'WRITE', 'dailyChallengeCompletions');
+      alert(e instanceof Error ? e.message : 'Não foi possível concluir a missão.');
     } finally {
       setIsSubmittingMission(false);
     }
@@ -4057,18 +4120,77 @@ export default function App() {
                     Ranking do Éden
                   </h2>
                 </div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
-                  <Crown size={14} className="text-emerald-400" />
-                  <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest tracking-[0.2em]">As mulheres mais comprometidas</span>
+                <div className="inline-flex items-center gap-1 bg-black/40 border border-white/10 rounded-2xl p-1">
+                  {[
+                    { id: 'mensal', label: 'Mensal' },
+                    { id: 'geral', label: 'Geral' }
+                  ].map((mode) => (
+                    <button
+                      key={mode.id}
+                      onClick={() => setRankingMode(mode.id as 'geral' | 'mensal')}
+                      className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${rankingMode === mode.id ? 'bg-[#4bd3ff] text-[#020507]' : 'text-gray-400 hover:text-white'}`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
+              {rankingMode === 'mensal' && (
+                <div className="rounded-3xl border border-[#4bd3ff]/20 bg-[#061418] overflow-hidden">
+                  <div className="p-5 sm:p-6 border-b border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-[0.28em] mb-2">Desafio do mês</p>
+                      <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight capitalize">{formatMonthKey(monthlyRankingMeta.monthKey)}</h3>
+                    </div>
+                    <div className="rounded-2xl bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 px-4 py-3 text-left sm:text-right">
+                      <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-widest">Prêmio</p>
+                      <p className="text-white font-black text-sm">{monthlyRankingMeta.prize}</p>
+                      <p className="text-gray-500 text-[11px] mt-1">
+                        {monthlyRankingMeta.daysRemaining > 0 ? `${monthlyRankingMeta.daysRemaining} dia(s) restantes` : 'Encerrando hoje'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 sm:p-6">
+                    {monthlyRankingUsers.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {monthlyRankingUsers.slice(0, 3).map((rUser, idx) => {
+                          const rankStyles = [
+                            'border-yellow-400/30 bg-yellow-400/10 sm:scale-105',
+                            'border-slate-300/20 bg-white/5',
+                            'border-amber-600/25 bg-amber-600/10'
+                          ];
+                          return (
+                            <div key={rUser.uid} className={`rounded-2xl border p-4 text-center ${rankStyles[idx]}`}>
+                              <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden">
+                                {rUser.avatar ? <img src={rUser.avatar} alt="" className="w-full h-full object-cover" /> : <Crown size={22} className={idx === 0 ? 'text-yellow-400' : 'text-[#4bd3ff]'} />}
+                              </div>
+                              <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">#{idx + 1}</p>
+                              <h4 className="text-white font-black truncate">{rUser.name || 'Aluna'}</h4>
+                              <div className="mt-3 flex items-center justify-center gap-1 text-emerald-400">
+                                <span>🍃</span>
+                                <span className="text-2xl font-black">{rUser.points || 0}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-10 text-center border border-dashed border-white/10 rounded-2xl">
+                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">O desafio mensal começou. As primeiras folhas ainda vão aparecer.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-4">
-                {rankingUsers.length > 0 ? (
-                  rankingUsers.map((rUser, idx) => {
+                {(rankingMode === 'mensal' ? monthlyRankingUsers : rankingUsers).length > 0 ? (
+                  (rankingMode === 'mensal' ? monthlyRankingUsers : rankingUsers).map((rUser, idx) => {
                     const medalColors = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
                     const points = rUser.points || 0;
-                    const level = getUserLevel(points);
+                    const level = getUserLevel(rankingMode === 'mensal' ? ((rUser as MonthlyRankingUser).totalPoints || 0) : points);
                     const LevelIcon = level.icon;
                     const isCofounder = rUser.isCofounder;
                     
@@ -4124,7 +4246,7 @@ export default function App() {
                   })
                 ) : (
                   <div className="py-12 text-center border-2 border-dashed border-white/5 rounded-2xl">
-                    <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Aguardando as primeiras florescerem...</p>
+                    <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Aguardando as primeiras folhas aparecerem...</p>
                   </div>
                 )}
               </div>

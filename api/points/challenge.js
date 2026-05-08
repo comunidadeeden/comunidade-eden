@@ -1,21 +1,8 @@
-import { commitDailyAudioReward, getAuthUserByIdToken, getDocument } from '../lib/firebaseRest.js';
+import { commitUserPointDelta, getAuthUserByIdToken, getDocument } from '../lib/firebaseRest.js';
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
   return authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
-};
-
-const getSaoPauloDate = () => {
-  const parts = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  }).formatToParts(new Date());
-  const day = parts.find(part => part.type === 'day')?.value || '01';
-  const month = parts.find(part => part.type === 'month')?.value || '01';
-  const year = parts.find(part => part.type === 'year')?.value || '1970';
-  return `${day}-${month}-${year}`;
 };
 
 const getSaoPauloMonthKey = () => {
@@ -59,18 +46,38 @@ export default async function handler(request, response) {
       return response.status(403).json({ error: 'Acesso indisponivel.' });
     }
 
-    const rewardDate = getSaoPauloDate();
-    const result = await commitDailyAudioReward({
+    const challengeId = String(request.body?.challengeId || '').trim();
+    if (!challengeId || challengeId.length > 128) {
+      return response.status(400).json({ error: 'Desafio invalido.' });
+    }
+
+    const completedChallenges = Array.isArray(userProfile.completedChallenges)
+      ? userProfile.completedChallenges
+      : [];
+    const isCompleted = completedChallenges.includes(challengeId);
+    const nextCompletedChallenges = isCompleted
+      ? completedChallenges.filter(id => id !== challengeId)
+      : [...completedChallenges, challengeId];
+    const points = isCompleted ? -7 : 7;
+
+    const result = await commitUserPointDelta({
       uid: authUser.uid,
       userProfile,
-      rewardDate,
+      points,
       monthKey: getSaoPauloMonthKey(),
-      points: 5
+      source: 'lesson_challenge',
+      sourceId: challengeId,
+      userFields: {
+        completedChallenges: nextCompletedChallenges
+      }
     });
 
-    return response.status(200).json(result);
+    return response.status(200).json({
+      ...result,
+      completedChallenges: nextCompletedChallenges
+    });
   } catch (error) {
-    console.error('Daily audio reward API error:', error);
-    return response.status(500).json({ error: 'Nao foi possivel registrar a recompensa do audio.' });
+    console.error('Challenge reward API error:', error);
+    return response.status(500).json({ error: 'Nao foi possivel atualizar o desafio.' });
   }
 }

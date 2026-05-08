@@ -92,10 +92,6 @@ service cloud.firestore {
              (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 500));
     }
 
-    function pointDelta() {
-      return incoming().points - existing().points;
-    }
-
     function isStudentProfileUpdate() {
 	      return incoming().role == existing().role &&
 	             incoming().points == existing().points &&
@@ -125,23 +121,6 @@ service cloud.firestore {
              incoming().diff(existing()).affectedKeys().hasOnly(['requiresPasswordSetup', 'updatedAt']);
     }
 
-    function isStudentProgressUpdate() {
-      return incoming().role == existing().role &&
-             incoming().email == existing().email &&
-             incoming().points >= 0 &&
-             incoming().diff(existing()).affectedKeys().hasOnly(['completedChallenges', 'points', 'updatedAt']) &&
-             (pointDelta() == 7 || pointDelta() == -7);
-    }
-
-    function isStudentMissionRewardUpdate() {
-      return incoming().role == existing().role &&
-             incoming().email == existing().email &&
-             incoming().points >= 0 &&
-             incoming().diff(existing()).affectedKeys().hasOnly(['points', 'lastMissionRewardDate', 'updatedAt']) &&
-             pointDelta() == 30 &&
-             incoming().lastMissionRewardDate != existing().lastMissionRewardDate;
-    }
-
     match /users/{userId} {
       allow get: if isAdmin() || isOwner(userId);
       allow list: if isAdmin();
@@ -164,9 +143,7 @@ service cloud.firestore {
         isValidUser(incoming()) &&
         (
           isStudentProfileUpdate() ||
-          isStudentPasswordSetupFlagUpdate() ||
-          isStudentProgressUpdate() ||
-          isStudentMissionRewardUpdate()
+          isStudentPasswordSetupFlagUpdate()
         )
       );
       allow delete: if isAdmin();
@@ -284,21 +261,18 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // --- DAILY COMPLETIONS ---
-    function isValidCompletion(data) {
-      return data.keys().hasOnly(['userId', 'challengeDate', 'audioChecked', 'responses', 'completedAt']) &&
-             data.userId == request.auth.uid &&
-             data.challengeDate is string &&
-             data.audioChecked is bool &&
-             (!('responses' in data) || data.responses is map) &&
-             data.completedAt == request.time;
+    match /monthlyScores/{scoreId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /monthlyPointEvents/{eventId} {
+      allow read, write: if isAdmin();
     }
 
     match /dailyChallengeCompletions/{completionId} {
       allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow get: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn() && isValidCompletion(incoming());
-      allow update, delete: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
   }
 }

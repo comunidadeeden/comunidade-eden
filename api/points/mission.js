@@ -1,21 +1,8 @@
-import { commitDailyAudioReward, getAuthUserByIdToken, getDocument } from '../lib/firebaseRest.js';
+import { commitDailyMissionReward, getAuthUserByIdToken, getDocument } from '../lib/firebaseRest.js';
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
   return authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
-};
-
-const getSaoPauloDate = () => {
-  const parts = new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  }).formatToParts(new Date());
-  const day = parts.find(part => part.type === 'day')?.value || '01';
-  const month = parts.find(part => part.type === 'month')?.value || '01';
-  const year = parts.find(part => part.type === 'year')?.value || '1970';
-  return `${day}-${month}-${year}`;
 };
 
 const getSaoPauloMonthKey = () => {
@@ -41,6 +28,11 @@ const isAccessExpired = (date) => {
   return new Date() > parsedDate;
 };
 
+const hasAnswer = (value) => {
+  if (Array.isArray(value)) return value.length > 0;
+  return typeof value === 'string' && value.trim().length > 0;
+};
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -59,18 +51,37 @@ export default async function handler(request, response) {
       return response.status(403).json({ error: 'Acesso indisponivel.' });
     }
 
-    const rewardDate = getSaoPauloDate();
-    const result = await commitDailyAudioReward({
+    const challengeDate = String(request.body?.challengeDate || '').trim();
+    const audioChecked = Boolean(request.body?.audioChecked);
+    const responses = request.body?.responses || {};
+    if (!challengeDate || !audioChecked) {
+      return response.status(400).json({ error: 'Missao incompleta.' });
+    }
+
+    const challenge = await getDocument('dailyChallenges', challengeDate);
+    if (!challenge) return response.status(404).json({ error: 'Missao nao encontrada.' });
+
+    for (const question of challenge.questions || []) {
+      if (!hasAnswer(responses[question.id])) {
+        return response.status(400).json({ error: `A pergunta "${question.label}" e obrigatoria.` });
+      }
+    }
+
+    const completionId = `${authUser.uid}_${challengeDate}`;
+    const result = await commitDailyMissionReward({
       uid: authUser.uid,
       userProfile,
-      rewardDate,
+      completionId,
+      challengeDate,
+      audioChecked,
+      responses,
       monthKey: getSaoPauloMonthKey(),
-      points: 5
+      points: 30
     });
 
     return response.status(200).json(result);
   } catch (error) {
-    console.error('Daily audio reward API error:', error);
-    return response.status(500).json({ error: 'Nao foi possivel registrar a recompensa do audio.' });
+    console.error('Mission reward API error:', error);
+    return response.status(500).json({ error: 'Nao foi possivel concluir a missao.' });
   }
 }
