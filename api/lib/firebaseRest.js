@@ -121,7 +121,7 @@ export const deleteDocument = async (collection, id) => {
 };
 
 export const queryTopUsersByPoints = async (limit = 5) => {
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 5, 20));
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 5, 100));
   const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {
     method: 'POST',
     body: JSON.stringify({

@@ -4170,6 +4170,70 @@ export default function App() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[100px] rounded-full -mr-32 -mt-32"></div>
             
             <div className="space-y-10 relative z-10">
+              <div className="bg-[#0b0c10]/55 backdrop-blur-3xl border border-[#4bd3ff]/20 rounded-2xl p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)]">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-[#f1f5f9] tracking-tight mb-2 flex items-center gap-2">
+                       {user?.name}
+                       {user?.isCofounder && (
+                           <div className="group relative flex items-center">
+                             <Key size={24} className="text-[#4bd3ff]" />
+                             <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#0b2831] px-2 py-1 text-[10px] font-bold text-[#4bd3ff] opacity-0 transition-opacity group-hover:opacity-100 border border-[#4bd3ff]/20 z-[100] shadow-xl tracking-normal">
+                               Essa é uma co fundadora do Éden
+                             </div>
+                           </div>
+                       )}
+                    </h2>
+                    <div className="inline-block bg-[#0b2831] border border-[#144b5c] text-emerald-400 px-4 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase">
+                      {getUserLevel(user?.points || 0).title}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-emerald-400 text-2xl drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">🍃</span>
+                      <span className="text-3xl font-black text-[#f8fafc]">{user?.points || 0}</span>
+                    </div>
+                    <span className="text-gray-400 text-[10px] font-bold tracking-widest uppercase">Folhas</span>
+                  </div>
+                </div>
+
+                {(() => {
+                  const nextLvl = getNextLevelInfo(user?.points || 0);
+                  const currLvl = getUserLevel(user?.points || 0);
+                  return (
+                    <>
+                      <div className="mb-2 flex items-center justify-between text-xs text-gray-400 font-bold uppercase tracking-wider">
+                        <span>Progresso para {nextLvl.nextTitle}</span>
+                        <span className="text-[#4bd3ff]">{Math.min(100, Math.round(nextLvl.percentage))}%</span>
+                      </div>
+                      <div className="h-2.5 bg-black/40 rounded-full overflow-hidden mb-4 border border-white/5 p-[1px]">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-500 via-[#4bd3ff] to-emerald-400 rounded-full transition-all duration-1000 ease-out shadow-[0_0_20px_rgba(75,211,255,0.4)]"
+                          style={{ width: `${Math.min(100, nextLvl.percentage)}%` }}
+                        ></div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-2 mt-2">
+                        <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
+                          <currLvl.icon size={12} className="text-emerald-400 shrink-0" />
+                          <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
+                            {currLvl.title}
+                          </span>
+                        </div>
+                        {user?.isCofounder && (
+                          <div className="flex items-center gap-2 bg-[#4bd3ff]/10 px-3 py-1.5 rounded-full border border-[#4bd3ff]/20">
+                            <Key size={12} className="text-[#4bd3ff]" />
+                            <span className="text-[10px] text-[#4bd3ff] font-bold uppercase tracking-widest">
+                               Co-fundadora
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
               <div className="flex flex-col items-center space-y-4">
                 <div className="flex items-center gap-3">
                   <Leaf size={28} className="text-emerald-400 animate-pulse" />
@@ -4250,9 +4314,10 @@ export default function App() {
                     const level = getUserLevel(rankingMode === 'mensal' ? ((rUser as MonthlyRankingUser).totalPoints || 0) : points);
                     const LevelIcon = level.icon;
                     const isCofounder = rUser.isCofounder;
+                    const isCurrentUser = rUser.uid === user?.uid;
                     
                     return (
-                      <div key={rUser.uid} className="flex items-center gap-4 py-4 px-4 border border-white/5 rounded-xl hover:bg-white/[0.02] transition-all group">
+                      <div key={rUser.uid} className={`flex items-center gap-4 py-4 px-4 border rounded-xl transition-all group ${isCurrentUser ? 'border-[#4bd3ff]/60 bg-[#4bd3ff]/10 shadow-[0_0_28px_rgba(75,211,255,0.12)]' : 'border-white/5 hover:bg-white/[0.02]'}`}>
                         <div className="w-10 h-10 flex flex-col items-center justify-center shrink-0">
                           {idx < 3 ? (
                             <div className="flex flex-col items-center">
@@ -4267,6 +4332,11 @@ export default function App() {
                         <div className="flex-1 min-w-0">
                           <h4 className="text-white font-extrabold text-base sm:text-lg truncate tracking-tight flex items-center gap-2">
                             {rUser.name || 'Membro do Éden'}
+                            {isCurrentUser && (
+                              <span className="rounded-full bg-[#4bd3ff] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#020507]">
+                                Você
+                              </span>
+                            )}
                             {isCofounder && (
                                <div className="group relative flex items-center">
                                  <Key size={16} className="text-[#4bd3ff]" />
@@ -4311,76 +4381,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-          {/* Progress Overlap Card (Visible on Challenges) */}
-          {(activeTab === 'gameficacao') && !isCurrentTabInDevelopment && (
-            <div className="px-4 sm:px-12 -mt-16 sm:-mt-24 relative z-30 mb-4 max-w-4xl mx-auto w-full">
-              <div className="bg-[#0b0c10]/40 backdrop-blur-3xl border border-white/10 rounded-2xl p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)]">
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-[#f1f5f9] tracking-tight mb-2 flex items-center gap-2">
-                       {user?.name}
-                       {user?.isCofounder && (
-                           <div className="group relative flex items-center">
-                             <Key size={24} className="text-[#4bd3ff]" />
-                             <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#0b2831] px-2 py-1 text-[10px] font-bold text-[#4bd3ff] opacity-0 transition-opacity group-hover:opacity-100 border border-[#4bd3ff]/20 z-[100] shadow-xl tracking-normal">
-                               Essa é uma co fundadora do Éden
-                             </div>
-                           </div>
-                       )}
-                    </h2>
-                    <div className="inline-block bg-[#0b2831] border border-[#144b5c] text-emerald-400 px-4 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase">
-                      {getUserLevel(user?.points || 0).title}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-emerald-400 text-2xl drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">🍃</span>
-                      <span className="text-3xl font-black text-[#f8fafc]">{user?.points || 0}</span>
-                    </div>
-                    <span className="text-gray-400 text-[10px] font-bold tracking-widest uppercase">Folhas</span>
-                  </div>
-                </div>
-
-                {(() => {
-                  const nextLvl = getNextLevelInfo(user?.points || 0);
-                  const currLvl = getUserLevel(user?.points || 0);
-                  return (
-                    <>
-                      <div className="mb-2 flex items-center justify-between text-xs text-gray-400 font-bold uppercase tracking-wider">
-                        <span>Progresso para {nextLvl.nextTitle}</span>
-                        <span className="text-[#4bd3ff]">{Math.min(100, Math.round(nextLvl.percentage))}%</span>
-                      </div>
-                      <div className="h-2.5 bg-black/40 rounded-full overflow-hidden mb-4 border border-white/5 p-[1px]">
-                        <div 
-                          className="h-full bg-gradient-to-r from-emerald-500 via-[#4bd3ff] to-emerald-400 rounded-full transition-all duration-1000 ease-out shadow-[0_0_20px_rgba(75,211,255,0.4)]"
-                          style={{ width: `${Math.min(100, nextLvl.percentage)}%` }}
-                        ></div>
-                      </div>
-                      
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-2 mt-2">
-                        <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
-                          <currLvl.icon size={12} className="text-emerald-400 shrink-0" />
-                          <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
-                            {currLvl.title}
-                          </span>
-                        </div>
-                        {user?.isCofounder && (
-                          <div className="flex items-center gap-2 bg-[#4bd3ff]/10 px-3 py-1.5 rounded-full border border-[#4bd3ff]/20">
-                            <Key size={12} className="text-[#4bd3ff]" />
-                            <span className="text-[10px] text-[#4bd3ff] font-bold uppercase tracking-widest">
-                               Co-fundadora
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          )}
-
 	      <div className={`${activeTab === 'guardiao' ? 'px-0 pb-0 pt-0' : `px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'ranking' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : activeTab === 'gameficacao' ? 'pt-6' : activeTab === 'ranking' ? 'pt-0' : 'pt-24') : (activeTab === 'materiais') ? 'pt-24' : 'pt-24'}`} relative z-30`}>
         {renderContent()}
       </div>
