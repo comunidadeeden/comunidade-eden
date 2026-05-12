@@ -404,6 +404,62 @@ export const commitDailyMissionReward = async ({ uid, userProfile = {}, completi
   return { rewarded: true, challengeDate, pointsAwarded: points };
 };
 
+export const commitDailyCommitmentReward = async ({ uid, userProfile = {}, completionId, date, activity, monthKey, points = 10 }) => {
+  const now = new Date();
+  const completionDocument = firestoreDocumentName('dailyCommitmentCompletions', completionId);
+  const userDocument = firestoreDocumentName('users', uid);
+
+  const { response, body } = await authorizedFetch(`https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents:commit`, {
+    method: 'POST',
+    body: JSON.stringify({
+      writes: [
+        {
+          update: {
+            name: completionDocument,
+            fields: {
+              userId: toFirestoreValue(uid),
+              date: toFirestoreValue(date),
+              activity: toFirestoreValue(activity),
+              completedAt: toFirestoreValue(now)
+            }
+          },
+          currentDocument: { exists: false }
+        },
+        {
+          update: {
+            name: userDocument,
+            fields: {
+              updatedAt: toFirestoreValue(now)
+            }
+          },
+          updateMask: { fieldPaths: ['updatedAt'] },
+          updateTransforms: [
+            {
+              fieldPath: 'points',
+              increment: { integerValue: String(points) }
+            }
+          ],
+          currentDocument: { exists: true }
+        },
+        monthlyScoreWrite({ uid, userProfile, monthKey, points, now }),
+        monthlyPointEventWrite({ uid, userProfile, monthKey, points, source: 'daily_commitment', sourceId: date, now })
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const status = body?.error?.status || '';
+    const message = body?.error?.message || '';
+    if (status === 'ALREADY_EXISTS' || message.includes('already exists')) {
+      return { rewarded: false, date, pointsAwarded: 0 };
+    }
+    console.error('Daily commitment reward commit error:', body);
+    throw new Error('Nao foi possivel registrar o selo de compromisso.');
+  }
+
+  return { rewarded: true, date, pointsAwarded: points };
+};
+
 export const createAuthUserIfNeeded = async ({ email, name }) => {
   const scopes = [IDENTITY_TOOLKIT_SCOPE];
   const lookup = await authorizedFetch(`${authBaseUrl()}/accounts:lookup?key=${webApiKey()}`, {

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
-import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, CustomLevel, Offer, MonthlyRankingUser } from './types';
-import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut } from 'lucide-react';
+import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, DailyCommitmentCompletion, CustomLevel, Offer, MonthlyRankingUser } from './types';
+import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut, Dumbbell } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { confirmPasswordReset, isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword, verifyPasswordResetCode } from 'firebase/auth';
@@ -37,6 +37,7 @@ const DEFAULT_ACCESS_EMAIL_TEMPLATE = {
   note: 'Se você não reconhece essa compra, ignore este email.'
 };
 const DEFAULT_MONTHLY_RANKING_PRIZE = '1 sessão individual com Bruno Simplicio';
+const DAILY_COMMITMENT_POINTS = 10;
 
 type GuardianMessage = { role: 'user' | 'assistant', content: string };
 type GuardianSession = { id: string, title: string, date: string, messages: GuardianMessage[] };
@@ -158,6 +159,8 @@ const getEmailLinkActionCodeSettings = () => ({
   url: `${window.location.origin}${window.location.pathname}`,
   handleCodeInApp: true,
 });
+
+const getTodayDateKey = () => new Date().toLocaleDateString('pt-BR').split('/').join('-');
 
 const parseBrazilianDate = (date: string) => {
   const [day, month, year] = date.split('-').map(Number);
@@ -340,6 +343,8 @@ export default function App() {
   const missionSectionRef = useRef<HTMLElement>(null);
   const missionToastShownKeyRef = useRef('');
   const [audioChecked, setAudioChecked] = useState(false);
+  const [commitmentText, setCommitmentText] = useState('');
+  const [isSubmittingCommitment, setIsSubmittingCommitment] = useState(false);
   const [isSubmittingMission, setIsSubmittingMission] = useState(false);
   const [leavesAmount, setLeavesAmount] = useState(0);
   const [resetEmailSent, setResetEmailSent] = useState<string | null>(null);
@@ -688,6 +693,7 @@ export default function App() {
   const [lockedModule, setLockedModule] = useState<Module | null>(null);
   const [dailyChallenges, setDailyChallenges] = useState<DailyChallenge[]>([]);
   const [allCompletions, setAllCompletions] = useState<DailyChallengeCompletion[]>([]);
+  const [commitmentCompletions, setCommitmentCompletions] = useState<DailyCommitmentCompletion[]>([]);
   const [todayChallenge, setTodayChallenge] = useState<DailyChallenge | null>(null);
   const [allAudios, setAllAudios] = useState<DailyAudio[]>([]);
   const [editingAudio, setEditingAudio] = useState<DailyAudio | null>(null);
@@ -1077,6 +1083,18 @@ export default function App() {
       }
     });
 
+    // Fetch daily commitment completions
+    const commitmentRef = collection(db, 'dailyCommitmentCompletions');
+    const commitmentQuery = isAdmin ? commitmentRef : query(commitmentRef, where('userId', '==', user.uid));
+    const unsubscribeCommitments = onSnapshot(commitmentQuery, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyCommitmentCompletion));
+      setCommitmentCompletions(docs);
+    }, (error) => {
+      if (error.code !== 'permission-denied') {
+        console.error(error);
+      }
+    });
+
     // Fetch all audios for admin
     const audiosRefCol = collection(db, 'dailyAudios');
     const qAudios = query(audiosRefCol, orderBy('createdAt', 'desc'));
@@ -1173,6 +1191,7 @@ export default function App() {
       unsubscribeTodayAudio();
       unsubscribeAllChallenges();
       unsubscribeAllCompletions();
+      unsubscribeCommitments();
       unsubscribeAllAudios();
       if (unsubscribeRanking) unsubscribeRanking();
       unsubscribeLevels();
@@ -1592,6 +1611,49 @@ export default function App() {
     }
   };
 
+  const handleSubmitCommitment = async () => {
+    if (!user) return;
+
+    const activity = commitmentText.trim();
+    if (!activity) {
+      alert('Escreva o que você fez para marcar o Selo de Compromisso.');
+      return;
+    }
+
+    setIsSubmittingCommitment(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão expirada.');
+
+      const response = await fetch('/api/points/commitment', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ activity })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || 'Não foi possível registrar o selo.');
+      if (!data.rewarded) {
+        alert('Seu Selo de Compromisso de hoje já foi marcado.');
+        return;
+      }
+
+      setUser({
+        ...user,
+        points: (user.points || 0) + (data.pointsAwarded || DAILY_COMMITMENT_POINTS)
+      });
+      applyMonthlyRankingDelta(data.pointsAwarded || DAILY_COMMITMENT_POINTS);
+      setCommitmentText('');
+      alert(`Selo de Compromisso marcado! +${data.pointsAwarded || DAILY_COMMITMENT_POINTS} folhas`);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Não foi possível registrar o selo.');
+    } finally {
+      setIsSubmittingCommitment(false);
+    }
+  };
+
   const scrollToTodayMission = () => {
     setActiveTab('gameficacao');
     setTimeout(() => {
@@ -1832,6 +1894,63 @@ export default function App() {
       case 'gameficacao': {
         return (
           <div className="max-w-4xl mx-auto pt-16 sm:pt-20 pb-12 px-4 space-y-8">
+            {(() => {
+              const todayKey = getTodayDateKey();
+              const todayCommitment = commitmentCompletions.find(item => item.date === todayKey && item.userId === user?.uid);
+              const isCommitmentDone = Boolean(todayCommitment);
+
+              return (
+                <section className="rounded-3xl border border-[#4bd3ff]/20 bg-[#061418] p-5 sm:p-7 shadow-[0_22px_70px_rgba(0,0,0,0.24)] overflow-hidden relative">
+                  <div className="absolute right-0 top-0 h-32 w-32 bg-[#4bd3ff]/10 blur-3xl" />
+                  <div className="relative z-10 flex flex-col gap-5">
+                    <div className="flex items-start gap-4">
+                      <div className={`shrink-0 p-3 border rounded-2xl ${isCommitmentDone ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-[#4bd3ff]/10 border-[#4bd3ff]/20 text-[#4bd3ff]'}`}>
+                        {isCommitmentDone ? <CheckCircle size={24} /> : <Dumbbell size={24} />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Selo de Compromisso</p>
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tight">Movimento do dia</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-gray-400">
+                          Marque seu compromisso com o corpo: faça uma atividade física e registre aqui o que você fez hoje.
+                        </p>
+                      </div>
+                      <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-400">
+                        <span>🍃</span> +{DAILY_COMMITMENT_POINTS}
+                      </div>
+                    </div>
+
+                    {isCommitmentDone ? (
+                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                        <div className="flex items-center gap-2 text-emerald-400 font-black uppercase tracking-widest text-[10px] mb-2">
+                          <CheckCircle size={14} /> Selo marcado hoje
+                        </div>
+                        <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">{todayCommitment?.activity}</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <textarea
+                          value={commitmentText}
+                          onChange={(event) => setCommitmentText(event.target.value)}
+                          placeholder="Ex: Caminhei 30 minutos, fiz musculação, dancei em casa..."
+                          className="min-h-[112px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white placeholder-gray-600 outline-none transition-colors focus:border-[#4bd3ff]/60"
+                        />
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <p className="text-xs text-gray-500 font-medium">Você pode marcar este selo uma vez por dia.</p>
+                          <button
+                            onClick={handleSubmitCommitment}
+                            disabled={isSubmittingCommitment || !commitmentText.trim()}
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#4bd3ff] px-6 py-3 text-xs font-black uppercase tracking-widest text-[#020507] transition-all hover:bg-[#38bdf8] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {isSubmittingCommitment ? 'Marcando...' : 'Marcar selo'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              );
+            })()}
+
             {/* Missão do Dia - Simplified Section */}
             <section ref={missionSectionRef} className="space-y-6 scroll-mt-32">
               <div className="flex items-center gap-4 mb-8">

@@ -146,3 +146,11 @@ export interface DailyChallengeCompletion {
   responses: Record<string, any>;
   completedAt: any;
 }
+
+export interface DailyCommitmentCompletion {
+  id?: string;
+  userId: string;
+  date: string;
+  activity: string;
+  completedAt: any;
+}
