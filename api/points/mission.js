@@ -1,10 +1,22 @@
-import { commitDailyMissionReward, getAuthUserByIdToken, getDocument } from '../lib/firebaseRest.js';
+import { commitDailyCommitmentReward, commitDailyMissionReward, getAuthUserByIdToken, getDocument } from '../lib/firebaseRest.js';
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
   return authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
 };
 
+const getSaoPauloDateKey = () => {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).formatToParts(new Date());
+  const day = parts.find(part => part.type === 'day')?.value || '01';
+  const month = parts.find(part => part.type === 'month')?.value || '01';
+  const year = parts.find(part => part.type === 'year')?.value || '1970';
+  return `${day}-${month}-${year}`;
+};
 const getSaoPauloMonthKey = () => {
   const parts = new Intl.DateTimeFormat('pt-BR', {
     timeZone: 'America/Sao_Paulo',
@@ -51,6 +63,29 @@ export default async function handler(request, response) {
       return response.status(403).json({ error: 'Acesso indisponivel.' });
     }
 
+    if (request.body?.type === 'commitment') {
+      const activity = String(request.body?.activity || '').trim();
+      if (activity.length < 3) {
+        return response.status(400).json({ error: 'Descreva a atividade que voce fez hoje.' });
+      }
+      if (activity.length > 800) {
+        return response.status(400).json({ error: 'Descreva a atividade em ate 800 caracteres.' });
+      }
+
+      const date = getSaoPauloDateKey();
+      const completionId = `${authUser.uid}_${date}`;
+      const result = await commitDailyCommitmentReward({
+        uid: authUser.uid,
+        userProfile,
+        completionId,
+        date,
+        activity,
+        monthKey: getSaoPauloMonthKey(),
+        points: 10
+      });
+
+      return response.status(200).json(result);
+    }
     const challengeDate = String(request.body?.challengeDate || '').trim();
     const audioChecked = Boolean(request.body?.audioChecked);
     const responses = request.body?.responses || {};

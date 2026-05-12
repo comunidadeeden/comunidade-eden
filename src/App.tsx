@@ -1625,13 +1625,13 @@ export default function App() {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error('Sessão expirada.');
 
-      const response = await fetch('/api/points/commitment', {
+      const response = await fetch('/api/points/mission', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ activity })
+        body: JSON.stringify({ type: 'commitment', activity })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || 'Não foi possível registrar o selo.');
