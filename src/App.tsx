@@ -1908,10 +1908,10 @@ export default function App() {
                         {isCommitmentDone ? <CheckCircle size={24} /> : <Dumbbell size={24} />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Selo de Compromisso</p>
-                        <h3 className="text-2xl font-black text-white uppercase tracking-tight">Movimento do dia</h3>
+                        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Movimento do dia</p>
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tight">Selo de Compromisso</h3>
                         <p className="mt-2 text-sm leading-relaxed text-gray-400">
-                          Marque seu compromisso com o corpo: faça uma atividade física e registre aqui o que você fez hoje.
+                          Registre a atividade física que você fez hoje e fortaleça seu compromisso diário com o corpo.
                         </p>
                       </div>
                       <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-400">
