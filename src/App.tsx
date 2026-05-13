@@ -427,6 +427,20 @@ export default function App() {
     setTimeout(() => setResetEmailSent(null), 5000);
   };
 
+  const fetchNotificationsFromBackend = async () => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return;
+
+    const response = await fetch('/api/ranking?notificationsOnly=1', {
+      headers: { 'Authorization': `Bearer ${idToken}` }
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'Não foi possível carregar os avisos.');
+    if (Array.isArray(result.notifications)) {
+      setNotificationsState(result.notifications as NotificationNotice[]);
+    }
+  };
+
   const requestAdminNotification = async (payload: Record<string, string>) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error('Sessão de admin expirada.');
@@ -930,6 +944,22 @@ export default function App() {
   const [leaves, setLeaves] = useState(0);
   const [completedChallenges, setCompletedChallenges] = useState<string[]>([]);
   
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    fetchNotificationsFromBackend().catch((error) => {
+      console.warn('Não foi possível carregar avisos pelo backend.', error);
+    });
+
+    const interval = window.setInterval(() => {
+      fetchNotificationsFromBackend().catch((error) => {
+        console.warn('Não foi possível atualizar avisos pelo backend.', error);
+      });
+    }, 60000);
+
+    return () => window.clearInterval(interval);
+  }, [user?.uid]);
+
   useEffect(() => {
     if (!notificationStorageKey) {
       setSeenNotificationIds([]);
@@ -2966,6 +2996,7 @@ export default function App() {
                     message,
                     linkUrl: (data.linkUrl || '').trim()
                   });
+                  await fetchNotificationsFromBackend();
                   alert('Aviso publicado com sucesso!');
                 } catch (e) {
                   handleFirestoreError(e, OperationType.CREATE, 'notifications');
@@ -3021,6 +3052,7 @@ export default function App() {
                           message: (data.message || '').trim(),
                           linkUrl: (data.linkUrl || '').trim()
                         });
+                        await fetchNotificationsFromBackend();
                       } catch (e) {
                         handleFirestoreError(e, OperationType.UPDATE, 'notifications/' + notice.id);
                       }
@@ -3046,6 +3078,7 @@ export default function App() {
                           action: 'notification:delete',
                           id: notice.id
                         });
+                        await fetchNotificationsFromBackend();
                       } catch (e) {
                         handleFirestoreError(e, OperationType.DELETE, 'notifications/' + notice.id);
                       }

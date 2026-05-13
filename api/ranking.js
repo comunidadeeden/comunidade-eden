@@ -1,4 +1,4 @@
-import { getAuthUserByIdToken, getDocument, queryMonthlyScores, queryTopUsersByPoints } from './lib/firebaseRest.js';
+import { getAuthUserByIdToken, getDocument, queryMonthlyScores, queryNotifications, queryTopUsersByPoints } from './lib/firebaseRest.js';
 
 const DEFAULT_MONTHLY_PRIZE = '1 sessão individual com Bruno Simplicio';
 
@@ -58,6 +58,11 @@ export default async function handler(request, response) {
     const requester = await getDocument('users', authUser.uid);
     if (!requester || requester.isBlocked || isAccessExpired(requester.accessExpiresAt)) {
       return response.status(403).json({ error: 'Acesso indisponivel.' });
+    }
+
+    if (request.query?.notificationsOnly === '1') {
+      const notifications = await queryNotifications(20);
+      return response.status(200).json({ notifications });
     }
 
     const monthKey = String(request.query?.month || getSaoPauloMonthKey()).trim();

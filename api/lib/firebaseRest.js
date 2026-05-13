@@ -147,6 +147,33 @@ export const queryTopUsersByPoints = async (limit = 5) => {
     }));
 };
 
+export const queryNotifications = async (limit = 20) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
+  const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'notifications' }],
+        orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }],
+        limit: safeLimit
+      }
+    })
+  });
+
+  if (!response.ok) {
+    console.error('Firestore notifications query error:', body);
+    throw new Error('Nao foi possivel carregar os avisos.');
+  }
+
+  return (Array.isArray(body) ? body : [])
+    .map(item => item.document)
+    .filter(Boolean)
+    .map(document => ({
+      id: String(document.name || '').split('/').pop(),
+      ...fromFirestoreDocument(document)
+    }));
+};
+
 export const queryMonthlyScores = async (monthKey, limit = 20) => {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
   const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {
