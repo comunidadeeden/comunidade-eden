@@ -346,6 +346,8 @@ export default function App() {
   const [editingMission, setEditingMission] = useState<DailyChallenge | null>(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [seenNotificationIds, setSeenNotificationIds] = useState<string[]>([]);
+  const [clearedNotificationIds, setClearedNotificationIds] = useState<string[]>([]);
   const [adminStudents, setAdminStudents] = useState<UserProfile[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [isFolhasModalOpen, setIsFolhasModalOpen] = useState(false);
@@ -765,14 +767,61 @@ export default function App() {
   const purchasedExtraModules = purchasedOffers
     .map(offer => extraContentTrail?.modules?.find(module => module.id === offer.moduleId))
     .filter(Boolean) as Module[];
+  const notificationStorageKey = user?.uid ? `edenNotifications:${user.uid}` : '';
   const recentLessons = trailsState
-    .flatMap(trail => (trail.modules || []).flatMap(module => (module.items || []).map(item => ({ ...item, moduleTitle: module.title, trailTitle: trail.title }))))
+    .flatMap(trail => (trail.modules || []).flatMap(module => (module.items || []).map((item, lessonIndex) => ({
+      ...item,
+      lessonIndex,
+      moduleId: module.id,
+      moduleTitle: module.title,
+      trailId: trail.id,
+      trailTitle: trail.title
+    }))))
     .filter(item => item.type === 'video')
     .slice(-3)
     .reverse();
+
+  const saveNotificationState = (nextSeen: string[], nextCleared: string[]) => {
+    const uniqueSeen = Array.from(new Set(nextSeen));
+    const uniqueCleared = Array.from(new Set(nextCleared));
+    setSeenNotificationIds(uniqueSeen);
+    setClearedNotificationIds(uniqueCleared);
+
+    if (!notificationStorageKey) return;
+
+    try {
+      window.localStorage.setItem(notificationStorageKey, JSON.stringify({
+        seen: uniqueSeen,
+        cleared: uniqueCleared
+      }));
+    } catch (error) {
+      console.warn('Não foi possível salvar o estado das notificações.', error);
+    }
+  };
+
+  const openLessonFromNotification = (item: typeof recentLessons[number]) => {
+    const targetTrail = trailsState.find(trail => trail.id === item.trailId);
+    const targetModule = targetTrail?.modules?.find(module => module.id === item.moduleId);
+
+    if (!targetTrail || !targetModule) {
+      setActiveTab('jornada');
+      return;
+    }
+
+    if (isModuleLockedForUser(targetModule, user)) {
+      setLockedModule(targetModule);
+      return;
+    }
+
+    setActiveTab('jornada');
+    setSelectedTrail(targetTrail);
+    setSelectedModule(targetModule);
+    setCurrentLessonIndex(item.lessonIndex || 0);
+  };
+
   const notificationItems = [
     ...notificationsState.map(notice => ({
-      id: notice.id || notice.title,
+      id: String(notice.id || notice.title),
       eyebrow: 'Aviso do Éden',
       title: notice.title,
       message: notice.message,
@@ -789,33 +838,46 @@ export default function App() {
       dateLabel: todayChallenge.date,
       onClick: () => {
         setActiveTab('gameficacao');
-        setShowNotificationsDropdown(false);
         setTimeout(() => missionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
       }
     }] : []),
     ...(audioState?.audioUrl ? [{
-      id: `audio-${audioState.title}`,
+      id: `audio-${audioState.title || 'dia'}`,
       eyebrow: 'Áudio do dia',
       title: audioState.title || 'Novo áudio disponível',
       message: audioState.description || audioState.subtitle || 'O áudio diário já está disponível para ouvir.',
       dateLabel: 'Hoje',
       onClick: () => {
         setActiveTab('jornada');
-        setShowNotificationsDropdown(false);
+        setTimeout(() => audioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
       }
     }] : []),
     ...recentLessons.map(item => ({
-      id: `lesson-${item.id}`,
+      id: `lesson-${item.moduleId}-${item.id || item.lessonIndex}`,
       eyebrow: 'Aula disponível',
       title: item.title,
       message: `Módulo: ${item.moduleTitle}`,
       dateLabel: 'Novo',
-      onClick: () => {
-        setActiveTab('jornada');
-        setShowNotificationsDropdown(false);
-      }
+      onClick: () => openLessonFromNotification(item)
     }))
   ].slice(0, 12);
+  const visibleNotificationItems = notificationItems.filter(item => !clearedNotificationIds.includes(item.id));
+  const unreadNotificationItems = visibleNotificationItems.filter(item => !seenNotificationIds.includes(item.id));
+
+  const markVisibleNotificationsAsSeen = () => {
+    if (visibleNotificationItems.length === 0) return;
+    saveNotificationState([...seenNotificationIds, ...visibleNotificationItems.map(item => item.id)], clearedNotificationIds);
+  };
+
+  const clearReadNotifications = () => {
+    const readVisibleIds = visibleNotificationItems
+      .filter(item => seenNotificationIds.includes(item.id))
+      .map(item => item.id);
+
+    if (readVisibleIds.length === 0) return;
+
+    saveNotificationState(seenNotificationIds, [...clearedNotificationIds, ...readVisibleIds]);
+  };
   const createOfferPreviewModule = (offer: Offer): Module => ({
     id: `offer-preview-${offer.id}`,
     offerId: offer.id,
@@ -850,6 +912,25 @@ export default function App() {
   const [leaves, setLeaves] = useState(0);
   const [completedChallenges, setCompletedChallenges] = useState<string[]>([]);
   
+  useEffect(() => {
+    if (!notificationStorageKey) {
+      setSeenNotificationIds([]);
+      setClearedNotificationIds([]);
+      return;
+    }
+
+    try {
+      const storedState = window.localStorage.getItem(notificationStorageKey);
+      const parsedState = storedState ? JSON.parse(storedState) : {};
+      setSeenNotificationIds(Array.isArray(parsedState.seen) ? parsedState.seen.map(String) : []);
+      setClearedNotificationIds(Array.isArray(parsedState.cleared) ? parsedState.cleared.map(String) : []);
+    } catch (error) {
+      console.warn('Não foi possível carregar o estado das notificações.', error);
+      setSeenNotificationIds([]);
+      setClearedNotificationIds([]);
+    }
+  }, [notificationStorageKey]);
+
   // -- FIRESTORE ERROR HANDLER --
   const handleFirestoreError = (error: any, operationType: OperationType | string, path: string | null) => {
     const errInfo = {
@@ -4528,16 +4609,18 @@ export default function App() {
           <div className="flex items-center gap-3 relative">
             <button
               onClick={() => {
-                setShowNotificationsDropdown(!showNotificationsDropdown);
+                const nextOpenState = !showNotificationsDropdown;
+                setShowNotificationsDropdown(nextOpenState);
                 setShowProfileDropdown(false);
+                if (nextOpenState) markVisibleNotificationsAsSeen();
               }}
               className="relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-white/5 border border-white/10 text-gray-300 hover:text-white hover:bg-white/10 transition-all"
               aria-label="Abrir notificações"
             >
               <Bell size={18} />
-              {notificationItems.length > 0 && (
+              {unreadNotificationItems.length > 0 && (
                 <span className="absolute -right-1 -top-1 min-w-5 h-5 rounded-full bg-[#4bd3ff] px-1 text-[10px] font-black text-[#020507] flex items-center justify-center border border-[#020507]">
-                  {notificationItems.length > 9 ? '9+' : notificationItems.length}
+                  {unreadNotificationItems.length > 9 ? '9+' : unreadNotificationItems.length}
                 </span>
               )}
             </button>
@@ -4554,12 +4637,12 @@ export default function App() {
                     <Bell size={18} className="text-[#4bd3ff]" />
                   </div>
                   <div className="max-h-[56vh] overflow-y-auto custom-scrollbar p-2">
-                    {notificationItems.length === 0 ? (
+                    {visibleNotificationItems.length === 0 ? (
                       <div className="p-8 text-center">
                         <p className="text-gray-500 text-xs font-black uppercase tracking-widest">Nenhuma novidade agora.</p>
                       </div>
                     ) : (
-                      notificationItems.map(item => (
+                      visibleNotificationItems.map(item => (
                         <button
                           key={item.id}
                           onClick={() => {
@@ -4578,6 +4661,16 @@ export default function App() {
                       ))
                     )}
                   </div>
+                  {visibleNotificationItems.length > 0 && (
+                    <div className="border-t border-white/10 p-2">
+                      <button
+                        onClick={clearReadNotifications}
+                        className="w-full rounded-xl px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-gray-400 hover:bg-white/5 hover:text-white transition-colors"
+                      >
+                        Limpar
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
