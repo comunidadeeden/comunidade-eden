@@ -4545,8 +4545,15 @@ export default function App() {
               className="relative w-full max-w-2xl bg-[#0b0c10] border border-white/10 rounded-none overflow-hidden shadow-2xl z-10 max-h-[90vh] overflow-y-auto"
             >
               <div className="p-8 space-y-8">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-3xl font-black text-white uppercase tracking-tight">Missão: {todayChallenge.title}</h3>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-3">
+                    <h3 className="text-3xl font-black text-white uppercase tracking-tight">Missão: {todayChallenge.title}</h3>
+                    {todayChallenge.description && (
+                      <p className="max-w-xl text-sm leading-relaxed text-gray-400">
+                        {todayChallenge.description}
+                      </p>
+                    )}
+                  </div>
                   <button onClick={() => setIsMissionModalOpen(false)} className="text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
                   </button>
