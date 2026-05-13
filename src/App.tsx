@@ -265,6 +265,8 @@ enum OperationType {
   WRITE = 'write',
 }
 
+const SUPPORT_WHATSAPP_URL = '';
+
 const JOURNEY_LEVELS = [
   {
     id: 'fase1',
@@ -5581,6 +5583,30 @@ export default function App() {
           })}
         </div>
       </div>
+
+      {activeTab !== 'guardiao' && !isAdminPanelOpen && (
+        <a
+          href={SUPPORT_WHATSAPP_URL || '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(event) => {
+            if (!SUPPORT_WHATSAPP_URL) {
+              event.preventDefault();
+              alert('O link do WhatsApp de suporte ainda será configurado.');
+            }
+          }}
+          className="fixed bottom-24 right-4 z-[60] flex items-center gap-2 rounded-full border border-[#4bd3ff]/35 bg-[#071418]/95 px-4 py-3 text-white shadow-[0_16px_40px_rgba(0,0,0,0.35),0_0_26px_rgba(75,211,255,0.12)] backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-[#4bd3ff]/70 hover:bg-[#0b2831] sm:bottom-8 sm:right-8 sm:px-5"
+          aria-label="Abrir suporte no WhatsApp"
+        >
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#4bd3ff] text-[#020507] shadow-[0_0_22px_rgba(75,211,255,0.28)]">
+            <MessageSquare size={18} />
+          </span>
+          <span className="flex flex-col leading-none">
+            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#4bd3ff]">Suporte</span>
+            <span className="text-sm font-black tracking-tight">Precisa de ajuda?</span>
+          </span>
+        </a>
+      )}
 
       {/* Modals & Overlays */}
       {isFolhasModalOpen && selectedUser && (
