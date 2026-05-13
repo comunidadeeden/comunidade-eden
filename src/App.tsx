@@ -5552,7 +5552,7 @@ export default function App() {
 
       {/* Bottom Navigation Navbar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#020709]/95 backdrop-blur-md border-t border-[#0b2831]/50 pb-safe">
-        <div className="flex justify-around items-center max-w-3xl mx-auto px-2 py-2.5 sm:px-4 sm:py-3">
+        <div className="relative flex justify-around items-center max-w-lg mx-auto px-2 py-2.5 sm:max-w-2xl sm:py-3">
           {userTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -5581,30 +5581,30 @@ export default function App() {
               </button>
             );
           })}
-          {activeTab !== 'guardiao' && !isAdminPanelOpen && (
-            <a
-              href={SUPPORT_WHATSAPP_URL || '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(event) => {
-                if (!SUPPORT_WHATSAPP_URL) {
-                  event.preventDefault();
-                  alert('O link do WhatsApp de suporte ainda será configurado.');
-                }
-              }}
-              className="flex w-16 flex-col items-center gap-1 rounded-2xl border border-[#4bd3ff]/25 bg-[#071418]/75 px-1.5 py-1.5 text-[#4bd3ff] transition-all hover:border-[#4bd3ff]/55 hover:bg-[#0b2831] sm:w-auto sm:min-w-[148px] sm:flex-row sm:justify-center sm:gap-2 sm:rounded-full sm:px-3 sm:py-2"
-              aria-label="Abrir suporte no WhatsApp"
-            >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#4bd3ff] text-[#020507] sm:h-8 sm:w-8">
-                <MessageSquare size={15} />
-              </span>
-              <span className="flex flex-col items-center leading-none sm:items-start">
-                <span className="hidden text-[8px] font-black uppercase tracking-[0.18em] sm:block">Suporte</span>
-                <span className="text-[10px] font-bold text-gray-200 sm:text-xs sm:font-black">Precisa de ajuda?</span>
-              </span>
-            </a>
-          )}
         </div>
+        {activeTab !== 'guardiao' && !isAdminPanelOpen && (
+          <a
+            href={SUPPORT_WHATSAPP_URL || '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(event) => {
+              if (!SUPPORT_WHATSAPP_URL) {
+                event.preventDefault();
+                alert('O link do WhatsApp de suporte ainda será configurado.');
+              }
+            }}
+            className="absolute right-3 top-1/2 hidden -translate-y-1/2 items-center gap-2 rounded-full border border-[#4bd3ff]/30 bg-[#071418]/85 px-3 py-2 text-[#4bd3ff] shadow-[0_10px_30px_rgba(0,0,0,0.28),0_0_20px_rgba(75,211,255,0.08)] transition-all hover:border-[#4bd3ff]/60 hover:bg-[#0b2831] lg:flex"
+            aria-label="Abrir suporte no WhatsApp"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#4bd3ff] text-[#020507]">
+              <MessageSquare size={15} />
+            </span>
+            <span className="flex flex-col leading-none">
+              <span className="text-[8px] font-black uppercase tracking-[0.18em]">Suporte</span>
+              <span className="text-xs font-black text-gray-100">Precisa de ajuda?</span>
+            </span>
+          </a>
+        )}
       </div>
 
       {/* Modals & Overlays */}
