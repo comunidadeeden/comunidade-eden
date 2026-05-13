@@ -427,6 +427,23 @@ export default function App() {
     setTimeout(() => setResetEmailSent(null), 5000);
   };
 
+  const requestAdminNotification = async (payload: Record<string, string>) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error('Sessão de admin expirada.');
+
+    const response = await fetch('/api/admin/students', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${idToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível salvar o aviso.');
+    return result;
+  };
+
   const handleCreateStudent = async (data: Record<string, string>) => {
     const email = normalizeEmail(data.email || '');
     const name = data.name?.trim();
@@ -2943,14 +2960,11 @@ export default function App() {
                 }
 
                 try {
-                  await addDoc(collection(db, 'notifications'), {
+                  await requestAdminNotification({
+                    action: 'notification:create',
                     title,
                     message,
-                    linkUrl: (data.linkUrl || '').trim(),
-                    type: 'admin',
-                    createdBy: user?.uid || '',
-                    createdAt: serverTimestamp(),
-                    publishedAt: serverTimestamp()
+                    linkUrl: (data.linkUrl || '').trim()
                   });
                   alert('Aviso publicado com sucesso!');
                 } catch (e) {
@@ -3000,11 +3014,12 @@ export default function App() {
                     onSubmit: async (data) => {
                       try {
                         if (!notice.id) return;
-                        await updateDoc(doc(db, 'notifications', notice.id), {
-                          title: data.title,
-                          message: data.message || '',
-                          linkUrl: data.linkUrl || '',
-                          updatedAt: serverTimestamp()
+                        await requestAdminNotification({
+                          action: 'notification:update',
+                          id: notice.id,
+                          title: data.title.trim(),
+                          message: (data.message || '').trim(),
+                          linkUrl: (data.linkUrl || '').trim()
                         });
                       } catch (e) {
                         handleFirestoreError(e, OperationType.UPDATE, 'notifications/' + notice.id);
@@ -3027,7 +3042,10 @@ export default function App() {
                     onSubmit: async () => {
                       try {
                         if (!notice.id) return;
-                        await deleteDoc(doc(db, 'notifications', notice.id));
+                        await requestAdminNotification({
+                          action: 'notification:delete',
+                          id: notice.id
+                        });
                       } catch (e) {
                         handleFirestoreError(e, OperationType.DELETE, 'notifications/' + notice.id);
                       }

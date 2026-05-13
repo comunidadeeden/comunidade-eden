@@ -1,5 +1,6 @@
+import crypto from 'node:crypto';
 import { provisionStudentAccess } from '../lib/accessProvisioning.js';
-import { getAuthUserByIdToken, getDocument } from '../lib/firebaseRest.js';
+import { deleteDocument, getAuthUserByIdToken, getDocument, setDocument } from '../lib/firebaseRest.js';
 
 const ADMIN_EMAIL = 'gu.correa98@gmail.com';
 
@@ -23,6 +24,57 @@ const assertAdmin = async (request) => {
   return authUser;
 };
 
+const handleNotificationAction = async (request, response, adminUser) => {
+  const action = String(request.body?.action || '').trim();
+  const title = String(request.body?.title || '').trim();
+  const message = String(request.body?.message || '').trim();
+  const linkUrl = String(request.body?.linkUrl || '').trim();
+
+  if (action === 'notification:create') {
+    if (!title || !message) {
+      return response.status(400).json({ error: 'Informe titulo e mensagem do aviso.' });
+    }
+
+    const id = 'notice_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
+    const now = new Date();
+    await setDocument('notifications', id, {
+      title,
+      message,
+      linkUrl,
+      type: 'admin',
+      createdBy: adminUser.uid,
+      createdAt: now,
+      publishedAt: now
+    });
+    return response.status(200).json({ ok: true, id });
+  }
+
+  if (action === 'notification:update') {
+    const id = String(request.body?.id || '').trim();
+    if (!id) return response.status(400).json({ error: 'ID do aviso e obrigatorio.' });
+    if (!title || !message) {
+      return response.status(400).json({ error: 'Informe titulo e mensagem do aviso.' });
+    }
+
+    await setDocument('notifications', id, {
+      title,
+      message,
+      linkUrl,
+      updatedAt: new Date()
+    });
+    return response.status(200).json({ ok: true, id });
+  }
+
+  if (action === 'notification:delete') {
+    const id = String(request.body?.id || '').trim();
+    if (!id) return response.status(400).json({ error: 'ID do aviso e obrigatorio.' });
+    await deleteDocument('notifications', id);
+    return response.status(200).json({ ok: true, id });
+  }
+
+  return null;
+};
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -30,7 +82,12 @@ export default async function handler(request, response) {
   }
 
   try {
-    await assertAdmin(request);
+    const adminUser = await assertAdmin(request);
+
+    if (String(request.body?.action || '').startsWith('notification:')) {
+      const notificationResponse = await handleNotificationAction(request, response, adminUser);
+      if (notificationResponse) return notificationResponse;
+    }
 
     const students = Array.isArray(request.body?.students)
       ? request.body.students
