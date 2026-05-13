@@ -749,10 +749,11 @@ export default function App() {
     description?: string;
     fields: { name: string, label: string, type?: string, defaultValue?: string, required?: boolean, placeholder?: string }[];
     submitText?: string;
-    onSubmit: (data: Record<string, string>) => void;
+    onSubmit: (data: Record<string, string>) => void | Promise<void>;
     onCancel: () => void;
   };
   const [promptConfig, setPromptConfig] = useState<PromptConfig | null>(null);
+  const [isPromptSubmitting, setIsPromptSubmitting] = useState(false);
 
   // Use all tabs, but we will handle disabled state in content rendering
   const userTabs = INITIAL_TABS;
@@ -2933,18 +2934,29 @@ export default function App() {
                 { name: 'linkUrl', label: 'Link opcional' }
               ],
               onSubmit: async (data) => {
+                const title = data.title.trim();
+                const message = (data.message || '').trim();
+
+                if (!title || !message) {
+                  alert('Preencha o título e a mensagem do aviso.');
+                  throw new Error('Campos obrigatórios do aviso não preenchidos.');
+                }
+
                 try {
                   await addDoc(collection(db, 'notifications'), {
-                    title: data.title,
-                    message: data.message || '',
-                    linkUrl: data.linkUrl || '',
+                    title,
+                    message,
+                    linkUrl: (data.linkUrl || '').trim(),
                     type: 'admin',
                     createdBy: user?.uid || '',
                     createdAt: serverTimestamp(),
                     publishedAt: serverTimestamp()
                   });
+                  alert('Aviso publicado com sucesso!');
                 } catch (e) {
                   handleFirestoreError(e, OperationType.CREATE, 'notifications');
+                  alert('Não foi possível publicar o aviso. Verifique se você está logado como admin e tente novamente.');
+                  throw e;
                 }
               },
               onCancel: () => setPromptConfig(null)
@@ -5623,7 +5635,7 @@ export default function App() {
       )}
 
       {promptConfig && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[1400] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={promptConfig.onCancel} />
           <motion.div 
             initial={{ scale: 0.95, opacity: 0 }}
@@ -5637,15 +5649,25 @@ export default function App() {
             </div>
             
             <form 
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
+                if (isPromptSubmitting) return;
+
                 const formData = new FormData(e.currentTarget);
                 const data: Record<string, string> = {};
                 promptConfig.fields.forEach(f => {
-                   data[f.name] = formData.get(f.name) as string;
+                   data[f.name] = String(formData.get(f.name) || '');
                 });
-                promptConfig.onSubmit(data);
-                setPromptConfig(null);
+
+                setIsPromptSubmitting(true);
+                try {
+                  await promptConfig.onSubmit(data);
+                  setPromptConfig(null);
+                } catch (error) {
+                  console.error('Erro ao executar ação do modal:', error);
+                } finally {
+                  setIsPromptSubmitting(false);
+                }
               }}
               className="space-y-4"
             >
@@ -5677,15 +5699,17 @@ export default function App() {
                 <button 
                   type="button" 
                   onClick={promptConfig.onCancel}
-                  className="px-6 py-3 font-bold text-gray-400 hover:text-white transition-colors uppercase tracking-widest text-xs"
+                  disabled={isPromptSubmitting}
+                  className="px-6 py-3 font-bold text-gray-400 hover:text-white disabled:opacity-50 transition-colors uppercase tracking-widest text-xs"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit"
-                  className="px-6 py-3 bg-white text-black font-black hover:bg-gray-200 uppercase tracking-widest text-xs rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all transform hover:scale-105 active:scale-95"
+                  disabled={isPromptSubmitting}
+                  className="px-6 py-3 bg-white text-black font-black hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed uppercase tracking-widest text-xs rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all transform hover:scale-105 active:scale-95"
                 >
-                  {promptConfig.submitText || 'Confirmar'}
+                  {isPromptSubmitting ? 'Salvando...' : (promptConfig.submitText || 'Confirmar')}
                 </button>
               </div>
             </form>
