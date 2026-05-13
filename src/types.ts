@@ -102,6 +102,17 @@ export interface Offer {
   updatedAt?: any;
 }
 
+export interface NotificationNotice {
+  id?: string;
+  title: string;
+  message: string;
+  linkUrl?: string;
+  type?: 'admin' | 'system';
+  createdBy?: string;
+  createdAt?: any;
+  publishedAt?: any;
+}
+
 export interface LessonComment {
   id: string;
   userId: string;

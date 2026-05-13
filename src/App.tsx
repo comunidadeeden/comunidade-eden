@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
-import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, DailyCommitmentCompletion, CustomLevel, Offer, MonthlyRankingUser } from './types';
-import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut, Dumbbell } from 'lucide-react';
+import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, DailyCommitmentCompletion, NotificationNotice, CustomLevel, Offer, MonthlyRankingUser } from './types';
+import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut, Dumbbell, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { confirmPasswordReset, isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword, verifyPasswordResetCode } from 'firebase/auth';
@@ -179,6 +179,20 @@ const fromInputDate = (date: string) => {
   return `${day}-${month}-${year}`;
 };
 
+const getTimestampMillis = (value: any) => {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  if (value instanceof Date) return value.getTime();
+  return 0;
+};
+
+const formatNotificationDate = (value: any) => {
+  const millis = getTimestampMillis(value);
+  if (!millis) return 'Agora';
+  return new Date(millis).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+};
+
 const formatMonthKey = (monthKey: string) => {
   if (!monthKey) return 'Este mês';
   const [year, month] = monthKey.split('-').map(Number);
@@ -331,6 +345,7 @@ export default function App() {
   const [adminActiveSection, setAdminActiveSection] = useState('geral');
   const [editingMission, setEditingMission] = useState<DailyChallenge | null>(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [adminStudents, setAdminStudents] = useState<UserProfile[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [isFolhasModalOpen, setIsFolhasModalOpen] = useState(false);
@@ -693,6 +708,7 @@ export default function App() {
   const [lockedModule, setLockedModule] = useState<Module | null>(null);
   const [dailyChallenges, setDailyChallenges] = useState<DailyChallenge[]>([]);
   const [allCompletions, setAllCompletions] = useState<DailyChallengeCompletion[]>([]);
+  const [notificationsState, setNotificationsState] = useState<NotificationNotice[]>([]);
   const [commitmentCompletions, setCommitmentCompletions] = useState<DailyCommitmentCompletion[]>([]);
   const [todayChallenge, setTodayChallenge] = useState<DailyChallenge | null>(null);
   const [allAudios, setAllAudios] = useState<DailyAudio[]>([]);
@@ -749,6 +765,57 @@ export default function App() {
   const purchasedExtraModules = purchasedOffers
     .map(offer => extraContentTrail?.modules?.find(module => module.id === offer.moduleId))
     .filter(Boolean) as Module[];
+  const recentLessons = trailsState
+    .flatMap(trail => (trail.modules || []).flatMap(module => (module.items || []).map(item => ({ ...item, moduleTitle: module.title, trailTitle: trail.title }))))
+    .filter(item => item.type === 'video')
+    .slice(-3)
+    .reverse();
+  const notificationItems = [
+    ...notificationsState.map(notice => ({
+      id: notice.id || notice.title,
+      eyebrow: 'Aviso do Éden',
+      title: notice.title,
+      message: notice.message,
+      dateLabel: formatNotificationDate(notice.publishedAt || notice.createdAt),
+      onClick: () => {
+        if (notice.linkUrl) window.open(notice.linkUrl, '_blank', 'noopener,noreferrer');
+      }
+    })),
+    ...(todayChallenge ? [{
+      id: `mission-${todayChallenge.date}`,
+      eyebrow: 'Missão do dia',
+      title: todayChallenge.title || 'Nova missão disponível',
+      message: todayChallenge.description || 'Uma nova missão está pronta para hoje.',
+      dateLabel: todayChallenge.date,
+      onClick: () => {
+        setActiveTab('gameficacao');
+        setShowNotificationsDropdown(false);
+        setTimeout(() => missionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+      }
+    }] : []),
+    ...(audioState?.audioUrl ? [{
+      id: `audio-${audioState.title}`,
+      eyebrow: 'Áudio do dia',
+      title: audioState.title || 'Novo áudio disponível',
+      message: audioState.description || audioState.subtitle || 'O áudio diário já está disponível para ouvir.',
+      dateLabel: 'Hoje',
+      onClick: () => {
+        setActiveTab('jornada');
+        setShowNotificationsDropdown(false);
+      }
+    }] : []),
+    ...recentLessons.map(item => ({
+      id: `lesson-${item.id}`,
+      eyebrow: 'Aula disponível',
+      title: item.title,
+      message: `Módulo: ${item.moduleTitle}`,
+      dateLabel: 'Novo',
+      onClick: () => {
+        setActiveTab('jornada');
+        setShowNotificationsDropdown(false);
+      }
+    }))
+  ].slice(0, 12);
   const createOfferPreviewModule = (offer: Offer): Module => ({
     id: `offer-preview-${offer.id}`,
     offerId: offer.id,
@@ -995,6 +1062,13 @@ export default function App() {
       handleFirestoreError(error, 'LIST', 'offers');
     });
 
+    const unsubscribeNotifications = onSnapshot(query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(20)), (snapshot) => {
+      const notices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as NotificationNotice));
+      setNotificationsState(notices);
+    }, (error) => {
+      handleFirestoreError(error, 'LIST', 'notifications');
+    });
+
     let unsubscribeStudents: (() => void) | null = null;
 
     if (isAdmin) {
@@ -1010,6 +1084,7 @@ export default function App() {
       unsubscribeTrails();
       unsubscribeMaterials();
       unsubscribeOffers();
+      unsubscribeNotifications();
       if (unsubscribeStudents) unsubscribeStudents();
     };
   }, [user, isAdmin]);
@@ -2758,6 +2833,125 @@ export default function App() {
     </div>
   );
 
+  const renderAdminNotifications = () => (
+    <div className="w-full max-w-7xl space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+        <div>
+          <h3 className="text-2xl font-black text-white uppercase tracking-tight">Avisos</h3>
+          <p className="text-gray-400 text-sm mt-1">Dispare comunicados que aparecem no sininho das alunas.</p>
+        </div>
+        <button
+          onClick={() => {
+            setPromptConfig({
+              title: 'Novo Aviso',
+              description: 'Esse aviso aparecerá no dropdown de notificações das alunas.',
+              submitText: 'Publicar aviso',
+              fields: [
+                { name: 'title', label: 'Título do aviso', required: true },
+                { name: 'message', label: 'Mensagem', type: 'textarea', required: true },
+                { name: 'linkUrl', label: 'Link opcional' }
+              ],
+              onSubmit: async (data) => {
+                try {
+                  await addDoc(collection(db, 'notifications'), {
+                    title: data.title,
+                    message: data.message || '',
+                    linkUrl: data.linkUrl || '',
+                    type: 'admin',
+                    createdBy: user?.uid || '',
+                    createdAt: serverTimestamp(),
+                    publishedAt: serverTimestamp()
+                  });
+                } catch (e) {
+                  handleFirestoreError(e, OperationType.CREATE, 'notifications');
+                }
+              },
+              onCancel: () => setPromptConfig(null)
+            });
+          }}
+          className="flex items-center justify-center gap-2 bg-[#4bd3ff] hover:bg-[#38bdf8] text-[#020507] px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all"
+        >
+          <Plus size={18} /> Novo Aviso
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {notificationsState.length === 0 && (
+          <div className="border border-white/10 border-dashed rounded-2xl p-10 text-center">
+            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Nenhum aviso publicado ainda.</p>
+          </div>
+        )}
+
+        {notificationsState.map((notice) => (
+          <div key={notice.id} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">Aviso publicado</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-600">{formatNotificationDate(notice.publishedAt || notice.createdAt)}</span>
+              </div>
+              <h4 className="text-white font-black text-lg tracking-tight">{notice.title}</h4>
+              <p className="text-gray-400 text-sm mt-1 leading-relaxed whitespace-pre-wrap">{notice.message}</p>
+              {notice.linkUrl && <p className="text-gray-600 text-xs mt-2 truncate">{notice.linkUrl}</p>}
+            </div>
+            <div className="flex items-center gap-2 self-end lg:self-auto">
+              <button
+                onClick={() => {
+                  setPromptConfig({
+                    title: 'Editar Aviso',
+                    submitText: 'Salvar aviso',
+                    fields: [
+                      { name: 'title', label: 'Título do aviso', defaultValue: notice.title, required: true },
+                      { name: 'message', label: 'Mensagem', type: 'textarea', defaultValue: notice.message || '', required: true },
+                      { name: 'linkUrl', label: 'Link opcional', defaultValue: notice.linkUrl || '' }
+                    ],
+                    onSubmit: async (data) => {
+                      try {
+                        if (!notice.id) return;
+                        await updateDoc(doc(db, 'notifications', notice.id), {
+                          title: data.title,
+                          message: data.message || '',
+                          linkUrl: data.linkUrl || '',
+                          updatedAt: serverTimestamp()
+                        });
+                      } catch (e) {
+                        handleFirestoreError(e, OperationType.UPDATE, 'notifications/' + notice.id);
+                      }
+                    },
+                    onCancel: () => setPromptConfig(null)
+                  });
+                }}
+                className="p-2 text-gray-400 hover:text-[#4bd3ff]"
+              >
+                <Edit2 size={18} />
+              </button>
+              <button
+                onClick={() => {
+                  setPromptConfig({
+                    title: 'Excluir Aviso?',
+                    description: 'Esse aviso deixará de aparecer para as alunas.',
+                    submitText: 'Excluir',
+                    fields: [],
+                    onSubmit: async () => {
+                      try {
+                        if (!notice.id) return;
+                        await deleteDoc(doc(db, 'notifications', notice.id));
+                      } catch (e) {
+                        handleFirestoreError(e, OperationType.DELETE, 'notifications/' + notice.id);
+                      }
+                    },
+                    onCancel: () => setPromptConfig(null)
+                  });
+                }}
+                className="p-2 text-gray-400 hover:text-red-400"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
   const renderAdminEmails = () => (
     <div className="w-full max-w-7xl space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
@@ -2966,6 +3160,7 @@ export default function App() {
                 {id: 'modulos', label: 'Módulos', icon: Video},
                 {id: 'missoes', label: 'Missão do Dia', icon: Calendar},
                 {id: 'alunos', label: 'Alunos', icon: Users},
+                {id: 'avisos', label: 'Avisos', icon: Bell},
                 {id: 'emails', label: 'Emails', icon: Send},
                 {id: 'materiais', label: 'Materiais', icon: FileText},
                 {id: 'ofertas', label: 'Ofertas', icon: Trophy},
@@ -4024,6 +4219,8 @@ export default function App() {
             </div>
           )}
 
+          {adminActiveSection === 'avisos' && renderAdminNotifications()}
+
           {adminActiveSection === 'emails' && renderAdminEmails()}
 
           {adminActiveSection === 'audio' && renderAdminAudios()}
@@ -4329,6 +4526,61 @@ export default function App() {
           )}
 
           <div className="flex items-center gap-3 relative">
+            <button
+              onClick={() => {
+                setShowNotificationsDropdown(!showNotificationsDropdown);
+                setShowProfileDropdown(false);
+              }}
+              className="relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-white/5 border border-white/10 text-gray-300 hover:text-white hover:bg-white/10 transition-all"
+              aria-label="Abrir notificações"
+            >
+              <Bell size={18} />
+              {notificationItems.length > 0 && (
+                <span className="absolute -right-1 -top-1 min-w-5 h-5 rounded-full bg-[#4bd3ff] px-1 text-[10px] font-black text-[#020507] flex items-center justify-center border border-[#020507]">
+                  {notificationItems.length > 9 ? '9+' : notificationItems.length}
+                </span>
+              )}
+            </button>
+
+            {showNotificationsDropdown && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsDropdown(false)}></div>
+                <div className="absolute top-full right-12 sm:right-16 mt-3 w-[min(92vw,380px)] max-h-[70vh] overflow-hidden bg-[#071418] border border-[#144b5c] rounded-2xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-white font-black uppercase tracking-tight">Notificações</p>
+                      <p className="text-gray-500 text-xs font-bold">Avisos e novidades do Éden</p>
+                    </div>
+                    <Bell size={18} className="text-[#4bd3ff]" />
+                  </div>
+                  <div className="max-h-[56vh] overflow-y-auto custom-scrollbar p-2">
+                    {notificationItems.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <p className="text-gray-500 text-xs font-black uppercase tracking-widest">Nenhuma novidade agora.</p>
+                      </div>
+                    ) : (
+                      notificationItems.map(item => (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            item.onClick();
+                            setShowNotificationsDropdown(false);
+                          }}
+                          className="w-full text-left rounded-xl p-3 hover:bg-white/5 transition-colors border border-transparent hover:border-white/10"
+                        >
+                          <div className="flex items-start justify-between gap-3 mb-1">
+                            <span className="text-[9px] font-black uppercase tracking-[0.22em] text-[#4bd3ff]">{item.eyebrow}</span>
+                            <span className="text-[10px] font-bold text-gray-600 whitespace-nowrap">{item.dateLabel}</span>
+                          </div>
+                          <p className="text-white font-black text-sm leading-tight">{item.title}</p>
+                          <p className="text-gray-400 text-xs mt-1 leading-relaxed line-clamp-2">{item.message}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
 	            <div className="flex items-center gap-1.5 sm:gap-2 bg-[#0b2831]/80 backdrop-blur-md border border-[#144b5c] px-2.5 sm:px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-black text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.15)] transition-transform hover:scale-105">
               <span className="text-base drop-shadow-sm">🍃</span>
               <span>{user?.points || 0}</span>
