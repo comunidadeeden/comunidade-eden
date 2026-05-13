@@ -357,6 +357,7 @@ export default function App() {
   const [isMissionModalOpen, setIsMissionModalOpen] = useState(false);
   const [showMissionToast, setShowMissionToast] = useState(false);
   const [adminMissionView, setAdminMissionView] = useState<'scheduled' | 'past'>('scheduled');
+  const [expandedAdminModules, setExpandedAdminModules] = useState<Record<string, boolean>>({});
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [missionResponses, setMissionResponses] = useState<Record<string, string | string[]>>({});
   const missionSectionRef = useRef<HTMLElement>(null);
@@ -3495,10 +3496,15 @@ export default function App() {
               </div>
 
               <div className="space-y-4">
-                {trailsState.flatMap(t => (t.modules || []).map(m => ({ ...m, trailId: t.id, trailTitle: t.title }))).map(module => (
-                  <div key={`${module.trailId}-${module.id}`} className="bg-[#0b0c10]/40 border border-white/10 rounded-2xl overflow-hidden">
-                    <div className="p-6 flex items-center justify-between group">
-                      <div className="flex items-center gap-6">
+                {trailsState.flatMap(t => (t.modules || []).map(m => ({ ...m, trailId: t.id, trailTitle: t.title }))).map(module => {
+                  const moduleKey = `${module.trailId}-${module.id}`;
+                  const isExpanded = Boolean(expandedAdminModules[moduleKey]);
+                  const toggleModule = () => setExpandedAdminModules(prev => ({ ...prev, [moduleKey]: !prev[moduleKey] }));
+
+                  return (
+                  <div key={moduleKey} className="bg-[#0b0c10]/40 border border-white/10 rounded-2xl overflow-hidden">
+                    <div className="p-6 flex items-center justify-between gap-4 group">
+                      <button type="button" onClick={toggleModule} className="flex min-w-0 flex-1 items-center gap-6 text-left">
                         <div className="cursor-grab active:cursor-grabbing text-gray-600 hover:text-gray-400">
                           <div className="grid grid-cols-2 gap-1">
                             <div className="w-1 h-1 rounded-full bg-current"></div>
@@ -3532,9 +3538,10 @@ export default function App() {
                             )}
                           </div>
                         </div>
-                      </div>
+                        <ChevronDown size={20} className={`ml-auto shrink-0 text-gray-500 transition-transform ${isExpanded ? 'rotate-180 text-[#4bd3ff]' : ''}`} />
+                      </button>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex shrink-0 items-center gap-3">
                         <button 
                            onClick={() => {
                              setPromptConfig({
@@ -3608,7 +3615,13 @@ export default function App() {
                     </div>
 
                     {/* Lesson List */}
+                    {isExpanded && (
                     <div className="border-t border-white/5 bg-black/20">
+                      {(module.items || []).length === 0 && (
+                        <div className="p-6 pl-16 text-xs font-black uppercase tracking-widest text-gray-600">
+                          Nenhuma aula cadastrada neste módulo.
+                        </div>
+                      )}
                       {module.items?.map((lesson: any) => (
                         <div key={lesson.id} className="flex items-center justify-between p-4 pl-16 border-b border-white/5 last:border-0 hover:bg-white/5 group/lesson">
                           <div className="flex items-center gap-4">
@@ -3620,6 +3633,7 @@ export default function App() {
                                <p className="text-[10px] uppercase tracking-widest text-gray-500 font-black">{lesson.type}</p>
                             </div>
                           </div>
+                          <div className="flex items-center gap-2">
                           <button 
                             onClick={() => {
                               setPromptConfig({
@@ -3656,11 +3670,44 @@ export default function App() {
                           >
                             <Settings size={18} />
                           </button>
+                          <button
+                            onClick={() => {
+                              setPromptConfig({
+                                title: 'Excluir Aula?',
+                                description: 'Essa aula será removida definitivamente deste módulo.',
+                                submitText: 'Excluir',
+                                fields: [],
+                                onSubmit: async () => {
+                                  try {
+                                    const trail = trailsState.find(t => t.id === module.trailId);
+                                    if (!trail) return;
+
+                                    const updatedItems = (module.items || []).filter((i: any) => i.id !== lesson.id);
+                                    const updatedModules = (trail.modules || []).map((m: any) =>
+                                      m.id === module.id ? { ...m, items: updatedItems } : m
+                                    );
+
+                                    await updateDoc(doc(db, 'trails', trail.id), { modules: updatedModules });
+                                  } catch (e) {
+                                    handleFirestoreError(e, OperationType.UPDATE, `trails/${module.trailId}`);
+                                    throw e;
+                                  }
+                                },
+                                onCancel: () => setPromptConfig(null)
+                              });
+                            }}
+                            className="p-2 text-gray-600 hover:text-red-400"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                          </div>
                         </div>
                       ))}
                     </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
