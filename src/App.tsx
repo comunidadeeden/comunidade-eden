@@ -2098,8 +2098,15 @@ export default function App() {
   };
 
 
+  const openExtraordinaryLifeWizard = (responses: Record<string, any> = {}) => {
+    setJourneyResponses(responses);
+    setJourneyWizardStep(0);
+    setIsJourneyReviewOpen(false);
+    setIsJourneyWizardOpen(true);
+  };
+
   const handleSubmitExtraordinaryLife = async () => {
-    if (!user || extraordinaryLifeSubmission) return;
+    if (!user) return;
     for (const field of EXTRAORDINARY_LIFE_FIELDS) {
       if (!isJourneyFieldFilled(field, journeyResponses[field.id])) {
         alert(getJourneyFieldValidationMessage(field));
@@ -2126,7 +2133,7 @@ export default function App() {
       if (data.form) setJourneyForms(prev => [data.form as JourneyFormSubmission, ...prev.filter(form => form.id !== data.form.id)]);
       setIsJourneyWizardOpen(false);
       setJourneyWizardStep(0);
-      alert('Vida Extraordinária registrada.');
+      alert(storedExtraordinaryLifeSubmission ? 'Vida Extraordinária atualizada.' : 'Vida Extraordinária registrada.');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'journeyForms/extraordinaryLife');
       alert('Não foi possível salvar sua Vida Extraordinária.');
@@ -2551,9 +2558,10 @@ export default function App() {
                     <>
                       <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-center text-[10px] font-black uppercase tracking-widest text-emerald-400">Registrado</span>
                       <button onClick={() => setIsJourneyReviewOpen(true)} className="rounded-2xl bg-[#4bd3ff] px-6 py-4 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-[#38bdf8]">Ver respostas</button>
+                      <button onClick={() => openExtraordinaryLifeWizard(extraordinaryLifeSubmission.responses || {})} className="rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-white/10">Editar protocolo</button>
                     </>
                   ) : (
-                    <button onClick={() => { setJourneyWizardStep(0); setIsJourneyWizardOpen(true); }} className="rounded-2xl bg-[#4bd3ff] px-6 py-4 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-[#38bdf8]">Preencher protocolo</button>
+                    <button onClick={() => openExtraordinaryLifeWizard()} className="rounded-2xl bg-[#4bd3ff] px-6 py-4 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-[#38bdf8]">Preencher protocolo</button>
                   )}
                 </div>
               </div>
@@ -6043,7 +6051,7 @@ export default function App() {
       </div>
 
       {/* Modals & Overlays */}
-      {isJourneyWizardOpen && currentJourneyField && !extraordinaryLifeSubmission && (
+      {isJourneyWizardOpen && currentJourneyField && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsJourneyWizardOpen(false)} />
           <div className="relative z-10 flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-[#4bd3ff]/20 bg-[#071418] shadow-2xl">
@@ -6231,7 +6239,7 @@ export default function App() {
               {journeyWizardStep < EXTRAORDINARY_LIFE_FIELDS.length - 1 ? (
                 <button onClick={handleNextJourneyStep} className="rounded-2xl bg-[#4bd3ff] px-6 py-3 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-[#38bdf8]">Próxima</button>
               ) : (
-                <button onClick={handleSubmitExtraordinaryLife} disabled={isSubmittingJourney} className="rounded-2xl bg-emerald-400 px-6 py-3 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-emerald-300 disabled:opacity-50">{isSubmittingJourney ? 'Salvando...' : 'Finalizar protocolo'}</button>
+                <button onClick={handleSubmitExtraordinaryLife} disabled={isSubmittingJourney} className="rounded-2xl bg-emerald-400 px-6 py-3 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-emerald-300 disabled:opacity-50">{isSubmittingJourney ? 'Salvando...' : (storedExtraordinaryLifeSubmission ? 'Salvar alterações' : 'Finalizar protocolo')}</button>
               )}
             </div>
           </div>

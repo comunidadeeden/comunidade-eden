@@ -44,6 +44,12 @@ const CIA_REQUIRED_FIELDS = ['percepcao', 'decisao', 'acao', 'sabotagem'];
 
 const hasAnswer = (value) => {
   if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (value && typeof value === 'object') {
+    const values = Object.values(value);
+    if (!values.length) return false;
+    return values.some(hasAnswer);
+  }
   return typeof value === 'string' && value.trim().length > 0;
 };
 
@@ -65,7 +71,7 @@ const getSaoPauloWeekKey = () => {
 };
 
 const hasJourneyResponses = (responses = {}) => (
-  responses && typeof responses === 'object' && Object.values(responses).every(hasAnswer)
+  responses && typeof responses === 'object' && Object.values(responses).some(hasAnswer)
 );
 
 export default async function handler(request, response) {
