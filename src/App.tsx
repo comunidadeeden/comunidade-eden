@@ -2494,7 +2494,6 @@ export default function App() {
                   <p>Escreva abaixo o seu juramento para esta semana.</p>
                   <p>Seja direto, sem justificativas.</p>
                   <p>Assuma uma identidade e sustente isso todos os dias.</p>
-                  <p className="pt-2 text-gray-100">“Essa semana, eu me comprometo a ser o tipo de pessoa que ________, mesmo sem vontade. Eu não negocio isso comigo.”</p>
                 </div>
               </div>
               {weeklyOathSubmission ? (
