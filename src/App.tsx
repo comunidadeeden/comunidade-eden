@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
 import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, DailyCommitmentCompletion, NotificationNotice, CustomLevel, Offer, MonthlyRankingUser, JourneyFormSubmission } from './types';
-import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut, Dumbbell, Bell } from 'lucide-react';
+import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut, Dumbbell, Bell, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { confirmPasswordReset, isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword, verifyPasswordResetCode } from 'firebase/auth';
@@ -12,7 +12,7 @@ export const ICON_MAP: Record<string, React.FC<any>> = {
 };
 
 const INITIAL_TABS = [
-  { id: 'jornada', label: 'Início', icon: Compass },
+  { id: 'jornada', label: 'Início', icon: Home },
   { id: 'materiais', label: 'Materiais', icon: FileText },
   { id: 'gameficacao', label: 'Desafios', icon: Trophy },
   { id: 'sua-jornada', label: 'Sua Jornada', icon: Compass },
@@ -293,23 +293,74 @@ const CIA_PROTOCOL: DailyChallenge = {
   ]
 };
 
-const EXTRAORDINARY_LIFE_FIELDS = [
-  { id: 'area', label: 'Área principal que quero transformar agora', type: 'text' },
-  { id: 'desejoReal', label: 'Qual é o meu desejo real?', type: 'textarea' },
-  { id: 'desejoFrase', label: 'Meu desejo em uma frase', type: 'textarea' },
-  { id: 'vidaReal', label: 'Como isso aparece na vida real?', type: 'textarea' },
-  { id: 'evidencia', label: 'Como vou saber que cheguei lá?', type: 'textarea' },
-  { id: 'aproximou', label: 'O que me aproximou desse desejo?', type: 'textarea' },
+type ExtraordinaryLifeField = {
+  id: string;
+  label: string;
+  type: 'text' | 'textarea' | 'date' | 'time' | 'checkbox' | 'number';
+  helper?: string;
+  options?: string[];
+};
+
+const EXTRAORDINARY_LIFE_AREAS = ['Vida financeira', 'Saúde', 'Relacionamento', 'Família', 'Trabalho', 'Corpo', 'Espiritualidade', 'Propósito', 'Casa / rotina', 'Outra'];
+const EXTRAORDINARY_LIFE_COSTS = ['Disciplina', 'Constância', 'Coragem', 'Conversas difíceis', 'Limites', 'Renúncias', 'Estudo', 'Tratamento emocional', 'Organização financeira', 'Mudança de rotina', 'Paciência', 'Exposição', 'Aprender algo novo', 'Parar de agradar', 'Parar de me sabotar'];
+const EXTRAORDINARY_LIFE_BET_AREAS = ['Financeiro', 'Saúde', 'Relacionamento', 'Trabalho', 'Família', 'Corpo', 'Propósito', 'Rotina'];
+
+const EXTRAORDINARY_LIFE_INTRO = 'Uma vida extraordinária não começa quando tudo muda. Começa quando você para de desejar de forma genérica. Desejo vago vira frustração. Desejo específico vira direção. Este protocolo existe para tirar você do “eu queria” e colocar você no “eu decidi”. Aqui você vai descobrir o que realmente quer, transformar esse desejo em algo específico, medir o avanço, entender o preço e sair com uma ação concreta. Não é para escrever bonito. É para escrever verdade.';
+
+const EXTRAORDINARY_LIFE_FIELDS: ExtraordinaryLifeField[] = [
+  { id: 'nome', label: 'Nome', type: 'text' },
+  { id: 'data', label: 'Data', type: 'date' },
+  { id: 'areaPrincipal', label: 'Área principal que quero transformar agora', type: 'checkbox', options: EXTRAORDINARY_LIFE_AREAS },
+  { id: 'desejoReal', label: '1. Qual é o seu desejo real?', type: 'textarea', helper: 'A pergunta principal não é “qual é seu sonho?”. Sonho pode virar frase bonita. A pergunta é mais perigosa: o que você deseja de verdade? Escreva sem tentar parecer humilde, espiritualizada, madura ou boazinha. Se você deseja, escreva. Depois a gente organiza.' },
+  { id: 'desejoFrase', label: '2. Meu desejo em uma frase', type: 'textarea', helper: 'Agora vamos arrancar esse desejo da névoa. Se ele continuar genérico, você não vai saber se está avançando ou só se enganando com movimento.' },
+  { id: 'vidaReal', label: 'Como isso aparece na vida real?', type: 'textarea', helper: 'Se for dinheiro: quanto? Se for carro: qual? Se for saúde: que resultado? Se for relacionamento: que tipo de relação? Se for casa: onde, como, com qual padrão?' },
+  { id: 'evidencia', label: 'Como eu vou saber que isso aconteceu?', type: 'textarea', helper: 'Descreva sinais concretos: números, prazos, comportamentos, ambiente, rotina e evidências.' },
+  { id: 'desejoEspecifico', label: '3. Eu desejo', type: 'textarea', helper: 'Complete com precisão. Não precisa ser perfeito. Precisa ser claro.' },
+  { id: 'naPratica', label: 'Na prática, isso significa', type: 'textarea' },
+  { id: 'evidenciaChegada', label: 'A evidência concreta de que eu cheguei lá será', type: 'textarea' },
+  { id: 'prazoDesejado', label: 'Prazo desejado', type: 'date' },
+  { id: 'areaDesejo', label: 'Esse desejo pertence principalmente a qual área?', type: 'checkbox', options: EXTRAORDINARY_LIFE_AREAS },
+  { id: 'aproximou', label: '4. O que me aproximou desse desejo?', type: 'textarea', helper: 'Você não começa do zero. Você começa do padrão que repetiu até aqui.' },
   { id: 'afastou', label: 'O que me afastou desse desejo?', type: 'textarea' },
-  { id: 'repetir', label: 'O que eu preciso repetir?', type: 'textarea' },
-  { id: 'cortar', label: 'O que eu preciso parar de repetir?', type: 'textarea' },
-  { id: 'precoPago', label: 'Qual preço estou disposta a pagar?', type: 'textarea' },
-  { id: 'precoNaoPago', label: 'Qual preço não aceito mais pagar?', type: 'textarea' },
-  { id: 'aposta', label: 'Minha maior aposta precisa ser em...', type: 'textarea' },
-  { id: 'prioridade7dias', label: 'Minha prioridade dos próximos 7 dias', type: 'textarea' },
-  { id: 'primeiraAcao', label: 'Minha primeira ação concreta', type: 'textarea' },
-  { id: 'declaracao', label: 'Minha declaração final', type: 'textarea' }
+  { id: 'repetir', label: '5. O que eu preciso repetir?', type: 'textarea' },
+  { id: 'pararRepetir', label: 'O que eu preciso parar de repetir?', type: 'textarea' },
+  { id: 'custos', label: '6. O que esse desejo vai exigir de mim?', type: 'checkbox', options: EXTRAORDINARY_LIFE_COSTS, helper: 'Todo desejo tem custo. Se você não sabe o custo, você não tem um plano. Tem fantasia.' },
+  { id: 'custoDisposta', label: 'O custo que eu estou disposta a pagar é', type: 'textarea' },
+  { id: 'custoNaoDisposta', label: 'O custo que eu NÃO estou mais disposta a pagar é', type: 'textarea' },
+  { id: 'precoVidaCobrara', label: 'Se eu não pagar esse preço, o preço que a vida vai me cobrar será', type: 'textarea' },
+  { id: 'apostasDistribuidas', label: '7. Distribua suas 5 fichas de energia', type: 'textarea', helper: `Use as áreas como referência: ${EXTRAORDINARY_LIFE_BET_AREAS.join(', ')}. Escreva quantas fichas vão para cada área escolhida.` },
+  { id: 'maiorAposta', label: 'Minha maior aposta precisa ser em', type: 'textarea' },
+  { id: 'porqueAposta', label: 'Por quê?', type: 'textarea' },
+  { id: 'medidorProgresso', label: '8. Medidor de progresso', type: 'textarea', helper: 'Você só melhora o que consegue enxergar. Defina área, como vai medir, meta específica e prazo.' },
+  { id: 'objetivo1', label: '9. Objetivo 1: área, primeiro passo e prazo', type: 'textarea' },
+  { id: 'objetivo2', label: 'Objetivo 2: área, primeiro passo e prazo', type: 'textarea' },
+  { id: 'objetivo3', label: 'Objetivo 3: área, primeiro passo e prazo', type: 'textarea' },
+  { id: 'objetivo4', label: 'Objetivo 4: área, primeiro passo e prazo', type: 'textarea' },
+  { id: 'objetivo5', label: 'Objetivo 5: área, primeiro passo e prazo', type: 'textarea' },
+  { id: 'prioridade7Dias', label: '10. Minha prioridade dos próximos 7 dias será', type: 'textarea', helper: 'Agora transforme desejo em movimento. Sem ação, esse protocolo vira decoração emocional.' },
+  { id: 'primeiraAcao', label: 'A primeira ação concreta que vou executar é', type: 'textarea' },
+  { id: 'quandoFazer', label: 'Quando vou fazer', type: 'date' },
+  { id: 'horario', label: 'Horário', type: 'time' },
+  { id: 'sabotagem', label: 'O que pode me sabotar', type: 'textarea' },
+  { id: 'defesaSabotagem', label: 'Como vou me defender dessa sabotagem', type: 'textarea' },
+  { id: 'pdaPercepcao', label: '11. PDA - Percepção: o que ficou claro para mim?', type: 'textarea', helper: 'Use este bloco sempre que precisar atualizar sua rota.' },
+  { id: 'pdaDecisao', label: 'PDA - Decisão: o que eu escolho a partir disso?', type: 'textarea' },
+  { id: 'pdaAcao', label: 'PDA - Ação: o que eu vou fazer agora?', type: 'textarea' },
+  { id: 'declaracaoFinal', label: '12. Copie à mão a declaração final', type: 'textarea', helper: 'Eu não vou mais chamar de sonho aquilo que eu tenho medo de especificar. Hoje eu assumo meu desejo real com clareza, responsabilidade e coragem. Eu não preciso diminuir o que quero para parecer aceitável para ninguém. Eu também não vou usar meu desejo como fantasia para fugir da ação. Eu escolho transformar vontade em direção, direção em plano e plano em movimento. Eu aceito pagar o preço da minha vida extraordinária, mas não aceito mais pagar o preço da minha própria omissão. Eu sei o que quero. Eu sei por que quero. Eu sei qual será meu primeiro passo. Hoje eu paro de esperar uma vida diferente enquanto repito a mesma mulher. Minha vida extraordinária começa com uma decisão extraordinariamente honesta.' },
+  { id: 'assinatura', label: 'Assinatura', type: 'text' },
+  { id: 'dataDeclaracao', label: 'Data da declaração', type: 'date' },
+  { id: 'compromissoDesejoReal', label: '13. Meu desejo real é', type: 'textarea' },
+  { id: 'acaoInegociavel24h', label: 'Minha ação inegociável nas próximas 24 horas é', type: 'textarea' },
+  { id: 'execucaoData', label: 'Eu vou executar em', type: 'date' },
+  { id: 'execucaoHorario', label: 'Horário da execução', type: 'time' },
+  { id: 'respostaFuga', label: 'Se eu tentar fugir, minha resposta será', type: 'textarea' }
 ];
+
+const formatJourneyAnswer = (value: any) => {
+  if (Array.isArray(value)) return value.length ? value.join(', ') : '-';
+  if (value && typeof value === 'object') return JSON.stringify(value, null, 2);
+  return value || '-';
+};
 
 const WEEKLY_OATH_TEXT = 'Essa semana, eu me comprometo a ser o tipo de pessoa que ______, mesmo sem vontade. Eu não negocio isso comigo.';
 
@@ -406,10 +457,13 @@ export default function App() {
   const [expandedAdminModules, setExpandedAdminModules] = useState<Record<string, boolean>>({});
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [missionResponses, setMissionResponses] = useState<Record<string, string | string[]>>({});
-  const [journeyResponses, setJourneyResponses] = useState<Record<string, string>>({});
+  const [journeyResponses, setJourneyResponses] = useState<Record<string, any>>({});
   const [weeklyOath, setWeeklyOath] = useState({ identity: '', conquest: '' });
   const [journeyForms, setJourneyForms] = useState<JourneyFormSubmission[]>([]);
   const [selectedJourneyUser, setSelectedJourneyUser] = useState<UserProfile | null>(null);
+  const [isJourneyWizardOpen, setIsJourneyWizardOpen] = useState(false);
+  const [journeyWizardStep, setJourneyWizardStep] = useState(0);
+  const [isJourneyReviewOpen, setIsJourneyReviewOpen] = useState(false);
   const [isSubmittingJourney, setIsSubmittingJourney] = useState(false);
   const missionSectionRef = useRef<HTMLElement>(null);
   const missionToastShownKeyRef = useRef('');
@@ -852,6 +906,8 @@ export default function App() {
   const ciaCompletionCount = allCompletions.filter(c => c.userId === user?.uid).length;
   const extraordinaryLifeSubmission = journeyForms.find(form => form.userId === user?.uid && form.type === 'extraordinaryLife');
   const weeklyOathSubmission = journeyForms.find(form => form.userId === user?.uid && form.type === 'weeklyOath' && form.weekKey === currentWeekKey);
+  const currentJourneyField = EXTRAORDINARY_LIFE_FIELDS[journeyWizardStep];
+  const journeyWizardProgress = Math.round(((journeyWizardStep + 1) / EXTRAORDINARY_LIFE_FIELDS.length) * 100);
   const purchasedOfferIds = user?.purchasedOfferIds || [];
   const availableOffers = offersState.filter(offer => !purchasedOfferIds.includes(offer.id));
   const purchasedOffers = offersState.filter(offer => purchasedOfferIds.includes(offer.id));
@@ -1960,6 +2016,8 @@ export default function App() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) throw new Error(data?.error || 'Não foi possível salvar sua Vida Extraordinária.');
       if (data.form) setJourneyForms(prev => [data.form as JourneyFormSubmission, ...prev.filter(form => form.id !== data.form.id)]);
+      setIsJourneyWizardOpen(false);
+      setJourneyWizardStep(0);
       alert('Vida Extraordinária registrada.');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'journeyForms/extraordinaryLife');
@@ -2311,47 +2369,12 @@ export default function App() {
       case 'sua-jornada':
         return (
           <div className="max-w-5xl mx-auto pt-16 sm:pt-20 pb-12 px-4 space-y-8">
-            <section className="rounded-3xl border border-white/10 bg-[#061014] p-6 sm:p-8">
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Protocolo de Clareza</p>
-                  <h3 className="text-2xl font-black text-white uppercase tracking-tight">Vida Extraordinária</h3>
-                  <p className="text-gray-400 text-sm mt-2 max-w-2xl">Preencha uma vez para transformar desejo vago em direção, plano e movimento. Depois, este registro fica visível para você acompanhar.</p>
-                </div>
-                {extraordinaryLifeSubmission && <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-400">Registrado</span>}
-              </div>
-
-              {extraordinaryLifeSubmission ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {EXTRAORDINARY_LIFE_FIELDS.map(field => (
-                    <div key={field.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#4bd3ff] mb-2">{field.label}</p>
-                      <p className="text-sm leading-relaxed text-gray-200 whitespace-pre-wrap">{extraordinaryLifeSubmission.responses?.[field.id] || '-'}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {EXTRAORDINARY_LIFE_FIELDS.map(field => (
-                    <div key={field.id} className="space-y-2">
-                      <label className="text-xs font-black uppercase tracking-widest text-gray-400">{field.label}</label>
-                      {field.type === 'textarea' ? (
-                        <textarea value={journeyResponses[field.id] || ''} onChange={(event) => setJourneyResponses(prev => ({ ...prev, [field.id]: event.target.value }))} className="min-h-[96px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" />
-                      ) : (
-                        <input value={journeyResponses[field.id] || ''} onChange={(event) => setJourneyResponses(prev => ({ ...prev, [field.id]: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" />
-                      )}
-                    </div>
-                  ))}
-                  <button onClick={handleSubmitExtraordinaryLife} disabled={isSubmittingJourney} className="w-full rounded-2xl bg-[#4bd3ff] px-6 py-4 text-xs font-black uppercase tracking-widest text-[#020507] disabled:opacity-50">{isSubmittingJourney ? 'Salvando...' : 'Salvar Vida Extraordinária'}</button>
-                </div>
-              )}
-            </section>
-
-            <section className="rounded-3xl border border-[#4bd3ff]/20 bg-[#071418] p-6 sm:p-8">
+            <section className="rounded-3xl border border-[#4bd3ff]/20 bg-[#071418] p-6 sm:p-8 shadow-[0_20px_70px_rgba(0,0,0,0.24)]">
               <div className="mb-6">
                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Renova toda segunda-feira</p>
                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">Juramento Semanal</h3>
-                <p className="text-gray-400 text-sm mt-2">{WEEKLY_OATH_TEXT}</p>
+                <p className="text-gray-400 text-sm mt-2">Escreva abaixo o seu juramento para esta semana. Seja direto, sem justificativas. Assuma uma identidade e sustente isso todos os dias.</p>
+                <p className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4 text-sm leading-relaxed text-gray-200">{WEEKLY_OATH_TEXT}</p>
               </div>
               {weeklyOathSubmission ? (
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -2374,7 +2397,44 @@ export default function App() {
                     <label className="text-xs font-black uppercase tracking-widest text-gray-400">Eu terminarei a minha semana com a seguinte conquista</label>
                     <textarea value={weeklyOath.conquest} onChange={(event) => setWeeklyOath(prev => ({ ...prev, conquest: event.target.value }))} className="mt-2 min-h-[90px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" />
                   </div>
+                  <p className="text-xs text-gray-500">Regra: um único compromisso. Sem ajustar no meio da semana. Sem negociar.</p>
                   <button onClick={handleSubmitWeeklyOath} disabled={isSubmittingJourney} className="w-full rounded-2xl bg-[#4bd3ff] px-6 py-4 text-xs font-black uppercase tracking-widest text-[#020507] disabled:opacity-50">{isSubmittingJourney ? 'Salvando...' : 'Firmar Juramento da Semana'}</button>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-[#061014] p-6 sm:p-8">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                <div className="max-w-2xl">
+                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Protocolo completo</p>
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tight">Vida Extraordinária</h3>
+                  <p className="text-gray-400 text-sm mt-3 leading-relaxed">{EXTRAORDINARY_LIFE_INTRO}</p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+                  {extraordinaryLifeSubmission ? (
+                    <>
+                      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-center text-[10px] font-black uppercase tracking-widest text-emerald-400">Registrado</span>
+                      <button onClick={() => setIsJourneyReviewOpen(true)} className="rounded-2xl bg-[#4bd3ff] px-6 py-4 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-[#38bdf8]">Ver respostas</button>
+                    </>
+                  ) : (
+                    <button onClick={() => { setJourneyWizardStep(0); setIsJourneyWizardOpen(true); }} className="rounded-2xl bg-[#4bd3ff] px-6 py-4 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-[#38bdf8]">Preencher protocolo</button>
+                  )}
+                </div>
+              </div>
+
+              {extraordinaryLifeSubmission ? (
+                <div className="mt-8 rounded-3xl border border-[#4bd3ff]/20 bg-black/25 p-5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#4bd3ff] mb-2">Desejo real</p>
+                  <p className="text-lg font-bold text-white whitespace-pre-wrap">{formatJourneyAnswer(extraordinaryLifeSubmission.responses?.desejoReal)}</p>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Área</p><p className="mt-2 text-sm text-gray-200">{formatJourneyAnswer(extraordinaryLifeSubmission.responses?.areaPrincipal)}</p></div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Prazo</p><p className="mt-2 text-sm text-gray-200">{formatJourneyAnswer(extraordinaryLifeSubmission.responses?.prazoDesejado)}</p></div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Primeira ação</p><p className="mt-2 text-sm text-gray-200">{formatJourneyAnswer(extraordinaryLifeSubmission.responses?.primeiraAcao)}</p></div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-8 rounded-3xl border border-white/10 border-dashed bg-black/15 p-6 text-center">
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-gray-500">Você ainda não registrou sua Vida Extraordinária.</p>
                 </div>
               )}
             </section>
@@ -5847,6 +5907,103 @@ export default function App() {
       </div>
 
       {/* Modals & Overlays */}
+      {isJourneyWizardOpen && currentJourneyField && !extraordinaryLifeSubmission && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsJourneyWizardOpen(false)} />
+          <div className="relative z-10 flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-[#4bd3ff]/20 bg-[#071418] shadow-2xl">
+            <div className="border-b border-white/10 p-6">
+              <button onClick={() => setIsJourneyWizardOpen(false)} className="absolute right-5 top-5 text-gray-500 hover:text-white"><X size={22} /></button>
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff]">Vida Extraordinária</p>
+              <h3 className="mt-2 pr-10 text-2xl font-black uppercase tracking-tight text-white">{currentJourneyField.label}</h3>
+              <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-[#4bd3ff] transition-all" style={{ width: `${journeyWizardProgress}%` }} />
+              </div>
+              <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-gray-500">Etapa {journeyWizardStep + 1} de {EXTRAORDINARY_LIFE_FIELDS.length}</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {journeyWizardStep === 0 && (
+                <div className="rounded-2xl border border-white/10 bg-black/25 p-5 text-sm leading-relaxed text-gray-300">
+                  {EXTRAORDINARY_LIFE_INTRO}
+                </div>
+              )}
+              {currentJourneyField.helper && (
+                <div className="rounded-2xl border border-[#4bd3ff]/20 bg-[#4bd3ff]/10 p-4 text-sm leading-relaxed text-gray-200 whitespace-pre-wrap">
+                  {currentJourneyField.helper}
+                </div>
+              )}
+              {currentJourneyField.type === 'checkbox' ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {currentJourneyField.options?.map(option => {
+                    const values = Array.isArray(journeyResponses[currentJourneyField.id]) ? journeyResponses[currentJourneyField.id] : [];
+                    const checked = values.includes(option);
+                    return (
+                      <label key={option} className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-4 transition-colors ${checked ? 'border-[#4bd3ff]/60 bg-[#4bd3ff]/10 text-white' : 'border-white/10 bg-black/25 text-gray-300 hover:border-white/20'}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setJourneyResponses(prev => {
+                            const currentValues = Array.isArray(prev[currentJourneyField.id]) ? prev[currentJourneyField.id] : [];
+                            return {
+                              ...prev,
+                              [currentJourneyField.id]: checked ? currentValues.filter((item: string) => item !== option) : [...currentValues, option]
+                            };
+                          })}
+                          className="h-4 w-4 accent-[#4bd3ff]"
+                        />
+                        <span className="text-sm font-bold">{option}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : currentJourneyField.type === 'textarea' ? (
+                <textarea
+                  value={journeyResponses[currentJourneyField.id] || ''}
+                  onChange={(event) => setJourneyResponses(prev => ({ ...prev, [currentJourneyField.id]: event.target.value }))}
+                  className="min-h-[190px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60"
+                  autoFocus
+                />
+              ) : (
+                <input
+                  type={currentJourneyField.type === 'date' || currentJourneyField.type === 'time' || currentJourneyField.type === 'number' ? currentJourneyField.type : 'text'}
+                  value={journeyResponses[currentJourneyField.id] || ''}
+                  onChange={(event) => setJourneyResponses(prev => ({ ...prev, [currentJourneyField.id]: event.target.value }))}
+                  className="w-full rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60"
+                  autoFocus
+                />
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-white/10 p-5">
+              <button onClick={() => setJourneyWizardStep(step => Math.max(0, step - 1))} disabled={journeyWizardStep === 0} className="rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-widest text-gray-400 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-30">Voltar</button>
+              {journeyWizardStep < EXTRAORDINARY_LIFE_FIELDS.length - 1 ? (
+                <button onClick={() => setJourneyWizardStep(step => Math.min(EXTRAORDINARY_LIFE_FIELDS.length - 1, step + 1))} className="rounded-2xl bg-[#4bd3ff] px-6 py-3 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-[#38bdf8]">Próxima</button>
+              ) : (
+                <button onClick={handleSubmitExtraordinaryLife} disabled={isSubmittingJourney} className="rounded-2xl bg-emerald-400 px-6 py-3 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-emerald-300 disabled:opacity-50">{isSubmittingJourney ? 'Salvando...' : 'Finalizar protocolo'}</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isJourneyReviewOpen && extraordinaryLifeSubmission && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsJourneyReviewOpen(false)} />
+          <div className="relative z-10 max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0c10] p-6 sm:p-8 shadow-2xl">
+            <button onClick={() => setIsJourneyReviewOpen(false)} className="absolute right-5 top-5 text-gray-500 hover:text-white"><X size={22} /></button>
+            <div className="mb-8">
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Registro completo</p>
+              <h3 className="text-2xl font-black uppercase tracking-tight text-white">Minha Vida Extraordinária</h3>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {EXTRAORDINARY_LIFE_FIELDS.map(field => (
+                <div key={field.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">{field.label}</p>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">{formatJourneyAnswer(extraordinaryLifeSubmission.responses?.[field.id])}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {selectedJourneyUser && (() => {
         const userCia = allCompletions.filter(item => item.userId === selectedJourneyUser.uid).sort((a, b) => getTimestampMillis(b.completedAt) - getTimestampMillis(a.completedAt));
         const userExtraordinary = journeyForms.find(item => item.userId === selectedJourneyUser.uid && item.type === 'extraordinaryLife');
@@ -5870,7 +6027,7 @@ export default function App() {
                       {EXTRAORDINARY_LIFE_FIELDS.map(field => (
                         <div key={field.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                           <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">{field.label}</p>
-                          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">{userExtraordinary.responses?.[field.id] || '-'}</p>
+                          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">{formatJourneyAnswer(userExtraordinary.responses?.[field.id])}</p>
                         </div>
                       ))}
                     </div>
