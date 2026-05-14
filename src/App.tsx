@@ -296,8 +296,9 @@ const CIA_PROTOCOL: DailyChallenge = {
 type ExtraordinaryLifeField = {
   id: string;
   label: string;
-  type: 'text' | 'textarea' | 'date' | 'time' | 'checkbox' | 'number' | 'betAllocation';
+  type: 'text' | 'textarea' | 'date' | 'time' | 'checkbox' | 'number' | 'betAllocation' | 'progressTable' | 'objective' | 'acknowledgement';
   helper?: string;
+  optional?: boolean;
   options?: string[];
 };
 
@@ -331,22 +332,22 @@ const EXTRAORDINARY_LIFE_FIELDS: ExtraordinaryLifeField[] = [
   { id: 'apostasDistribuidas', label: '7. Distribua suas 5 fichas de energia', type: 'betAllocation', helper: 'Imagine que você tem apenas 5 fichas de energia para investir. Onde você precisa apostar para esse desejo sair do papel?' },
   { id: 'maiorAposta', label: 'Minha maior aposta precisa ser em', type: 'textarea' },
   { id: 'porqueAposta', label: 'Por quê?', type: 'textarea' },
-  { id: 'medidorProgresso', label: '8. Medidor de progresso', type: 'textarea', helper: 'Você só melhora o que consegue enxergar. Defina área, como vai medir, meta específica e prazo.' },
-  { id: 'objetivo1', label: '9. Objetivo 1: área, primeiro passo e prazo', type: 'textarea' },
-  { id: 'objetivo2', label: 'Objetivo 2: área, primeiro passo e prazo', type: 'textarea' },
-  { id: 'objetivo3', label: 'Objetivo 3: área, primeiro passo e prazo', type: 'textarea' },
-  { id: 'objetivo4', label: 'Objetivo 4: área, primeiro passo e prazo', type: 'textarea' },
-  { id: 'objetivo5', label: 'Objetivo 5: área, primeiro passo e prazo', type: 'textarea' },
+  { id: 'medidorProgresso', label: '8. Medidor de progresso', type: 'progressTable', helper: 'Você só melhora o que consegue enxergar. Defina área, como vai medir, meta específica e prazo.' },
+  { id: 'objetivo1', label: '9. Objetivo 1', type: 'objective', helper: 'OBJETIVOS QUE ME LEVAM ATÉ LÁ\nEscreva de 3 a 5 objetivos que aproximam você do desejo real. Eles precisam nascer da sua situação atual, não de uma versão fantasiosa de você.' },
+  { id: 'objetivo2', label: 'Objetivo 2', type: 'objective' },
+  { id: 'objetivo3', label: 'Objetivo 3', type: 'objective' },
+  { id: 'objetivo4', label: 'Objetivo 4', type: 'objective', optional: true },
+  { id: 'objetivo5', label: 'Objetivo 5', type: 'objective', optional: true },
   { id: 'prioridade7Dias', label: '10. Minha prioridade dos próximos 7 dias será', type: 'textarea', helper: 'Agora transforme desejo em movimento. Sem ação, esse protocolo vira decoração emocional.' },
   { id: 'primeiraAcao', label: 'A primeira ação concreta que vou executar é', type: 'textarea' },
   { id: 'quandoFazer', label: 'Quando vou fazer', type: 'date' },
   { id: 'horario', label: 'Horário', type: 'time' },
   { id: 'sabotagem', label: 'O que pode me sabotar', type: 'textarea' },
   { id: 'defesaSabotagem', label: 'Como vou me defender dessa sabotagem', type: 'textarea' },
-  { id: 'pdaPercepcao', label: '11. PDA - Percepção: o que ficou claro para mim?', type: 'textarea', helper: 'Use este bloco sempre que precisar atualizar sua rota.' },
-  { id: 'pdaDecisao', label: 'PDA - Decisão: o que eu escolho a partir disso?', type: 'textarea' },
-  { id: 'pdaAcao', label: 'PDA - Ação: o que eu vou fazer agora?', type: 'textarea' },
-  { id: 'declaracaoFinal', label: '12. Copie à mão a declaração final', type: 'textarea', helper: 'Eu não vou mais chamar de sonho aquilo que eu tenho medo de especificar. Hoje eu assumo meu desejo real com clareza, responsabilidade e coragem. Eu não preciso diminuir o que quero para parecer aceitável para ninguém. Eu também não vou usar meu desejo como fantasia para fugir da ação. Eu escolho transformar vontade em direção, direção em plano e plano em movimento. Eu aceito pagar o preço da minha vida extraordinária, mas não aceito mais pagar o preço da minha própria omissão. Eu sei o que quero. Eu sei por que quero. Eu sei qual será meu primeiro passo. Hoje eu paro de esperar uma vida diferente enquanto repito a mesma mulher. Minha vida extraordinária começa com uma decisão extraordinariamente honesta.' },
+  { id: 'ciaPercepcao', label: '11. CIA - Clareza: o que ficou claro para mim?', type: 'textarea', helper: 'Use este bloco sempre que precisar atualizar sua rota.' },
+  { id: 'ciaIntencao', label: 'CIA - Intenção: o que eu escolho a partir disso?', type: 'textarea' },
+  { id: 'ciaAcao', label: 'CIA - Ação: o que eu vou fazer agora?', type: 'textarea' },
+  { id: 'declaracaoFinal', label: '12. Copie à mão a declaração final', type: 'acknowledgement', helper: 'Pegue um papel e copie a declaração à mão. Depois que terminar, clique em continuar.\n\nEu não vou mais chamar de sonho aquilo que eu tenho medo de especificar. Hoje eu assumo meu desejo real com clareza, responsabilidade e coragem. Eu não preciso diminuir o que quero para parecer aceitável para ninguém. Eu também não vou usar meu desejo como fantasia para fugir da ação. Eu escolho transformar vontade em direção, direção em plano e plano em movimento. Eu aceito pagar o preço da minha vida extraordinária, mas não aceito mais pagar o preço da minha própria omissão. Eu sei o que quero. Eu sei por que quero. Eu sei qual será meu primeiro passo. Hoje eu paro de esperar uma vida diferente enquanto repito a mesma mulher. Minha vida extraordinária começa com uma decisão extraordinariamente honesta.' },
   { id: 'assinatura', label: 'Assinatura', type: 'text' },
   { id: 'dataDeclaracao', label: 'Data da declaração', type: 'date' },
   { id: 'compromissoDesejoReal', label: '13. Meu desejo real é', type: 'textarea' },
@@ -356,12 +357,22 @@ const EXTRAORDINARY_LIFE_FIELDS: ExtraordinaryLifeField[] = [
   { id: 'respostaFuga', label: 'Se eu tentar fugir, minha resposta será', type: 'textarea' }
 ];
 
-const formatJourneyAnswer = (value: any) => {
+const formatJourneyAnswer = (value: any, field?: ExtraordinaryLifeField) => {
+  if (field?.type === 'acknowledgement') return 'Declaração copiada à mão.';
   if (Array.isArray(value)) return value.length ? value.join(', ') : '-';
-  if (value && typeof value === 'object') {
+  if (field?.type === 'betAllocation' && value && typeof value === 'object') {
     const entries = Object.entries(value).filter(([, amount]) => Number(amount) > 0);
     return entries.length ? entries.map(([area, amount]) => `${area}: ${amount} ficha(s)`).join('\n') : '-';
   }
+  if (field?.type === 'progressTable' && Array.isArray(value?.rows)) {
+    const rows = value.rows.filter((row: any) => row.area || row.measure || row.goal || row.deadline);
+    return rows.length ? rows.map((row: any, index: number) => `${index + 1}. Área: ${row.area || '-'}\nComo vou medir: ${row.measure || '-'}\nMeta específica: ${row.goal || '-'}\nPrazo: ${row.deadline || '-'}`).join('\n\n') : '-';
+  }
+  if (field?.type === 'objective' && value && typeof value === 'object') {
+    if (!value.area && !value.firstStep && !value.deadline) return '-';
+    return `Área: ${value.area || '-'}\nPrimeiro passo: ${value.firstStep || '-'}\nPrazo: ${value.deadline || '-'}`;
+  }
+  if (value && typeof value === 'object') return JSON.stringify(value, null, 2);
   return value || '-';
 };
 
@@ -370,10 +381,85 @@ const getBetAllocationTotal = (value: any) => {
   return Object.values(value).reduce<number>((total, amount) => total + Number(amount || 0), 0);
 };
 
+const getProgressRows = (value: any) => {
+  const rows = Array.isArray(value?.rows) ? value.rows : [];
+  return Array.from({ length: 5 }, (_, index) => ({ area: '', measure: '', goal: '', deadline: '', ...(rows[index] || {}) }));
+};
+
+const isProgressTableFilled = (value: any) => getProgressRows(value).every(row => row.area.trim() && row.measure.trim() && row.goal.trim() && row.deadline.trim());
+
+const isObjectiveFilled = (value: any) => Boolean(value?.area?.trim() && value?.firstStep?.trim() && value?.deadline?.trim());
+
 const isJourneyFieldFilled = (field: ExtraordinaryLifeField, value: any) => {
+  if (field.optional && (value === undefined || value === null || value === '' || (typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(item => !String(item || '').trim())))) return true;
+  if (field.type === 'acknowledgement') return true;
   if (field.type === 'checkbox') return Array.isArray(value) && value.length > 0;
   if (field.type === 'betAllocation') return getBetAllocationTotal(value) === 5;
+  if (field.type === 'progressTable') return isProgressTableFilled(value);
+  if (field.type === 'objective') return field.optional ? (!value || Object.values(value).every(item => !String(item || '').trim()) || isObjectiveFilled(value)) : isObjectiveFilled(value);
   return String(value || '').trim().length > 0;
+};
+
+const getJourneyFieldValidationMessage = (field: ExtraordinaryLifeField) => {
+  if (field.type === 'betAllocation') return 'Distribua exatamente 5 fichas de energia.';
+  if (field.type === 'progressTable') return 'Preencha as 5 linhas do medidor de progresso.';
+  if (field.type === 'objective') return field.optional ? `Complete todos os dados do "${field.label}" ou deixe ele totalmente vazio.` : `Preencha área, primeiro passo e prazo em "${field.label}".`;
+  return `Preencha o campo "${field.label}".`;
+};
+
+const DEMO_EXTRAORDINARY_LIFE_RESPONSES: Record<string, any> = {
+  nome: 'Gustavo Correa',
+  data: '2026-05-14',
+  areaPrincipal: ['Propósito', 'Saúde'],
+  desejoReal: 'Construir uma vida mais clara, saudável e alinhada com o que eu realmente quero sustentar.',
+  desejoFrase: 'Eu desejo viver com direção, energia e constância.',
+  vidaReal: 'Rotina organizada, corpo cuidado, decisões mais firmes e menos negociações com aquilo que me afasta do meu objetivo.',
+  evidencia: 'Cumprir meus compromissos da semana, manter presença diária e avançar nas ações escolhidas.',
+  desejoEspecifico: 'Uma vida com rotina, saúde, trabalho com propósito e relações mais leves.',
+  naPratica: 'Dormir melhor, treinar, cumprir minhas prioridades e fazer escolhas coerentes.',
+  evidenciaChegada: 'Vou perceber pela minha rotina, energia, agenda e pelos resultados que consigo medir.',
+  prazoDesejado: '2026-08-14',
+  areaDesejo: ['Propósito', 'Saúde'],
+  aproximou: 'Disciplina, clareza e ambientes que me puxam para cima.',
+  afastou: 'Procrastinação, excesso de tela e falta de planejamento.',
+  repetir: 'Planejamento semanal, movimento físico e revisão diária.',
+  pararRepetir: 'Adiar decisões importantes e negociar comigo mesmo.',
+  custos: ['Disciplina', 'Constância', 'Mudança de rotina', 'Parar de me sabotar'],
+  custoDisposta: 'Abrir mão de conforto imediato para construir consistência.',
+  custoNaoDisposta: 'Não aceito mais pagar o preço da omissão.',
+  precoVidaCobrara: 'Mais frustração e a sensação de estar parado no mesmo lugar.',
+  apostasDistribuidas: { Saúde: 2, Propósito: 2, Rotina: 1 },
+  maiorAposta: 'Saúde e propósito.',
+  porqueAposta: 'Porque são as bases que sustentam as outras áreas.',
+  medidorProgresso: { rows: [
+    { area: 'Saúde', measure: 'Treinos por semana', goal: '4 treinos', deadline: '2026-06-14' },
+    { area: 'Rotina', measure: 'Dias com planejamento', goal: '5 dias por semana', deadline: '2026-06-14' },
+    { area: 'Propósito', measure: 'Ações concluídas', goal: '3 ações principais', deadline: '2026-06-14' },
+    { area: 'Emocional', measure: 'Registros de clareza', goal: 'CIA diário', deadline: '2026-06-14' },
+    { area: 'Relacionamento', measure: 'Conversas conscientes', goal: '1 conversa importante', deadline: '2026-06-14' }
+  ] },
+  objetivo1: { area: 'Saúde', firstStep: 'Agendar os treinos da semana.', deadline: '2026-05-20' },
+  objetivo2: { area: 'Rotina', firstStep: 'Planejar os próximos 7 dias.', deadline: '2026-05-21' },
+  objetivo3: { area: 'Propósito', firstStep: 'Definir a ação mais importante da semana.', deadline: '2026-05-22' },
+  objetivo4: { area: 'Emocional', firstStep: 'Registrar o CIA todos os dias.', deadline: '2026-05-23' },
+  objetivo5: { area: '', firstStep: '', deadline: '' },
+  prioridade7Dias: 'Organizar minha rotina e cumprir o primeiro ciclo de ações.',
+  primeiraAcao: 'Fazer o planejamento da semana hoje.',
+  quandoFazer: '2026-05-14',
+  horario: '20:00',
+  sabotagem: 'Cansaço e distrações.',
+  defesaSabotagem: 'Deixar o ambiente pronto e começar mesmo sem vontade.',
+  ciaPercepcao: 'Ficou claro que meu desejo precisa virar ação simples e diária.',
+  ciaIntencao: 'Eu escolho sustentar constância.',
+  ciaAcao: 'Executar a primeira ação planejada hoje.',
+  declaracaoFinal: 'copiada-a-mao',
+  assinatura: 'Gustavo Correa',
+  dataDeclaracao: '2026-05-14',
+  compromissoDesejoReal: 'Viver com clareza, saúde e propósito.',
+  acaoInegociavel24h: 'Organizar a agenda da semana.',
+  execucaoData: '2026-05-14',
+  execucaoHorario: '20:00',
+  respostaFuga: 'Vou voltar para a ação mínima e cumprir o combinado.'
 };
 
 const WEEKLY_OATH_TEXT = 'Essa semana, eu me comprometo a ser o tipo de pessoa que ______, mesmo sem vontade. Eu não negocio isso comigo.';
@@ -918,7 +1004,15 @@ export default function App() {
   const isTodayMissionCompleted = allCompletions.some(c => c.challengeDate === todayDateKey && c.userId === user?.uid);
   const hasNewMissionToday = !isTodayMissionCompleted;
   const ciaCompletionCount = allCompletions.filter(c => c.userId === user?.uid).length;
-  const extraordinaryLifeSubmission = journeyForms.find(form => form.userId === user?.uid && form.type === 'extraordinaryLife');
+  const storedExtraordinaryLifeSubmission = journeyForms.find(form => form.userId === user?.uid && form.type === 'extraordinaryLife');
+  const demoExtraordinaryLifeSubmission: JourneyFormSubmission | undefined = user?.email === ADMIN_EMAIL && !storedExtraordinaryLifeSubmission ? {
+    id: 'demo-extraordinary-life',
+    userId: user.uid,
+    type: 'extraordinaryLife',
+    responses: DEMO_EXTRAORDINARY_LIFE_RESPONSES,
+    submittedAt: new Date().toISOString()
+  } : undefined;
+  const extraordinaryLifeSubmission = storedExtraordinaryLifeSubmission || demoExtraordinaryLifeSubmission;
   const weeklyOathSubmission = journeyForms.find(form => form.userId === user?.uid && form.type === 'weeklyOath' && form.weekKey === currentWeekKey);
   const currentJourneyField = EXTRAORDINARY_LIFE_FIELDS[journeyWizardStep];
   const journeyWizardProgress = Math.round(((journeyWizardStep + 1) / EXTRAORDINARY_LIFE_FIELDS.length) * 100);
@@ -2008,7 +2102,7 @@ export default function App() {
     if (!user || extraordinaryLifeSubmission) return;
     for (const field of EXTRAORDINARY_LIFE_FIELDS) {
       if (!isJourneyFieldFilled(field, journeyResponses[field.id])) {
-        alert(field.type === 'betAllocation' ? 'Distribua exatamente 5 fichas de energia.' : `Preencha o campo "${field.label}".`);
+        alert(getJourneyFieldValidationMessage(field));
         return;
       }
     }
@@ -2039,6 +2133,15 @@ export default function App() {
     } finally {
       setIsSubmittingJourney(false);
     }
+  };
+
+  const handleNextJourneyStep = () => {
+    if (!currentJourneyField) return;
+    if (!isJourneyFieldFilled(currentJourneyField, journeyResponses[currentJourneyField.id])) {
+      alert(getJourneyFieldValidationMessage(currentJourneyField));
+      return;
+    }
+    setJourneyWizardStep(step => Math.min(EXTRAORDINARY_LIFE_FIELDS.length - 1, step + 1));
   };
 
   const handleSubmitWeeklyOath = async () => {
@@ -5945,7 +6048,69 @@ export default function App() {
                   {currentJourneyField.helper}
                 </div>
               )}
-              {currentJourneyField.type === 'betAllocation' ? (() => {
+              {currentJourneyField.type === 'progressTable' ? (() => {
+                const rows = getProgressRows(journeyResponses[currentJourneyField.id]);
+                const updateRow = (rowIndex: number, key: 'area' | 'measure' | 'goal' | 'deadline', value: string) => {
+                  setJourneyResponses(prev => {
+                    const currentRows = getProgressRows(prev[currentJourneyField.id]);
+                    currentRows[rowIndex] = { ...currentRows[rowIndex], [key]: value };
+                    return { ...prev, [currentJourneyField.id]: { rows: currentRows } };
+                  });
+                };
+                return (
+                  <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/25">
+                    <table className="w-full min-w-[760px] border-collapse text-left">
+                      <thead>
+                        <tr className="border-b border-white/10 text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">
+                          <th className="p-3">Área</th>
+                          <th className="p-3">Como vou medir</th>
+                          <th className="p-3">Meta específica</th>
+                          <th className="p-3">Prazo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row, index) => (
+                          <tr key={index} className="border-b border-white/5 last:border-b-0">
+                            <td className="p-3"><input value={row.area} onChange={(event) => updateRow(index, 'area', event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-white outline-none focus:border-[#4bd3ff]/60" placeholder={`Área ${index + 1}`} /></td>
+                            <td className="p-3"><input value={row.measure} onChange={(event) => updateRow(index, 'measure', event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-white outline-none focus:border-[#4bd3ff]/60" placeholder="Ex: treinos por semana" /></td>
+                            <td className="p-3"><input value={row.goal} onChange={(event) => updateRow(index, 'goal', event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-white outline-none focus:border-[#4bd3ff]/60" placeholder="Ex: 4 treinos" /></td>
+                            <td className="p-3"><input type="date" value={row.deadline} onChange={(event) => updateRow(index, 'deadline', event.target.value)} className="w-full rounded-xl border border-white/10 bg-black/35 p-3 text-white outline-none focus:border-[#4bd3ff]/60" /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })() : currentJourneyField.type === 'objective' ? (() => {
+                const objective = journeyResponses[currentJourneyField.id] && typeof journeyResponses[currentJourneyField.id] === 'object' ? journeyResponses[currentJourneyField.id] : {};
+                const updateObjective = (key: 'area' | 'firstStep' | 'deadline', value: string) => {
+                  setJourneyResponses(prev => ({
+                    ...prev,
+                    [currentJourneyField.id]: { ...(prev[currentJourneyField.id] || {}), [key]: value }
+                  }));
+                };
+                return (
+                  <div className="grid gap-4 sm:grid-cols-[1fr_1.4fr_220px]">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Área</label>
+                      <input value={objective.area || ''} onChange={(event) => updateObjective('area', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" placeholder="Ex: Saúde" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Primeiro passo</label>
+                      <textarea value={objective.firstStep || ''} onChange={(event) => updateObjective('firstStep', event.target.value)} className="min-h-[120px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" placeholder="Qual ação concreta inicia esse objetivo?" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Prazo</label>
+                      <input type="date" value={objective.deadline || ''} onChange={(event) => updateObjective('deadline', event.target.value)} className="w-full rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" />
+                    </div>
+                  </div>
+                );
+              })() : currentJourneyField.type === 'acknowledgement' ? (
+                <div className="rounded-3xl border border-white/10 bg-black/25 p-6 text-center">
+                  <p className="text-lg font-black uppercase tracking-tight text-white">Copie esta declaração à mão.</p>
+                  <p className="mt-3 text-sm leading-relaxed text-gray-300">Pegue um papel, copie a declaração completa e, quando terminar, clique em continuar.</p>
+                </div>
+              ) : currentJourneyField.type === 'betAllocation' ? (() => {
                 const allocation = journeyResponses[currentJourneyField.id] && typeof journeyResponses[currentJourneyField.id] === 'object' && !Array.isArray(journeyResponses[currentJourneyField.id]) ? journeyResponses[currentJourneyField.id] : {};
                 const total = getBetAllocationTotal(allocation);
                 const remaining = 5 - total;
@@ -6045,7 +6210,7 @@ export default function App() {
             <div className="flex items-center justify-between gap-3 border-t border-white/10 p-5">
               <button onClick={() => setJourneyWizardStep(step => Math.max(0, step - 1))} disabled={journeyWizardStep === 0} className="rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-widest text-gray-400 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-30">Voltar</button>
               {journeyWizardStep < EXTRAORDINARY_LIFE_FIELDS.length - 1 ? (
-                <button onClick={() => setJourneyWizardStep(step => Math.min(EXTRAORDINARY_LIFE_FIELDS.length - 1, step + 1))} className="rounded-2xl bg-[#4bd3ff] px-6 py-3 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-[#38bdf8]">Próxima</button>
+                <button onClick={handleNextJourneyStep} className="rounded-2xl bg-[#4bd3ff] px-6 py-3 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-[#38bdf8]">Próxima</button>
               ) : (
                 <button onClick={handleSubmitExtraordinaryLife} disabled={isSubmittingJourney} className="rounded-2xl bg-emerald-400 px-6 py-3 text-xs font-black uppercase tracking-widest text-[#020507] transition-colors hover:bg-emerald-300 disabled:opacity-50">{isSubmittingJourney ? 'Salvando...' : 'Finalizar protocolo'}</button>
               )}
@@ -6067,7 +6232,7 @@ export default function App() {
               {EXTRAORDINARY_LIFE_FIELDS.map(field => (
                 <div key={field.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">{field.label}</p>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">{formatJourneyAnswer(extraordinaryLifeSubmission.responses?.[field.id])}</p>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">{formatJourneyAnswer(extraordinaryLifeSubmission.responses?.[field.id], field)}</p>
                 </div>
               ))}
             </div>
@@ -6097,7 +6262,7 @@ export default function App() {
                       {EXTRAORDINARY_LIFE_FIELDS.map(field => (
                         <div key={field.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                           <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">{field.label}</p>
-                          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">{formatJourneyAnswer(userExtraordinary.responses?.[field.id])}</p>
+                          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">{formatJourneyAnswer(userExtraordinary.responses?.[field.id], field)}</p>
                         </div>
                       ))}
                     </div>
