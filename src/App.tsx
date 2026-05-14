@@ -5780,46 +5780,47 @@ export default function App() {
       {/* Bottom Navigation Navbar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#020709]/95 backdrop-blur-md border-t border-[#0b2831]/50 pb-safe">
         <div className="relative flex justify-around items-center max-w-lg mx-auto px-2 py-2.5 sm:max-w-2xl sm:py-3">
-          {userTabs.map(tab => {
+          {userTabs.map((tab, index) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             const isDevelopmentTab = !isAdmin && !tabVisibility[tab.id as keyof typeof tabVisibility];
             const showMissionBadge = tab.id === 'gameficacao' && hasNewMissionToday;
             return (
-              <button 
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center gap-1 transition-colors relative w-16 sm:w-20 ${
-                  isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {isActive && (
-                  <div className="absolute -top-3 w-8 h-1 bg-gradient-to-r from-[#4bd3ff] to-emerald-400 rounded-b-full shadow-[0_0_10px_rgba(75,211,255,0.5)]"></div>
+              <React.Fragment key={tab.id}>
+                {index === 3 && activeTab !== 'guardiao' && !isAdminPanelOpen && (
+                  <button
+                    type="button"
+                    onClick={toggleAudio}
+                    className={`relative -mt-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 transition-all sm:h-16 sm:w-16 ${isPlayingAudio ? 'border-emerald-400 bg-emerald-400/15 text-emerald-300 shadow-[0_0_28px_rgba(52,211,153,0.24)]' : 'border-[#4bd3ff] bg-[#071418] text-[#4bd3ff] shadow-[0_0_30px_rgba(75,211,255,0.22)] hover:bg-[#0b2831]'}`}
+                    aria-label={isPlayingAudio ? 'Pausar áudio do dia' : 'Tocar áudio do dia'}
+                    title={isPlayingAudio ? 'Pausar áudio do dia' : 'Tocar áudio do dia'}
+                  >
+                    {isPlayingAudio ? <Volume2 size={24} /> : <Play size={24} className="ml-1 fill-current" />}
+                  </button>
                 )}
-                <div className={`p-1.5 transition-all duration-300 ${isActive ? '-translate-y-1' : ''}`}>
-                  <Icon size={24} className={isActive ? 'text-[#4bd3ff]' : ''} />
-                  {showMissionBadge && (
-                    <span className="absolute top-0 right-5 sm:right-7 w-3 h-3 bg-[#4bd3ff] rounded-full border-2 border-[#020709] shadow-[0_0_14px_rgba(75,211,255,0.9)] animate-pulse" />
+                <button
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex flex-col items-center gap-1 transition-colors relative w-16 sm:w-20 ${
+                    isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  {isActive && (
+                    <div className="absolute -top-3 w-8 h-1 bg-gradient-to-r from-[#4bd3ff] to-emerald-400 rounded-b-full shadow-[0_0_10px_rgba(75,211,255,0.5)]"></div>
                   )}
-                </div>
-                <span className={`text-[10px] sm:text-xs font-medium transition-all ${isActive ? 'text-[#4bd3ff] opacity-100' : 'opacity-80'}`}>
-                  {isDevelopmentTab ? 'Em dev' : tab.label}
-                </span>
-              </button>
+                  <div className={`p-1.5 transition-all duration-300 ${isActive ? '-translate-y-1' : ''}`}>
+                    <Icon size={24} className={isActive ? 'text-[#4bd3ff]' : ''} />
+                    {showMissionBadge && (
+                      <span className="absolute top-0 right-5 sm:right-7 w-3 h-3 bg-[#4bd3ff] rounded-full border-2 border-[#020709] shadow-[0_0_14px_rgba(75,211,255,0.9)] animate-pulse" />
+                    )}
+                  </div>
+                  <span className={`text-[10px] sm:text-xs font-medium transition-all ${isActive ? 'text-[#4bd3ff] opacity-100' : 'opacity-80'}`}>
+                    {isDevelopmentTab ? 'Em dev' : tab.label}
+                  </span>
+                </button>
+              </React.Fragment>
             );
           })}
         </div>
-        {activeTab !== 'guardiao' && !isAdminPanelOpen && (
-          <button
-            type="button"
-            onClick={toggleAudio}
-            className={`absolute left-3 top-1/2 hidden -translate-y-1/2 items-center justify-center rounded-full border px-3 py-2 transition-all lg:flex ${isPlayingAudio ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-300 shadow-[0_0_26px_rgba(52,211,153,0.16)]' : 'border-[#4bd3ff]/40 bg-[#4bd3ff]/15 text-[#4bd3ff] shadow-[0_0_26px_rgba(75,211,255,0.14)] hover:bg-[#4bd3ff]/20'}`}
-            aria-label={isPlayingAudio ? 'Pausar áudio do dia' : 'Tocar áudio do dia'}
-            title={isPlayingAudio ? 'Pausar áudio do dia' : 'Tocar áudio do dia'}
-          >
-            {isPlayingAudio ? <Volume2 size={20} /> : <Play size={20} className="ml-0.5 fill-current" />}
-          </button>
-        )}
         {activeTab !== 'guardiao' && !isAdminPanelOpen && (
           <a
             href={SUPPORT_WHATSAPP_URL || '#'}
