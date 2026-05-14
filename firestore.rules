@@ -283,6 +283,13 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /journeyForms/{formId} {
+      allow list: if isAdmin() || isSignedIn();
+      allow get: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create, update: if isSignedIn() && (isAdmin() || request.resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
     match /dailyCommitmentCompletions/{completionId} {
       allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow get: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);

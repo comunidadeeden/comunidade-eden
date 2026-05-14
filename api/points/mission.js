@@ -40,6 +40,8 @@ const isAccessExpired = (date) => {
   return new Date() > parsedDate;
 };
 
+const CIA_REQUIRED_FIELDS = ['percepcao', 'decisao', 'acao', 'sabotagem'];
+
 const hasAnswer = (value) => {
   if (Array.isArray(value)) return value.length > 0;
   return typeof value === 'string' && value.trim().length > 0;
@@ -93,12 +95,20 @@ export default async function handler(request, response) {
       return response.status(400).json({ error: 'Missao incompleta.' });
     }
 
-    const challenge = await getDocument('dailyChallenges', challengeDate);
-    if (!challenge) return response.status(404).json({ error: 'Missao nao encontrada.' });
+    if (request.body?.type === 'cia') {
+      for (const field of CIA_REQUIRED_FIELDS) {
+        if (!hasAnswer(responses[field])) {
+          return response.status(400).json({ error: 'Preencha todos os campos do CIA.' });
+        }
+      }
+    } else {
+      const challenge = await getDocument('dailyChallenges', challengeDate);
+      if (!challenge) return response.status(404).json({ error: 'Missao nao encontrada.' });
 
-    for (const question of challenge.questions || []) {
-      if (!hasAnswer(responses[question.id])) {
-        return response.status(400).json({ error: `A pergunta "${question.label}" e obrigatoria.` });
+      for (const question of challenge.questions || []) {
+        if (!hasAnswer(responses[question.id])) {
+          return response.status(400).json({ error: `A pergunta "${question.label}" e obrigatoria.` });
+        }
       }
     }
 

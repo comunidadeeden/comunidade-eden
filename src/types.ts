@@ -165,3 +165,13 @@ export interface DailyCommitmentCompletion {
   activity: string;
   completedAt: any;
 }
+
+export interface JourneyFormSubmission {
+  id?: string;
+  userId: string;
+  type: 'extraordinaryLife' | 'weeklyOath';
+  weekKey?: string;
+  responses: Record<string, any>;
+  submittedAt: any;
+  updatedAt?: any;
+}

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
-import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, DailyCommitmentCompletion, NotificationNotice, CustomLevel, Offer, MonthlyRankingUser } from './types';
+import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, DailyCommitmentCompletion, NotificationNotice, CustomLevel, Offer, MonthlyRankingUser, JourneyFormSubmission } from './types';
 import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut, Dumbbell, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
@@ -15,6 +15,7 @@ const INITIAL_TABS = [
   { id: 'jornada', label: 'Início', icon: Compass },
   { id: 'materiais', label: 'Materiais', icon: FileText },
   { id: 'gameficacao', label: 'Desafios', icon: Trophy },
+  { id: 'sua-jornada', label: 'Sua Jornada', icon: Compass },
   { id: 'ranking', label: 'Ranking', icon: Crown },
   { id: 'guardiao', label: 'Guardião', icon: Shield },
 ];
@@ -162,6 +163,18 @@ const getEmailLinkActionCodeSettings = () => ({
 
 const getTodayDateKey = () => new Date().toLocaleDateString('pt-BR').split('/').join('-');
 
+const getCurrentWeekKey = () => {
+  const now = new Date();
+  const day = now.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
+  const dd = String(monday.getDate()).padStart(2, '0');
+  const mm = String(monday.getMonth() + 1).padStart(2, '0');
+  const yyyy = monday.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+};
+
 const parseBrazilianDate = (date: string) => {
   const [day, month, year] = date.split('-').map(Number);
   return new Date(year || 0, (month || 1) - 1, day || 1);
@@ -267,6 +280,39 @@ enum OperationType {
 
 const SUPPORT_WHATSAPP_URL = '';
 
+const CIA_DAILY_POINTS = 30;
+const CIA_PROTOCOL: DailyChallenge = {
+  date: '',
+  title: 'CIA',
+  description: 'Clareza, Intenção e Ação: registre diariamente o que ficou claro, a decisão que você assume e o próximo movimento concreto.',
+  questions: [
+    { id: 'percepcao', label: 'Percepção - o que ficou claro para mim hoje?', type: 'textarea' },
+    { id: 'decisao', label: 'Intenção - o que eu escolho sustentar a partir disso?', type: 'textarea' },
+    { id: 'acao', label: 'Ação - qual movimento concreto eu vou executar nas próximas 24 horas?', type: 'textarea' },
+    { id: 'sabotagem', label: 'O que pode me sabotar e como eu vou me defender?', type: 'textarea' }
+  ]
+};
+
+const EXTRAORDINARY_LIFE_FIELDS = [
+  { id: 'area', label: 'Área principal que quero transformar agora', type: 'text' },
+  { id: 'desejoReal', label: 'Qual é o meu desejo real?', type: 'textarea' },
+  { id: 'desejoFrase', label: 'Meu desejo em uma frase', type: 'textarea' },
+  { id: 'vidaReal', label: 'Como isso aparece na vida real?', type: 'textarea' },
+  { id: 'evidencia', label: 'Como vou saber que cheguei lá?', type: 'textarea' },
+  { id: 'aproximou', label: 'O que me aproximou desse desejo?', type: 'textarea' },
+  { id: 'afastou', label: 'O que me afastou desse desejo?', type: 'textarea' },
+  { id: 'repetir', label: 'O que eu preciso repetir?', type: 'textarea' },
+  { id: 'cortar', label: 'O que eu preciso parar de repetir?', type: 'textarea' },
+  { id: 'precoPago', label: 'Qual preço estou disposta a pagar?', type: 'textarea' },
+  { id: 'precoNaoPago', label: 'Qual preço não aceito mais pagar?', type: 'textarea' },
+  { id: 'aposta', label: 'Minha maior aposta precisa ser em...', type: 'textarea' },
+  { id: 'prioridade7dias', label: 'Minha prioridade dos próximos 7 dias', type: 'textarea' },
+  { id: 'primeiraAcao', label: 'Minha primeira ação concreta', type: 'textarea' },
+  { id: 'declaracao', label: 'Minha declaração final', type: 'textarea' }
+];
+
+const WEEKLY_OATH_TEXT = 'Essa semana, eu me comprometo a ser o tipo de pessoa que ______, mesmo sem vontade. Eu não negocio isso comigo.';
+
 const JOURNEY_LEVELS = [
   {
     id: 'fase1',
@@ -360,6 +406,11 @@ export default function App() {
   const [expandedAdminModules, setExpandedAdminModules] = useState<Record<string, boolean>>({});
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [missionResponses, setMissionResponses] = useState<Record<string, string | string[]>>({});
+  const [journeyResponses, setJourneyResponses] = useState<Record<string, string>>({});
+  const [weeklyOath, setWeeklyOath] = useState({ identity: '', conquest: '' });
+  const [journeyForms, setJourneyForms] = useState<JourneyFormSubmission[]>([]);
+  const [selectedJourneyUser, setSelectedJourneyUser] = useState<UserProfile | null>(null);
+  const [isSubmittingJourney, setIsSubmittingJourney] = useState(false);
   const missionSectionRef = useRef<HTMLElement>(null);
   const missionToastShownKeyRef = useRef('');
   const [audioChecked, setAudioChecked] = useState(false);
@@ -773,6 +824,7 @@ export default function App() {
     jornada: true,
     materiais: true,
     gameficacao: true,
+    'sua-jornada': true,
     ranking: true,
     guardiao: true,
   });
@@ -792,8 +844,14 @@ export default function App() {
   // Use all tabs, but we will handle disabled state in content rendering
   const userTabs = INITIAL_TABS;
   const isCurrentTabInDevelopment = !isAdmin && Boolean(INITIAL_TABS.find(t => t.id === activeTab)) && !tabVisibility[activeTab as keyof typeof tabVisibility];
-  const isTodayMissionCompleted = Boolean(todayChallenge && allCompletions.some(c => c.challengeDate === todayChallenge.date && c.userId === user?.uid));
-  const hasNewMissionToday = Boolean(todayChallenge && !isTodayMissionCompleted);
+  const todayDateKey = getTodayDateKey();
+  const currentWeekKey = getCurrentWeekKey();
+  const activeCiaChallenge = { ...CIA_PROTOCOL, date: todayDateKey };
+  const isTodayMissionCompleted = allCompletions.some(c => c.challengeDate === todayDateKey && c.userId === user?.uid);
+  const hasNewMissionToday = !isTodayMissionCompleted;
+  const ciaCompletionCount = allCompletions.filter(c => c.userId === user?.uid).length;
+  const extraordinaryLifeSubmission = journeyForms.find(form => form.userId === user?.uid && form.type === 'extraordinaryLife');
+  const weeklyOathSubmission = journeyForms.find(form => form.userId === user?.uid && form.type === 'weeklyOath' && form.weekKey === currentWeekKey);
   const purchasedOfferIds = user?.purchasedOfferIds || [];
   const availableOffers = offersState.filter(offer => !purchasedOfferIds.includes(offer.id));
   const purchasedOffers = offersState.filter(offer => purchasedOfferIds.includes(offer.id));
@@ -865,12 +923,12 @@ export default function App() {
         if (notice.linkUrl) window.open(notice.linkUrl, '_blank', 'noopener,noreferrer');
       }
     })),
-    ...(todayChallenge ? [{
-      id: `mission-${todayChallenge.date}`,
-      eyebrow: 'Missão do dia',
-      title: todayChallenge.title || 'Nova missão disponível',
-      message: todayChallenge.description || 'Uma nova missão está pronta para hoje.',
-      dateLabel: todayChallenge.date,
+    ...(!isTodayMissionCompleted ? [{
+      id: `mission-${todayDateKey}`,
+      eyebrow: 'CIA diário',
+      title: 'Novo CIA disponível',
+      message: CIA_PROTOCOL.description,
+      dateLabel: todayDateKey,
       onClick: () => {
         setActiveTab('gameficacao');
         setTimeout(() => missionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
@@ -1302,6 +1360,18 @@ export default function App() {
       }
     });
 
+
+    const journeyFormsRef = collection(db, 'journeyForms');
+    const journeyFormsQuery = isAdmin ? journeyFormsRef : query(journeyFormsRef, where('userId', '==', user.uid));
+    const unsubscribeJourneyForms = onSnapshot(journeyFormsQuery, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as JourneyFormSubmission));
+      setJourneyForms(docs);
+    }, (error) => {
+      if (error.code !== 'permission-denied') {
+        console.error(error);
+      }
+    });
+
     // Fetch all audios for admin
     const audiosRefCol = collection(db, 'dailyAudios');
     const qAudios = query(audiosRefCol, orderBy('createdAt', 'desc'));
@@ -1400,6 +1470,7 @@ export default function App() {
       unsubscribeAllCompletions();
       unsubscribeCommitments();
       unsubscribeAllAudios();
+      unsubscribeJourneyForms();
       if (unsubscribeRanking) unsubscribeRanking();
       unsubscribeLevels();
       unsubscribeVisibility();
@@ -1761,7 +1832,7 @@ export default function App() {
   };
 
   const handleSubmitMission = async () => {
-    if (!user || !todayChallenge) return;
+    if (!user) return;
 
     if (!audioChecked) {
       alert('Você precisa confirmar que ouviu o áudio da missão!');
@@ -1769,7 +1840,7 @@ export default function App() {
     }
 
     // Identify if all questions are answered
-    for (const q of todayChallenge.questions || []) {
+    for (const q of activeCiaChallenge.questions || []) {
       const resp = missionResponses[q.id];
       if (!resp || (typeof resp === 'string' && resp.trim().length === 0) || (Array.isArray(resp) && resp.length === 0)) {
         alert(`A pergunta "${q.label}" é obrigatória.`);
@@ -1788,7 +1859,8 @@ export default function App() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          challengeDate: todayChallenge.date,
+          type: 'cia',
+          challengeDate: todayDateKey,
           audioChecked,
           responses: missionResponses
         })
@@ -1802,15 +1874,15 @@ export default function App() {
       }
       setUser({
         ...user,
-        points: (user.points || 0) + (data.pointsAwarded || 30),
-        lastMissionRewardDate: todayChallenge.date
+        points: (user.points || 0) + (data.pointsAwarded || CIA_DAILY_POINTS),
+        lastMissionRewardDate: todayDateKey
       });
-      applyMonthlyRankingDelta(data.pointsAwarded || 30);
+      applyMonthlyRankingDelta(data.pointsAwarded || CIA_DAILY_POINTS);
 
       setIsMissionModalOpen(false);
       setAudioChecked(false);
       setMissionResponses({});
-      alert('Parabéns! Missão concluída com sucesso. +30 Folhas');
+      alert(`Parabéns! CIA concluído com sucesso. +${data.pointsAwarded || CIA_DAILY_POINTS} folhas`);
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Não foi possível concluir a missão.');
     } finally {
@@ -1861,6 +1933,58 @@ export default function App() {
     }
   };
 
+
+  const handleSubmitExtraordinaryLife = async () => {
+    if (!user || extraordinaryLifeSubmission) return;
+    for (const field of EXTRAORDINARY_LIFE_FIELDS) {
+      if (!journeyResponses[field.id]?.trim()) {
+        alert(`Preencha o campo "${field.label}".`);
+        return;
+      }
+    }
+    setIsSubmittingJourney(true);
+    try {
+      await setDoc(doc(db, 'journeyForms', `${user.uid}_extraordinaryLife`), {
+        userId: user.uid,
+        type: 'extraordinaryLife',
+        responses: journeyResponses,
+        submittedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      alert('Vida Extraordinária registrada.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'journeyForms/extraordinaryLife');
+      alert('Não foi possível salvar sua Vida Extraordinária.');
+    } finally {
+      setIsSubmittingJourney(false);
+    }
+  };
+
+  const handleSubmitWeeklyOath = async () => {
+    if (!user || weeklyOathSubmission) return;
+    if (!weeklyOath.identity.trim() || !weeklyOath.conquest.trim()) {
+      alert('Preencha seu juramento e a conquista da semana.');
+      return;
+    }
+    setIsSubmittingJourney(true);
+    try {
+      await setDoc(doc(db, 'journeyForms', `${user.uid}_weeklyOath_${currentWeekKey}`), {
+        userId: user.uid,
+        type: 'weeklyOath',
+        weekKey: currentWeekKey,
+        responses: weeklyOath,
+        submittedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      alert('Juramento semanal firmado.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'journeyForms/weeklyOath');
+      alert('Não foi possível salvar seu juramento semanal.');
+    } finally {
+      setIsSubmittingJourney(false);
+    }
+  };
+
   const scrollToTodayMission = () => {
     setActiveTab('gameficacao');
     setTimeout(() => {
@@ -1869,9 +1993,9 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!user?.uid || !todayChallenge?.date || !hasNewMissionToday || !tabVisibility.gameficacao) return;
+    if (!user?.uid || !hasNewMissionToday || !tabVisibility.gameficacao) return;
 
-    const toastKey = `${user.uid}_${todayChallenge.date}`;
+    const toastKey = `${user.uid}_${todayDateKey}`;
     if (missionToastShownKeyRef.current === toastKey) return;
 
     missionToastShownKeyRef.current = toastKey;
@@ -1882,7 +2006,7 @@ export default function App() {
     }, 5200);
 
     return () => window.clearTimeout(timeout);
-  }, [user?.uid, todayChallenge?.date, hasNewMissionToday, tabVisibility.gameficacao]);
+  }, [user?.uid, todayDateKey, hasNewMissionToday, tabVisibility.gameficacao]);
 
   const handleGuardianSubmit = async () => {
     const message = guardianInput.trim();
@@ -2099,117 +2223,145 @@ export default function App() {
           </div>
         );
       case 'gameficacao': {
+        const lastSevenDays = Array.from({ length: 7 }).map((_, index) => {
+          const date = new Date();
+          date.setDate(date.getDate() - (6 - index));
+          const key = date.toLocaleDateString('pt-BR').split('/').join('-');
+          return {
+            key,
+            label: date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''),
+            done: allCompletions.some(item => item.userId === user?.uid && item.challengeDate === key)
+          };
+        });
         return (
           <div className="max-w-4xl mx-auto pt-16 sm:pt-20 pb-12 px-4 space-y-8">
-            {(() => {
-              const todayKey = getTodayDateKey();
-              const todayCommitment = commitmentCompletions.find(item => item.date === todayKey && item.userId === user?.uid);
-              const isCommitmentDone = Boolean(todayCommitment);
-
-              return (
-                <section className="rounded-3xl border border-[#4bd3ff]/20 bg-[#061418] p-5 sm:p-7 shadow-[0_22px_70px_rgba(0,0,0,0.24)] overflow-hidden relative">
-                  <div className="absolute right-0 top-0 h-32 w-32 bg-[#4bd3ff]/10 blur-3xl" />
-                  <div className="relative z-10 flex flex-col gap-5">
-                    <div className="flex items-start gap-4">
-                      <div className={`shrink-0 p-3 border rounded-2xl ${isCommitmentDone ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-[#4bd3ff]/10 border-[#4bd3ff]/20 text-[#4bd3ff]'}`}>
-                        {isCommitmentDone ? <CheckCircle size={24} /> : <Dumbbell size={24} />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Movimento do dia</p>
-                        <h3 className="text-2xl font-black text-white uppercase tracking-tight">Selo de Compromisso</h3>
-                        <p className="mt-2 text-sm leading-relaxed text-gray-400">
-                          Registre a atividade física que você fez hoje e fortaleça seu compromisso diário com o corpo.
-                        </p>
-                      </div>
-                      <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-400">
-                        <span>🍃</span> +{DAILY_COMMITMENT_POINTS}
-                      </div>
-                    </div>
-
-                    {isCommitmentDone ? (
-                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-                        <div className="flex items-center gap-2 text-emerald-400 font-black uppercase tracking-widest text-[10px] mb-2">
-                          <CheckCircle size={14} /> Selo marcado hoje
-                        </div>
-                        <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">{todayCommitment?.activity}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <textarea
-                          value={commitmentText}
-                          onChange={(event) => setCommitmentText(event.target.value)}
-                          placeholder="Ex: Caminhei 30 minutos, fiz musculação, dancei em casa..."
-                          className="min-h-[112px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white placeholder-gray-600 outline-none transition-colors focus:border-[#4bd3ff]/60"
-                        />
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <p className="text-xs text-gray-500 font-medium">Você pode marcar este selo uma vez por dia.</p>
-                          <button
-                            onClick={handleSubmitCommitment}
-                            disabled={isSubmittingCommitment || !commitmentText.trim()}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#4bd3ff] px-6 py-3 text-xs font-black uppercase tracking-widest text-[#020507] transition-all hover:bg-[#38bdf8] disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {isSubmittingCommitment ? 'Marcando...' : 'Marcar selo'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
+            <section className="rounded-3xl border border-[#4bd3ff]/20 bg-[#061418] p-5 sm:p-7 shadow-[0_22px_70px_rgba(0,0,0,0.24)] overflow-hidden relative">
+              <div className="absolute right-0 top-0 h-32 w-32 bg-[#4bd3ff]/10 blur-3xl" />
+              <div className="relative z-10 flex flex-col gap-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Contador CIA</p>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tight">{ciaCompletionCount} protocolo{ciaCompletionCount === 1 ? '' : 's'} concluído{ciaCompletionCount === 1 ? '' : 's'}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-400">Cada dia abre um novo CIA para você registrar clareza, intenção e ação.</p>
                   </div>
-                </section>
-              );
-            })()}
-
-            {/* Missão do Dia - Simplified Section */}
-            <section ref={missionSectionRef} className="space-y-6 scroll-mt-32">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 rounded-none text-[#4bd3ff]">
-                  <Zap size={24} />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-black text-white uppercase tracking-tight">Missão do Dia</h3>
-                  <p className="text-gray-400 text-sm">Cumpra os protocolos diários para ganhar folhas.</p>
+                  <div className="flex items-center gap-2">
+                    {lastSevenDays.map(day => (
+                      <div key={day.key} className={`flex h-16 w-11 flex-col items-center justify-center rounded-2xl border text-[10px] font-black uppercase ${day.done ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : day.key === todayDateKey ? 'border-[#4bd3ff]/50 bg-[#4bd3ff]/10 text-[#4bd3ff]' : 'border-white/10 bg-black/20 text-gray-600'}`}>
+                        <span>{day.label}</span>
+                        {day.done ? <CheckCircle size={15} className="mt-1" /> : <span className="mt-1 h-2 w-2 rounded-full bg-current opacity-40" />}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
+            </section>
 
-              {todayChallenge ? (() => {
-                const isCompleted = isTodayMissionCompleted;
-                return (
-                <div className="bg-[#040e11] border border-white/10 p-8 rounded-none shadow-xl flex flex-col md:flex-row items-center gap-8 group relative overflow-hidden">
-                  {isCompleted && (
-                     <div className="absolute top-0 right-0 p-4 bg-emerald-500/10 rounded-bl-3xl">
-                        <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-widest">
-                           <CheckCircle size={16} /> Missão Concluída
-                        </div>
-                     </div>
-                  )}
-                  <div className="flex-1 space-y-4 relative z-10">
-                    <h4 className="text-2xl font-black text-[#4bd3ff] uppercase tracking-tight group-hover:translate-x-1 transition-transform">
-                      {todayChallenge.title}
-                    </h4>
-                    <p className="text-gray-400 leading-relaxed">
-                      {todayChallenge.description || 'Uma nova missão está pronta para você. Inicie agora e garanta sua evolução diária no Éden.'}
-                    </p>
-                    <button 
-                      onClick={() => !isCompleted && setIsMissionModalOpen(true)}
-                      disabled={isCompleted}
-                      className={`inline-flex items-center gap-3 px-8 py-4 font-black uppercase tracking-widest text-xs rounded-none transition-all shadow-[0_10px_20px_rgba(75,211,255,0.2)] ${isCompleted ? 'bg-emerald-500/20 text-emerald-400 cursor-not-allowed shadow-none' : 'bg-[#4bd3ff] text-[#020507] hover:bg-[#38bdf8]'}`}
-                    >
-                      {isCompleted ? <CheckCircle size={18} /> : <Plus size={18} />}
-                      {isCompleted ? 'Concluída' : 'Iniciar Missão'}
-                    </button>
+            <section ref={missionSectionRef} className="space-y-6 scroll-mt-32">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-3 bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 rounded-none text-[#4bd3ff]"><Zap size={24} /></div>
+                <div>
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tight">CIA Diário</h3>
+                  <p className="text-gray-400 text-sm">Clareza, Intenção e Ação. Responda uma vez por dia para ganhar folhas.</p>
+                </div>
+              </div>
+              <div className="bg-[#040e11] border border-white/10 p-8 rounded-none shadow-xl flex flex-col md:flex-row items-center gap-8 group relative overflow-hidden">
+                {isTodayMissionCompleted && (
+                  <div className="absolute top-0 right-0 p-4 bg-emerald-500/10 rounded-bl-3xl">
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-widest"><CheckCircle size={16} /> CIA de hoje concluído</div>
                   </div>
-                  <div className="shrink-0 w-32 h-32 bg-[#0b2831]/20 border border-[#4bd3ff]/20 flex items-center justify-center rounded-none rotate-3 relative z-10">
-                    <Calendar size={48} className="text-[#4bd3ff]" />
+                )}
+                <div className="flex-1 space-y-4 relative z-10">
+                  <h4 className="text-3xl font-black text-[#4bd3ff] uppercase tracking-tight group-hover:translate-x-1 transition-transform">CIA</h4>
+                  <p className="text-gray-400 leading-relaxed">{CIA_PROTOCOL.description}</p>
+                  <button
+                    onClick={() => !isTodayMissionCompleted && setIsMissionModalOpen(true)}
+                    disabled={isTodayMissionCompleted}
+                    className={`inline-flex items-center gap-3 px-8 py-4 font-black uppercase tracking-widest text-xs rounded-none transition-all shadow-[0_10px_20px_rgba(75,211,255,0.2)] ${isTodayMissionCompleted ? 'bg-emerald-500/20 text-emerald-400 cursor-not-allowed shadow-none' : 'bg-[#4bd3ff] text-[#020507] hover:bg-[#38bdf8]'}`}
+                  >
+                    {isTodayMissionCompleted ? <CheckCircle size={18} /> : <Plus size={18} />}
+                    {isTodayMissionCompleted ? 'CIA concluído' : 'Responder CIA'}
+                  </button>
+                </div>
+                <div className="shrink-0 w-32 h-32 bg-[#0b2831]/20 border border-[#4bd3ff]/20 flex items-center justify-center rounded-none rotate-3 relative z-10">
+                  <Calendar size={48} className="text-[#4bd3ff]" />
+                </div>
+              </div>
+            </section>
+          </div>
+        );
+      }
+      case 'sua-jornada':
+        return (
+          <div className="max-w-5xl mx-auto pt-16 sm:pt-20 pb-12 px-4 space-y-8">
+            <section className="rounded-3xl border border-white/10 bg-[#061014] p-6 sm:p-8">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Protocolo de Clareza</p>
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tight">Vida Extraordinária</h3>
+                  <p className="text-gray-400 text-sm mt-2 max-w-2xl">Preencha uma vez para transformar desejo vago em direção, plano e movimento. Depois, este registro fica visível para você acompanhar.</p>
+                </div>
+                {extraordinaryLifeSubmission && <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-400">Registrado</span>}
+              </div>
+
+              {extraordinaryLifeSubmission ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {EXTRAORDINARY_LIFE_FIELDS.map(field => (
+                    <div key={field.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[#4bd3ff] mb-2">{field.label}</p>
+                      <p className="text-sm leading-relaxed text-gray-200 whitespace-pre-wrap">{extraordinaryLifeSubmission.responses?.[field.id] || '-'}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {EXTRAORDINARY_LIFE_FIELDS.map(field => (
+                    <div key={field.id} className="space-y-2">
+                      <label className="text-xs font-black uppercase tracking-widest text-gray-400">{field.label}</label>
+                      {field.type === 'textarea' ? (
+                        <textarea value={journeyResponses[field.id] || ''} onChange={(event) => setJourneyResponses(prev => ({ ...prev, [field.id]: event.target.value }))} className="min-h-[96px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" />
+                      ) : (
+                        <input value={journeyResponses[field.id] || ''} onChange={(event) => setJourneyResponses(prev => ({ ...prev, [field.id]: event.target.value }))} className="w-full rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" />
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={handleSubmitExtraordinaryLife} disabled={isSubmittingJourney} className="w-full rounded-2xl bg-[#4bd3ff] px-6 py-4 text-xs font-black uppercase tracking-widest text-[#020507] disabled:opacity-50">{isSubmittingJourney ? 'Salvando...' : 'Salvar Vida Extraordinária'}</button>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-3xl border border-[#4bd3ff]/20 bg-[#071418] p-6 sm:p-8">
+              <div className="mb-6">
+                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Renova toda segunda-feira</p>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Juramento Semanal</h3>
+                <p className="text-gray-400 text-sm mt-2">{WEEKLY_OATH_TEXT}</p>
+              </div>
+              {weeklyOathSubmission ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2">Eu me comprometo a ser</p>
+                    <p className="text-gray-100 whitespace-pre-wrap">{weeklyOathSubmission.responses?.identity}</p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2">Conquista da semana</p>
+                    <p className="text-gray-100 whitespace-pre-wrap">{weeklyOathSubmission.responses?.conquest}</p>
                   </div>
                 </div>
-              )})() : (
-                <div className="bg-white/5 border border-white/5 border-dashed p-12 text-center rounded-none">
-                  <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Nenhuma missão liberada para hoje ainda.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">Essa semana eu me comprometo a ser o tipo de pessoa que...</label>
+                    <textarea value={weeklyOath.identity} onChange={(event) => setWeeklyOath(prev => ({ ...prev, identity: event.target.value }))} className="mt-2 min-h-[110px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">Eu terminarei a minha semana com a seguinte conquista</label>
+                    <textarea value={weeklyOath.conquest} onChange={(event) => setWeeklyOath(prev => ({ ...prev, conquest: event.target.value }))} className="mt-2 min-h-[90px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" />
+                  </div>
+                  <button onClick={handleSubmitWeeklyOath} disabled={isSubmittingJourney} className="w-full rounded-2xl bg-[#4bd3ff] px-6 py-4 text-xs font-black uppercase tracking-widest text-[#020507] disabled:opacity-50">{isSubmittingJourney ? 'Salvando...' : 'Firmar Juramento da Semana'}</button>
                 </div>
               )}
             </section>
           </div>
         );
-      }
       case 'ranking':
         return null;
       case 'guardiao':
@@ -3305,7 +3457,6 @@ export default function App() {
                 {id: 'geral', label: 'Geral', icon: LayoutDashboard},
                 {id: 'trilhas', label: 'Trilhas', icon: Compass},
                 {id: 'modulos', label: 'Módulos', icon: Video},
-                {id: 'missoes', label: 'Missão do Dia', icon: Calendar},
                 {id: 'alunos', label: 'Alunos', icon: Users},
                 {id: 'avisos', label: 'Avisos', icon: Bell},
                 {id: 'emails', label: 'Emails', icon: Send},
@@ -4060,6 +4211,14 @@ export default function App() {
                                 <Settings size={18} className="group-hover/btn:rotate-90 transition-transform duration-500" />
                               </button>
                               
+                              <button
+                                onClick={() => setSelectedJourneyUser(student)}
+                                className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-gray-300 font-black text-[10px] uppercase tracking-widest hover:border-[#4bd3ff]/50 hover:text-[#4bd3ff] transition-colors"
+                                title="Ver protocolos da aluna"
+                              >
+                                Jornada
+                              </button>
+
                               <button 
                                 onClick={() => {
                                   setSelectedUser(student);
@@ -4576,7 +4735,7 @@ export default function App() {
 
       {/* Mission Modal */}
       <AnimatePresence>
-        {isMissionModalOpen && todayChallenge && (
+        {isMissionModalOpen && (
           <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
@@ -4594,12 +4753,8 @@ export default function App() {
               <div className="p-8 space-y-8">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-3">
-                    <h3 className="text-3xl font-black text-white uppercase tracking-tight">Missão: {todayChallenge.title}</h3>
-                    {todayChallenge.description && (
-                      <p className="max-w-xl text-sm leading-relaxed text-gray-400">
-                        {todayChallenge.description}
-                      </p>
-                    )}
+                    <h3 className="text-3xl font-black text-white uppercase tracking-tight">CIA Diário</h3>
+                    <p className="max-w-xl text-sm leading-relaxed text-gray-400">{CIA_PROTOCOL.description}</p>
                   </div>
                   <button onClick={() => setIsMissionModalOpen(false)} className="text-gray-500 hover:text-white transition-colors">
                     <X size={24} />
@@ -4621,12 +4776,12 @@ export default function App() {
                         onChange={(e) => setAudioChecked(e.target.checked)}
                         className="w-5 h-5 rounded border-white/10 bg-black/40 text-[#4bd3ff] focus:ring-[#4bd3ff]"
                       />
-                      <span className="text-white font-medium group-hover:text-[#4bd3ff] transition-colors">Eu ouvi o áudio desta missão.</span>
+                      <span className="text-white font-medium group-hover:text-[#4bd3ff] transition-colors">Eu ouvi o áudio/protocolo de preparação do CIA.</span>
                     </label>
                   </div>
 
                   <div className="space-y-6">
-                    {todayChallenge.questions.map(q => (
+                    {activeCiaChallenge.questions.map(q => (
                       <div key={q.id} className="space-y-3">
                         <label className="block text-sm font-black text-gray-400 uppercase tracking-widest">{q.label} <span className="text-[#4bd3ff]">*</span></label>
                         
@@ -4693,7 +4848,7 @@ export default function App() {
                   disabled={isSubmittingMission || !audioChecked}
                   className="w-full bg-[#4bd3ff] hover:bg-[#38bdf8] disabled:opacity-50 disabled:cursor-not-allowed text-[#020507] font-black py-4 rounded-none uppercase tracking-[0.2em] text-xs transition-all shadow-[0_20px_40px_-10px_rgba(75,211,255,0.3)]"
                 >
-                  {isSubmittingMission ? 'Enviando...' : 'Concluir Missão do Dia'}
+                  {isSubmittingMission ? 'Enviando...' : 'Concluir CIA Diário'}
                 </button>
               </div>
             </motion.div>
@@ -5662,6 +5817,70 @@ export default function App() {
       </div>
 
       {/* Modals & Overlays */}
+      {selectedJourneyUser && (() => {
+        const userCia = allCompletions.filter(item => item.userId === selectedJourneyUser.uid).sort((a, b) => getTimestampMillis(b.completedAt) - getTimestampMillis(a.completedAt));
+        const userExtraordinary = journeyForms.find(item => item.userId === selectedJourneyUser.uid && item.type === 'extraordinaryLife');
+        const userOaths = journeyForms.filter(item => item.userId === selectedJourneyUser.uid && item.type === 'weeklyOath').sort((a, b) => String(b.weekKey || '').localeCompare(String(a.weekKey || '')));
+        return (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedJourneyUser(null)} />
+            <div className="relative z-10 max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0c10] p-6 sm:p-8 shadow-2xl">
+              <button onClick={() => setSelectedJourneyUser(null)} className="absolute right-5 top-5 text-gray-500 hover:text-white"><X size={22} /></button>
+              <div className="mb-8">
+                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Protocolos da aluna</p>
+                <h3 className="text-2xl font-black uppercase tracking-tight text-white">{selectedJourneyUser.name}</h3>
+                <p className="mt-2 text-sm text-gray-400">CIA feitos: <span className="font-black text-[#4bd3ff]">{userCia.length}</span> · Juramentos: <span className="font-black text-[#4bd3ff]">{userOaths.length}</span></p>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <section className="space-y-3">
+                  <h4 className="text-sm font-black uppercase tracking-widest text-white">Vida Extraordinária</h4>
+                  {userExtraordinary ? (
+                    <div className="space-y-3">
+                      {EXTRAORDINARY_LIFE_FIELDS.map(field => (
+                        <div key={field.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                          <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">{field.label}</p>
+                          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-200">{userExtraordinary.responses?.[field.id] || '-'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="rounded-2xl border border-white/10 border-dashed p-6 text-xs font-black uppercase tracking-widest text-gray-600">Ainda não preencheu.</p>}
+                </section>
+
+                <section className="space-y-6">
+                  <div>
+                    <h4 className="mb-3 text-sm font-black uppercase tracking-widest text-white">Juramento Semanal</h4>
+                    <div className="space-y-3">
+                      {userOaths.length ? userOaths.map(oath => (
+                        <div key={oath.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                          <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">Semana de {oath.weekKey}</p>
+                          <p className="text-sm text-gray-200 whitespace-pre-wrap"><strong>Ser:</strong> {oath.responses?.identity}</p>
+                          <p className="mt-2 text-sm text-gray-200 whitespace-pre-wrap"><strong>Conquista:</strong> {oath.responses?.conquest}</p>
+                        </div>
+                      )) : <p className="rounded-2xl border border-white/10 border-dashed p-6 text-xs font-black uppercase tracking-widest text-gray-600">Nenhum juramento ainda.</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="mb-3 text-sm font-black uppercase tracking-widest text-white">CIA Diário</h4>
+                    <div className="space-y-3">
+                      {userCia.length ? userCia.slice(0, 20).map(cia => (
+                        <div key={cia.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                          <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">{cia.challengeDate}</p>
+                          {CIA_PROTOCOL.questions.map(q => (
+                            <p key={q.id} className="mt-2 text-sm text-gray-200 whitespace-pre-wrap"><strong>{q.label}:</strong> {cia.responses?.[q.id] || '-'}</p>
+                          ))}
+                        </div>
+                      )) : <p className="rounded-2xl border border-white/10 border-dashed p-6 text-xs font-black uppercase tracking-widest text-gray-600">Nenhum CIA concluído.</p>}
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {isFolhasModalOpen && selectedUser && (
         <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsFolhasModalOpen(false)}></div>
