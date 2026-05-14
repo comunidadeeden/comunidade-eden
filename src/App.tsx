@@ -2490,8 +2490,12 @@ export default function App() {
               <div className="mb-6">
                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Renova toda segunda-feira</p>
                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">Juramento Semanal</h3>
-                <p className="text-gray-400 text-sm mt-2">Escreva abaixo o seu juramento para esta semana. Seja direto, sem justificativas. Assuma uma identidade e sustente isso todos os dias.</p>
-                <p className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4 text-sm leading-relaxed text-gray-200">{WEEKLY_OATH_TEXT}</p>
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/25 p-4 text-sm leading-relaxed text-gray-200 space-y-2">
+                  <p>Escreva abaixo o seu juramento para esta semana.</p>
+                  <p>Seja direto, sem justificativas.</p>
+                  <p>Assuma uma identidade e sustente isso todos os dias.</p>
+                  <p className="pt-2 text-gray-100">“Essa semana, eu me comprometo a ser o tipo de pessoa que ________, mesmo sem vontade. Eu não negocio isso comigo.”</p>
+                </div>
               </div>
               {weeklyOathSubmission ? (
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -2505,15 +2509,31 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">Essa semana eu me comprometo a ser o tipo de pessoa que...</label>
-                    <textarea value={weeklyOath.identity} onChange={(event) => setWeeklyOath(prev => ({ ...prev, identity: event.target.value }))} className="mt-2 min-h-[110px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" />
+                <div className="space-y-6">
+                  <div className="rounded-3xl border border-white/10 bg-black/25 p-5 sm:p-6">
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#4bd3ff] mb-4">Preencha a lacuna</p>
+                    <div className="flex flex-wrap items-end gap-x-2 gap-y-3 text-lg leading-relaxed text-gray-100">
+                      <span>Essa semana, eu me comprometo a ser o tipo de pessoa que</span>
+                      <input
+                        value={weeklyOath.identity}
+                        onChange={(event) => setWeeklyOath(prev => ({ ...prev, identity: event.target.value }))}
+                        className="min-w-[220px] flex-1 border-0 border-b-2 border-[#4bd3ff]/50 bg-transparent px-2 py-1 font-bold text-white outline-none transition-colors placeholder:text-gray-600 focus:border-[#4bd3ff]"
+                        placeholder="escreva aqui"
+                      />
+                      <span>, mesmo sem vontade. Eu não negocio isso comigo.</span>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">Eu terminarei a minha semana com a seguinte conquista</label>
-                    <textarea value={weeklyOath.conquest} onChange={(event) => setWeeklyOath(prev => ({ ...prev, conquest: event.target.value }))} className="mt-2 min-h-[90px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60" />
+
+                  <div className="rounded-3xl border border-white/10 bg-black/25 p-5 sm:p-6">
+                    <label className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-400">Eu terminarei a minha semana com a seguinte conquista:</label>
+                    <textarea
+                      value={weeklyOath.conquest}
+                      onChange={(event) => setWeeklyOath(prev => ({ ...prev, conquest: event.target.value }))}
+                      className="mt-4 min-h-[120px] w-full resize-none rounded-2xl border border-white/10 bg-black/35 p-4 text-white outline-none focus:border-[#4bd3ff]/60"
+                      placeholder="Escreva a conquista que você vai sustentar nesta semana..."
+                    />
                   </div>
+
                   <p className="text-xs text-gray-500">Regra: um único compromisso. Sem ajustar no meio da semana. Sem negociar.</p>
                   <button onClick={handleSubmitWeeklyOath} disabled={isSubmittingJourney} className="w-full rounded-2xl bg-[#4bd3ff] px-6 py-4 text-xs font-black uppercase tracking-widest text-[#020507] disabled:opacity-50">{isSubmittingJourney ? 'Salvando...' : 'Firmar Juramento da Semana'}</button>
                 </div>
