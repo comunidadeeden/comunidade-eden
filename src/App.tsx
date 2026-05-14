@@ -5,7 +5,7 @@ import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Awar
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { confirmPasswordReset, isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword, verifyPasswordResetCode } from 'firebase/auth';
-import { doc, getDoc, where, collection, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp, documentId } from 'firebase/firestore';
+import { doc, getDoc, where, collection, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
 
 export const ICON_MAP: Record<string, React.FC<any>> = {
   Crown, Star, Zap, Award, Trophy, Sprout, Shield, Compass, FileText, CheckCircle, Leaf, Key
@@ -1366,9 +1366,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    const trailsQuery = !isAdmin && purchasedOfferIds.length === 0
-      ? query(collection(db, 'trails'), where(documentId(), '!=', EXTRA_CONTENT_TRAIL_ID), orderBy(documentId()))
-      : query(collection(db, 'trails'), orderBy('order'));
+    const trailsQuery = query(collection(db, 'trails'), orderBy('order'));
 
     const unsubscribeTrails = onSnapshot(trailsQuery, (snapshot) => {
        const trailsData = snapshot.docs

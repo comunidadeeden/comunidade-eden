@@ -199,11 +199,7 @@ service cloud.firestore {
 
     // --- TRAILS, MODULES, CONTENTS ---
     match /trails/{trailId} {
-      allow read: if isSignedIn() && (
-        isAdmin() ||
-        (!((('isExtraContent' in resource.data) && resource.data.isExtraContent == true) || trailId == 'conteudos-extras')) ||
-        hasPurchasedExtraContent()
-      );
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
     
