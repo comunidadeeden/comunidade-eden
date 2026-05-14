@@ -5810,6 +5810,17 @@ export default function App() {
           })}
         </div>
         {activeTab !== 'guardiao' && !isAdminPanelOpen && (
+          <button
+            type="button"
+            onClick={toggleAudio}
+            className={`absolute left-3 top-1/2 hidden -translate-y-1/2 items-center justify-center rounded-full border px-3 py-2 transition-all lg:flex ${isPlayingAudio ? 'border-emerald-400/40 bg-emerald-400/15 text-emerald-300 shadow-[0_0_26px_rgba(52,211,153,0.16)]' : 'border-[#4bd3ff]/40 bg-[#4bd3ff]/15 text-[#4bd3ff] shadow-[0_0_26px_rgba(75,211,255,0.14)] hover:bg-[#4bd3ff]/20'}`}
+            aria-label={isPlayingAudio ? 'Pausar áudio do dia' : 'Tocar áudio do dia'}
+            title={isPlayingAudio ? 'Pausar áudio do dia' : 'Tocar áudio do dia'}
+          >
+            {isPlayingAudio ? <Volume2 size={20} /> : <Play size={20} className="ml-0.5 fill-current" />}
+          </button>
+        )}
+        {activeTab !== 'guardiao' && !isAdminPanelOpen && (
           <a
             href={SUPPORT_WHATSAPP_URL || '#'}
             target="_blank"
