@@ -1,4 +1,4 @@
-import { commitDailyCommitmentReward, commitDailyMissionReward, getAuthUserByIdToken, getDocument } from '../lib/firebaseRest.js';
+import { commitDailyCommitmentReward, commitDailyMissionReward, getAuthUserByIdToken, getDocument, setDocument } from '../lib/firebaseRest.js';
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
@@ -47,6 +47,27 @@ const hasAnswer = (value) => {
   return typeof value === 'string' && value.trim().length > 0;
 };
 
+const getSaoPauloWeekKey = () => {
+  const now = new Date();
+  const saoPauloNow = new Date(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric'
+  }).format(now));
+  const day = saoPauloNow.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  saoPauloNow.setDate(saoPauloNow.getDate() + diffToMonday);
+  const dd = String(saoPauloNow.getDate()).padStart(2, '0');
+  const mm = String(saoPauloNow.getMonth() + 1).padStart(2, '0');
+  const yyyy = saoPauloNow.getFullYear();
+  return dd + '-' + mm + '-' + yyyy;
+};
+
+const hasJourneyResponses = (responses = {}) => (
+  responses && typeof responses === 'object' && Object.values(responses).every(hasAnswer)
+);
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -63,6 +84,45 @@ export default async function handler(request, response) {
     const userProfile = await getDocument('users', authUser.uid);
     if (!userProfile || userProfile.isBlocked || isAccessExpired(userProfile.accessExpiresAt)) {
       return response.status(403).json({ error: 'Acesso indisponivel.' });
+    }
+
+
+    if (request.body?.type === 'extraordinaryLife') {
+      const responses = request.body?.responses || {};
+      if (!hasJourneyResponses(responses)) {
+        return response.status(400).json({ error: 'Preencha todos os campos da Vida Extraordinaria.' });
+      }
+
+      const now = new Date();
+      const id = authUser.uid + '_extraordinaryLife';
+      await setDocument('journeyForms', id, {
+        userId: authUser.uid,
+        type: 'extraordinaryLife',
+        responses,
+        submittedAt: now,
+        updatedAt: now
+      });
+      return response.status(200).json({ ok: true, id, form: { id, userId: authUser.uid, type: 'extraordinaryLife', responses, submittedAt: now.toISOString(), updatedAt: now.toISOString() } });
+    }
+
+    if (request.body?.type === 'weeklyOath') {
+      const weekKey = String(request.body?.weekKey || getSaoPauloWeekKey()).trim();
+      const responses = request.body?.responses || {};
+      if (!hasAnswer(responses.identity) || !hasAnswer(responses.conquest)) {
+        return response.status(400).json({ error: 'Preencha o juramento e a conquista da semana.' });
+      }
+
+      const now = new Date();
+      const id = authUser.uid + '_weeklyOath_' + weekKey;
+      await setDocument('journeyForms', id, {
+        userId: authUser.uid,
+        type: 'weeklyOath',
+        weekKey,
+        responses,
+        submittedAt: now,
+        updatedAt: now
+      });
+      return response.status(200).json({ ok: true, id, form: { id, userId: authUser.uid, type: 'weeklyOath', weekKey, responses, submittedAt: now.toISOString(), updatedAt: now.toISOString() } });
     }
 
     if (request.body?.type === 'commitment') {

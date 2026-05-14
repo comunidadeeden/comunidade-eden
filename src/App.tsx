@@ -1944,13 +1944,22 @@ export default function App() {
     }
     setIsSubmittingJourney(true);
     try {
-      await setDoc(doc(db, 'journeyForms', `${user.uid}_extraordinaryLife`), {
-        userId: user.uid,
-        type: 'extraordinaryLife',
-        responses: journeyResponses,
-        submittedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão expirada.');
+      const response = await fetch('/api/points/mission', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          type: 'extraordinaryLife',
+          responses: journeyResponses
+        })
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) throw new Error(data?.error || 'Não foi possível salvar sua Vida Extraordinária.');
+      if (data.form) setJourneyForms(prev => [data.form as JourneyFormSubmission, ...prev.filter(form => form.id !== data.form.id)]);
       alert('Vida Extraordinária registrada.');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'journeyForms/extraordinaryLife');
@@ -1968,14 +1977,23 @@ export default function App() {
     }
     setIsSubmittingJourney(true);
     try {
-      await setDoc(doc(db, 'journeyForms', `${user.uid}_weeklyOath_${currentWeekKey}`), {
-        userId: user.uid,
-        type: 'weeklyOath',
-        weekKey: currentWeekKey,
-        responses: weeklyOath,
-        submittedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão expirada.');
+      const response = await fetch('/api/points/mission', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          type: 'weeklyOath',
+          weekKey: currentWeekKey,
+          responses: weeklyOath
+        })
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) throw new Error(data?.error || 'Não foi possível salvar seu juramento semanal.');
+      if (data.form) setJourneyForms(prev => [data.form as JourneyFormSubmission, ...prev.filter(form => form.id !== data.form.id)]);
       alert('Juramento semanal firmado.');
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'journeyForms/weeklyOath');
