@@ -3953,6 +3953,37 @@ export default function App() {
                         >
                            <Plus size={18} /> Adicionar conteúdo
                         </button>
+                        <button
+                          onClick={() => {
+                            setPromptConfig({
+                              title: 'Excluir Módulo?',
+                              description: `O módulo "${module.title}" e todas as aulas dentro dele serão removidos definitivamente.`,
+                              submitText: 'Excluir módulo',
+                              fields: [],
+                              onSubmit: async () => {
+                                try {
+                                  const trail = trailsState.find(t => t.id === module.trailId);
+                                  if (!trail) return;
+                                  const updatedModules = (trail.modules || []).filter(m => m.id !== module.id);
+                                  await updateDoc(doc(db, 'trails', trail.id), { modules: updatedModules });
+                                  setExpandedAdminModules(prev => {
+                                    const next = { ...prev };
+                                    delete next[moduleKey];
+                                    return next;
+                                  });
+                                } catch (e) {
+                                  handleFirestoreError(e, OperationType.UPDATE, `trails/${module.trailId}`);
+                                  throw e;
+                                }
+                              },
+                              onCancel: () => setPromptConfig(null)
+                            });
+                          }}
+                          className="p-2 text-gray-500 hover:text-red-400 transition-colors"
+                          title="Excluir módulo"
+                        >
+                          <Trash2 size={20} />
+                        </button>
                         <button 
                           onClick={() => {
                             setPromptConfig({
