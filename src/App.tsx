@@ -296,7 +296,7 @@ const CIA_PROTOCOL: DailyChallenge = {
 type ExtraordinaryLifeField = {
   id: string;
   label: string;
-  type: 'text' | 'textarea' | 'date' | 'time' | 'checkbox' | 'number';
+  type: 'text' | 'textarea' | 'date' | 'time' | 'checkbox' | 'number' | 'betAllocation';
   helper?: string;
   options?: string[];
 };
@@ -328,7 +328,7 @@ const EXTRAORDINARY_LIFE_FIELDS: ExtraordinaryLifeField[] = [
   { id: 'custoDisposta', label: 'O custo que eu estou disposta a pagar é', type: 'textarea' },
   { id: 'custoNaoDisposta', label: 'O custo que eu NÃO estou mais disposta a pagar é', type: 'textarea' },
   { id: 'precoVidaCobrara', label: 'Se eu não pagar esse preço, o preço que a vida vai me cobrar será', type: 'textarea' },
-  { id: 'apostasDistribuidas', label: '7. Distribua suas 5 fichas de energia', type: 'textarea', helper: `Use as áreas como referência: ${EXTRAORDINARY_LIFE_BET_AREAS.join(', ')}. Escreva quantas fichas vão para cada área escolhida.` },
+  { id: 'apostasDistribuidas', label: '7. Distribua suas 5 fichas de energia', type: 'betAllocation', helper: 'Imagine que você tem apenas 5 fichas de energia para investir. Onde você precisa apostar para esse desejo sair do papel?' },
   { id: 'maiorAposta', label: 'Minha maior aposta precisa ser em', type: 'textarea' },
   { id: 'porqueAposta', label: 'Por quê?', type: 'textarea' },
   { id: 'medidorProgresso', label: '8. Medidor de progresso', type: 'textarea', helper: 'Você só melhora o que consegue enxergar. Defina área, como vai medir, meta específica e prazo.' },
@@ -358,8 +358,22 @@ const EXTRAORDINARY_LIFE_FIELDS: ExtraordinaryLifeField[] = [
 
 const formatJourneyAnswer = (value: any) => {
   if (Array.isArray(value)) return value.length ? value.join(', ') : '-';
-  if (value && typeof value === 'object') return JSON.stringify(value, null, 2);
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value).filter(([, amount]) => Number(amount) > 0);
+    return entries.length ? entries.map(([area, amount]) => `${area}: ${amount} ficha(s)`).join('\n') : '-';
+  }
   return value || '-';
+};
+
+const getBetAllocationTotal = (value: any) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return 0;
+  return Object.values(value).reduce<number>((total, amount) => total + Number(amount || 0), 0);
+};
+
+const isJourneyFieldFilled = (field: ExtraordinaryLifeField, value: any) => {
+  if (field.type === 'checkbox') return Array.isArray(value) && value.length > 0;
+  if (field.type === 'betAllocation') return getBetAllocationTotal(value) === 5;
+  return String(value || '').trim().length > 0;
 };
 
 const WEEKLY_OATH_TEXT = 'Essa semana, eu me comprometo a ser o tipo de pessoa que ______, mesmo sem vontade. Eu não negocio isso comigo.';
@@ -1993,8 +2007,8 @@ export default function App() {
   const handleSubmitExtraordinaryLife = async () => {
     if (!user || extraordinaryLifeSubmission) return;
     for (const field of EXTRAORDINARY_LIFE_FIELDS) {
-      if (!journeyResponses[field.id]?.trim()) {
-        alert(`Preencha o campo "${field.label}".`);
+      if (!isJourneyFieldFilled(field, journeyResponses[field.id])) {
+        alert(field.type === 'betAllocation' ? 'Distribua exatamente 5 fichas de energia.' : `Preencha o campo "${field.label}".`);
         return;
       }
     }
@@ -5931,7 +5945,63 @@ export default function App() {
                   {currentJourneyField.helper}
                 </div>
               )}
-              {currentJourneyField.type === 'checkbox' ? (
+              {currentJourneyField.type === 'betAllocation' ? (() => {
+                const allocation = journeyResponses[currentJourneyField.id] && typeof journeyResponses[currentJourneyField.id] === 'object' && !Array.isArray(journeyResponses[currentJourneyField.id]) ? journeyResponses[currentJourneyField.id] : {};
+                const total = getBetAllocationTotal(allocation);
+                const remaining = 5 - total;
+                const updateAllocation = (area: string, delta: number) => {
+                  setJourneyResponses(prev => {
+                    const current = prev[currentJourneyField.id] && typeof prev[currentJourneyField.id] === 'object' && !Array.isArray(prev[currentJourneyField.id]) ? prev[currentJourneyField.id] : {};
+                    const currentAmount = Number(current[area] || 0);
+                    const nextAmount = Math.max(0, Math.min(5, currentAmount + delta));
+                    const next = { ...current, [area]: nextAmount };
+                    if (nextAmount === 0) delete next[area];
+                    return { ...prev, [currentJourneyField.id]: next };
+                  });
+                };
+                return (
+                  <div className="space-y-5">
+                    <div className={`rounded-2xl border p-4 ${remaining === 0 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-[#4bd3ff]/20 bg-black/25 text-[#4bd3ff]'}`}>
+                      <p className="text-[10px] font-black uppercase tracking-[0.24em]">{total}/5 fichas distribuídas</p>
+                      <p className="mt-2 text-sm text-gray-300">{remaining === 0 ? 'Perfeito. As 5 fichas foram distribuídas.' : `Faltam ${remaining} ficha(s) para completar.`}</p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {EXTRAORDINARY_LIFE_BET_AREAS.map(area => {
+                        const amount = Number(allocation[area] || 0);
+                        return (
+                          <div key={area} className={`rounded-2xl border p-4 transition-colors ${amount > 0 ? 'border-[#4bd3ff]/50 bg-[#4bd3ff]/10' : 'border-white/10 bg-black/25'}`}>
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-black text-white">{area}</p>
+                                <p className="mt-1 text-xs text-gray-500">{amount} ficha(s)</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => updateAllocation(area, -1)}
+                                  disabled={amount === 0}
+                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-lg font-black text-gray-300 transition-colors hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                                >
+                                  -
+                                </button>
+                                <span className="flex h-10 min-w-10 items-center justify-center rounded-full bg-[#4bd3ff] px-3 text-sm font-black text-[#020507]">{amount}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateAllocation(area, 1)}
+                                  disabled={total >= 5}
+                                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-lg font-black text-gray-300 transition-colors hover:border-[#4bd3ff]/50 hover:text-[#4bd3ff] disabled:cursor-not-allowed disabled:opacity-30"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })() : currentJourneyField.type === 'checkbox' ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {currentJourneyField.options?.map(option => {
                     const values = Array.isArray(journeyResponses[currentJourneyField.id]) ? journeyResponses[currentJourneyField.id] : [];
