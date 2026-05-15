@@ -369,13 +369,19 @@ const detectDelimitedSeparator = (text: string) => {
     .sort((a, b) => b.count - a.count)[0]?.separator || ',';
 };
 
+const getDefaultStudentAccessExpiresAt = () => {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() + 1);
+  return date.toISOString().slice(0, 10);
+};
+
 const normalizeImportDate = (value: string) => {
   const cleanValue = value.trim();
   if (!cleanValue) return '';
   if (/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) return cleanValue;
 
   const brazilianDate = cleanValue.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
-  if (!brazilianDate) return cleanValue;
+  if (!brazilianDate) return '';
 
   const [, day, month, year] = brazilianDate;
   const fullYear = year.length === 2 ? `20${year}` : year;
@@ -408,11 +414,19 @@ const parseStudentsFromDelimitedText = (text: string): ImportedStudentRow[] => {
   return dataRows
     .map(row => {
       const getColumn = (field: keyof ImportedStudentRow, fallbackIndex: number) => row[hasHeader && headerIndexes[field] >= 0 ? headerIndexes[field] : fallbackIndex] || '';
+      let phone = getColumn('phone', 2).trim();
+      let rawAccessExpiresAt = getColumn('accessExpiresAt', 3).trim();
+
+      if (phone.includes('@') && rawAccessExpiresAt && !normalizeImportDate(rawAccessExpiresAt)) {
+        phone = rawAccessExpiresAt;
+        rawAccessExpiresAt = '';
+      }
+
       return {
         name: getColumn('name', 0).trim(),
         email: normalizeEmail(getColumn('email', 1)),
-        phone: getColumn('phone', 2).trim(),
-        accessExpiresAt: normalizeImportDate(getColumn('accessExpiresAt', 3))
+        phone: phone.includes('@') ? '' : phone,
+        accessExpiresAt: normalizeImportDate(rawAccessExpiresAt)
       };
     })
     .filter(student => student.name && student.email);
@@ -861,7 +875,7 @@ export default function App() {
     const email = normalizeEmail(data.email || '');
     const name = data.name?.trim();
     const phone = data.phone?.trim() || '';
-    const accessExpiresAt = data.accessExpiresAt || '';
+    const accessExpiresAt = data.accessExpiresAt || getDefaultStudentAccessExpiresAt();
 
     if (!email || !name) {
       alert('Informe nome e email do aluno.');
@@ -4515,7 +4529,7 @@ export default function App() {
 	                          { name: 'name', label: 'Nome do aluno', required: true },
 	                          { name: 'email', label: 'Email de acesso', type: 'email', required: true },
 	                          { name: 'phone', label: 'Telefone / WhatsApp' },
-	                          { name: 'accessExpiresAt', label: 'Expira em', type: 'date' }
+	                          { name: 'accessExpiresAt', label: 'Expira em', type: 'date', defaultValue: getDefaultStudentAccessExpiresAt() }
 	                        ],
 	                        onSubmit: handleCreateStudent,
 	                        onCancel: () => setPromptConfig(null)

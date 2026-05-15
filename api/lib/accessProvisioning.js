@@ -26,6 +26,20 @@ export const getDefaultAccessExpiresAt = () => {
   return addDays(new Date(), Number.isFinite(days) ? days : 365);
 };
 
+const normalizeAccessExpiresAt = (value = '') => {
+  const cleanValue = String(value || '').trim();
+  if (!cleanValue) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) return '';
+
+  const date = new Date(`${cleanValue}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? '' : cleanValue;
+};
+
+const normalizePhone = (value = '') => {
+  const cleanValue = String(value || '').trim();
+  return cleanValue.includes('@') ? '' : cleanValue;
+};
+
 export const provisionStudentAccess = async ({
   email,
   name,
@@ -44,8 +58,9 @@ export const provisionStudentAccess = async ({
   const purchasedOfferIds = new Set(existingUser?.purchasedOfferIds || []);
   if (offerId) purchasedOfferIds.add(offerId);
 
-  const finalAccessExpiresAt = accessExpiresAt ||
-    (grantMainAccess ? getDefaultAccessExpiresAt() : (existingUser?.accessExpiresAt || getDefaultAccessExpiresAt()));
+  const requestedAccessExpiresAt = normalizeAccessExpiresAt(accessExpiresAt);
+  const finalAccessExpiresAt = requestedAccessExpiresAt ||
+    (grantMainAccess ? getDefaultAccessExpiresAt() : (normalizeAccessExpiresAt(existingUser?.accessExpiresAt) || getDefaultAccessExpiresAt()));
 
   await setDocument('users', authUser.uid, {
     uid: authUser.uid,
@@ -59,7 +74,7 @@ export const provisionStudentAccess = async ({
     accessExpiresAt: finalAccessExpiresAt,
     profession: existingUser?.profession || '',
     instagram: existingUser?.instagram || '',
-    phone: phone || existingUser?.phone || '',
+    phone: normalizePhone(phone) || existingUser?.phone || '',
     maritalStatus: existingUser?.maritalStatus || '',
     hasChildren: existingUser?.hasChildren || false,
     childrenCount: existingUser?.childrenCount || 0,
@@ -74,7 +89,7 @@ export const provisionStudentAccess = async ({
   await setDocument('studentInvites', encodeURIComponent(email), {
     email,
     name: name || existingUser?.name || email.split('@')[0],
-    phone: phone || existingUser?.phone || '',
+    phone: normalizePhone(phone) || existingUser?.phone || '',
     accessExpiresAt: finalAccessExpiresAt,
     role: 'student',
     invitedBy: 'backend',
