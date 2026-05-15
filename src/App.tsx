@@ -145,6 +145,57 @@ function PasswordActionPage() {
   );
 }
 
+
+function AccessGatewayPage() {
+  const [status, setStatus] = useState<'loading' | 'error'>('loading');
+  const [message, setMessage] = useState('Preparando seu acesso...');
+  const token = new URLSearchParams(window.location.search).get('token') || '';
+
+  useEffect(() => {
+    const redeemAccess = async () => {
+      if (!token) {
+        setStatus('error');
+        setMessage('Link de acesso inválido. Solicite um novo envio.');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/students', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'access:redeem', token })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.setupPasswordUrl) {
+          throw new Error(result.error || 'Não foi possível validar seu acesso.');
+        }
+        window.location.assign(result.setupPasswordUrl);
+      } catch (error) {
+        console.error('Access redemption error:', error);
+        setStatus('error');
+        setMessage(error instanceof Error ? error.message : 'Não foi possível validar seu acesso.');
+      }
+    };
+
+    redeemAccess();
+  }, [token]);
+
+  return (
+    <div className="min-h-screen bg-[#020507] text-white flex items-center justify-center px-6">
+      <div className="w-full max-w-md bg-[#071418] border border-[#4bd3ff]/20 rounded-3xl p-8 shadow-2xl text-center">
+        <p className="text-[#4bd3ff] text-xs font-black uppercase tracking-[0.25em] mb-3">Acesso Éden</p>
+        <h1 className="text-3xl font-black tracking-tight mb-3">{status === 'loading' ? 'Preparando sua entrada' : 'Link indisponível'}</h1>
+        <p className="text-gray-400 text-sm leading-relaxed mb-8">{message}</p>
+        {status === 'error' && (
+          <a href="/" className="block w-full text-center bg-white/10 border border-white/10 text-white rounded-xl py-4 font-black uppercase tracking-widest text-xs hover:bg-white/15 transition-colors">
+            Voltar para o login
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const createGuardianSession = (): GuardianSession => ({
   id: Math.random().toString(36).substring(2, 10),
   title: 'Nova sessão',
@@ -666,6 +717,9 @@ export default function App() {
   if (window.location.pathname === '/auth/action') {
     return <PasswordActionPage />;
   }
+  if (window.location.pathname === '/acesso') {
+    return <AccessGatewayPage />;
+  }
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -724,6 +778,7 @@ export default function App() {
   const [isImportingStudentsFile, setIsImportingStudentsFile] = useState(false);
   const [isRepairingStudentImport, setIsRepairingStudentImport] = useState(false);
   const [resendingAccessUid, setResendingAccessUid] = useState<string | null>(null);
+  const [isResendingPendingAccess, setIsResendingPendingAccess] = useState(false);
   const [missionResponses, setMissionResponses] = useState<Record<string, string | string[]>>({});
   const [journeyResponses, setJourneyResponses] = useState<Record<string, any>>({});
   const [weeklyOath, setWeeklyOath] = useState({ identity: '', conquest: '' });
@@ -925,6 +980,24 @@ export default function App() {
       setResendingAccessUid(null);
     }
   };
+
+
+  const handleResendPendingStudentAccess = async () => {
+    if (!window.confirm('Reenviar o novo email de acesso apenas para alunas que ainda precisam criar senha? Quem já entrou não receberá nada.')) return;
+
+    try {
+      setIsResendingPendingAccess(true);
+      const result = await requestStudentAdminAction({ action: 'students:resend-pending-access' });
+      const limitedText = result.limited ? ' Foram enviadas até 100 por vez; repita depois se ainda houver pendentes.' : '';
+      alert(`${result.sent || 0} email(s) de acesso reenviado(s).${result.failed ? ` ${result.failed} falharam.` : ''}${limitedText}`);
+    } catch (error) {
+      console.error('Error resending pending student access:', error);
+      alert(error instanceof Error ? error.message : 'Não foi possível reenviar os acessos pendentes.');
+    } finally {
+      setIsResendingPendingAccess(false);
+    }
+  };
+
 
   const handleCreateStudent = async (data: Record<string, string>) => {
     const email = normalizeEmail(data.email || '');
@@ -1672,7 +1745,9 @@ export default function App() {
 
     if (isAdmin) {
       unsubscribeStudents = onSnapshot(collection(db, 'users'), (snapshot) => {
-        const studentsData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+        const studentsData = snapshot.docs
+          .map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile))
+          .sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || '', 'pt-BR', { sensitivity: 'base' }));
         setAdminStudents(studentsData);
       }, (error) => {
         handleFirestoreError(error, 'LIST', 'users');
@@ -4545,6 +4620,13 @@ export default function App() {
 	                    <Settings size={18} /> {isRepairingStudentImport ? 'Corrigindo...' : 'Corrigir Importação'}
 	                  </button>
 	                  <button
+	                    onClick={handleResendPendingStudentAccess}
+	                    disabled={isResendingPendingAccess}
+	                    className="flex items-center justify-center gap-2 bg-[#4bd3ff]/10 hover:bg-[#4bd3ff]/15 border border-[#4bd3ff]/20 text-[#8be6ff] px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all disabled:opacity-60 disabled:cursor-wait"
+	                  >
+	                    <Send size={18} /> {isResendingPendingAccess ? 'Reenviando...' : 'Reenviar Pendentes'}
+	                  </button>
+	                  <button
 	                    onClick={handleExportStudents}
 	                    className="flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 text-emerald-300 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all"
 	                  >
@@ -4635,7 +4717,7 @@ export default function App() {
                         const search = studentSearchTerm.trim().toLowerCase();
                         if (!search) return true;
                         return [student.name, student.email, student.phone, student.birthDate, student.profession, student.instagram, student.maritalStatus].some((value) => (value || '').toLowerCase().includes(search));
-                      }).map((student) => (
+                      }).sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || '', 'pt-BR', { sensitivity: 'base' })).map((student) => (
                         <tr key={student.uid} className="hover:bg-white/5 transition-colors group">
                           <td className="px-5 py-3">
                             <div className="flex items-center gap-2.5 min-w-[190px]">

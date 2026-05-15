@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { getDefaultAccessExpiresAt, normalizeAccessExpiresAt, normalizePhone, provisionStudentAccess, resendStudentAccessEmail } from '../lib/accessProvisioning.js';
+import { getDefaultAccessExpiresAt, normalizeAccessExpiresAt, normalizePhone, provisionStudentAccess, redeemDurableAccessToken, resendStudentAccessEmail } from '../lib/accessProvisioning.js';
 import { deleteDocument, getAuthUserByIdToken, getDocument, queryUsers, setDocument } from '../lib/firebaseRest.js';
 
 const ADMIN_EMAIL = 'gu.correa98@gmail.com';
@@ -32,6 +32,19 @@ const assertAdmin = async (request) => {
 };
 
 
+
+const handlePublicAccessAction = async (request, response) => {
+  const action = String(request.body?.action || '').trim();
+  if (action !== 'access:redeem') return null;
+
+  try {
+    const setupPasswordUrl = await redeemDurableAccessToken(request.body?.token);
+    return response.status(200).json({ ok: true, setupPasswordUrl });
+  } catch (error) {
+    return response.status(400).json({ error: error.message || 'Nao foi possivel validar o acesso.' });
+  }
+};
+
 const handleStudentAction = async (request, response) => {
   const action = String(request.body?.action || '').trim();
 
@@ -59,6 +72,42 @@ const handleStudentAction = async (request, response) => {
       updatedAt: new Date()
     });
     return response.status(200).json({ ok: true, emailSent: true });
+  }
+
+
+  if (action === 'students:resend-pending-access') {
+    const users = await queryUsers(2000);
+    const pendingStudents = users
+      .filter((userProfile) => userProfile?.uid && userProfile.role !== 'admin')
+      .filter((userProfile) => userProfile.requiresPasswordSetup === true && !userProfile.isBlocked)
+      .slice(0, 100);
+
+    const results = [];
+    for (const userProfile of pendingStudents) {
+      const email = normalizeEmail(userProfile.email);
+      if (!email) continue;
+      try {
+        await resendStudentAccessEmail({ email, name: userProfile.name || email, productName: 'Comunidade Eden' });
+        await setDocument('studentInvites', encodeURIComponent(email), {
+          email,
+          name: userProfile.name || email.split('@')[0],
+          phone: userProfile.phone || '',
+          accessExpiresAt: userProfile.accessExpiresAt || getDefaultAccessExpiresAt(),
+          role: 'student',
+          status: 'accepted',
+          acceptedBy: userProfile.uid,
+          lastAccessEmailSentAt: new Date(),
+          updatedAt: new Date()
+        });
+        results.push({ email, ok: true });
+      } catch (error) {
+        console.error('Pending access resend error:', email, error);
+        results.push({ email, ok: false, error: error.message });
+      }
+    }
+
+    const sent = results.filter((result) => result.ok).length;
+    return response.status(200).json({ ok: true, sent, failed: results.length - sent, limited: pendingStudents.length === 100, results });
   }
 
   if (action === 'students:repair-import-fields') {
@@ -161,6 +210,9 @@ export default async function handler(request, response) {
   }
 
   try {
+    const publicAccessResponse = await handlePublicAccessAction(request, response);
+    if (publicAccessResponse) return publicAccessResponse;
+
     const adminUser = await assertAdmin(request);
 
     if (String(request.body?.action || '').startsWith('notification:')) {

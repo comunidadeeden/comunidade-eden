@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { sendAccessEmail } from './accessEmail.js';
 import {
   createAuthUserIfNeeded,
@@ -6,6 +7,64 @@ import {
   setAuthUserDisabled,
   setDocument
 } from './firebaseRest.js';
+
+
+const appUrl = () => {
+  const rawUrl = process.env.APP_URL || 'https://www.comunidadeeden.com.br';
+  const normalizedUrl = rawUrl.replace(/^APP_URL=/, '').trim();
+  return normalizedUrl.startsWith('http') ? normalizedUrl : `https://${normalizedUrl}`;
+};
+
+const hashAccessToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+const isDateExpired = (dateValue = '') => {
+  const date = new Date(`${dateValue}T23:59:59`);
+  return Number.isNaN(date.getTime()) ? false : date.getTime() < Date.now();
+};
+
+export const createDurableAccessUrl = async ({ email, uid }) => {
+  const token = crypto.randomBytes(32).toString('base64url');
+  const tokenHash = hashAccessToken(token);
+  const days = Number(process.env.ACCESS_LINK_DAYS || 7);
+  const expiresAt = addDays(new Date(), Number.isFinite(days) ? days : 7);
+
+  await setDocument('accessLinks', tokenHash, {
+    email,
+    uid,
+    expiresAt,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+
+  const url = new URL('/acesso', appUrl());
+  url.searchParams.set('token', token);
+  return url.toString();
+};
+
+export const redeemDurableAccessToken = async (token) => {
+  const cleanToken = String(token || '').trim();
+  if (!cleanToken) throw new Error('Link de acesso invalido.');
+
+  const tokenHash = hashAccessToken(cleanToken);
+  const accessLink = await getDocument('accessLinks', tokenHash);
+  if (!accessLink?.email || !accessLink?.uid) throw new Error('Link de acesso invalido ou expirado.');
+  if (isDateExpired(accessLink.expiresAt)) throw new Error('Este link de acesso expirou. Solicite um novo envio.');
+
+  const userProfile = await getDocument('users', accessLink.uid);
+  if (!userProfile || String(userProfile.email || '').toLowerCase() !== String(accessLink.email || '').toLowerCase()) {
+    throw new Error('Acesso nao encontrado para esta aluna.');
+  }
+  if (userProfile.isBlocked || isDateExpired(userProfile.accessExpiresAt)) {
+    throw new Error('Seu acesso esta bloqueado ou expirado. Entre em contato com o suporte.');
+  }
+
+  await setDocument('accessLinks', tokenHash, {
+    lastRedeemedAt: new Date(),
+    updatedAt: new Date()
+  });
+
+  return generatePasswordSetupLink(accessLink.email);
+};
 
 const getAccessEmailTemplate = async () => {
   const settings = await getDocument('settings', 'emailTemplates').catch((error) => {
@@ -114,7 +173,7 @@ export const provisionStudentAccess = async ({
 
   let emailSent = false;
   if (sendEmail) {
-    const setupPasswordUrl = await generatePasswordSetupLink(email);
+    const setupPasswordUrl = await createDurableAccessUrl({ email, uid: authUser.uid });
     const template = await getAccessEmailTemplate();
     await sendAccessEmail({
       to: email,
@@ -137,7 +196,7 @@ export const provisionStudentAccess = async ({
 
 
 export const resendStudentAccessEmail = async ({ email, name, productName = 'Comunidade Eden' }) => {
-  const setupPasswordUrl = await generatePasswordSetupLink(email);
+  const setupPasswordUrl = await createDurableAccessUrl({ email, uid: (await createAuthUserIfNeeded({ email, name })).uid });
   const template = await getAccessEmailTemplate();
   await sendAccessEmail({
     to: email,
