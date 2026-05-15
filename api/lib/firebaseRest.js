@@ -578,6 +578,26 @@ export const getAuthUserByIdToken = async (idToken) => {
   return user?.localId ? { uid: user.localId, email: user.email } : null;
 };
 
+
+export const setAuthUserPassword = async (uid, password) => {
+  const scopes = [IDENTITY_TOOLKIT_SCOPE];
+  const result = await authorizedFetch(`${authBaseUrl()}/accounts:update?key=${webApiKey()}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      localId: uid,
+      password,
+      emailVerified: true
+    })
+  }, scopes);
+
+  if (!result.response.ok) {
+    console.error('Firebase Auth set password error:', result.body);
+    throw new Error('Nao foi possivel salvar a senha no Firebase Auth.');
+  }
+
+  return true;
+};
+
 export const setAuthUserDisabled = async (uid, disabled) => {
   const scopes = [IDENTITY_TOOLKIT_SCOPE];
   const result = await authorizedFetch(`${authBaseUrl()}/accounts:update?key=${webApiKey()}`, {

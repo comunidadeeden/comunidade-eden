@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import { sendAccessEmail } from './accessEmail.js';
 import {
   createAuthUserIfNeeded,
-  generatePasswordSetupLink,
   getDocument,
   setAuthUserDisabled,
   setDocument
@@ -41,7 +40,7 @@ export const createDurableAccessUrl = async ({ email, uid }) => {
   return url.toString();
 };
 
-export const redeemDurableAccessToken = async (token) => {
+export const validateDurableAccessToken = async (token) => {
   const cleanToken = String(token || '').trim();
   if (!cleanToken) throw new Error('Link de acesso invalido.');
 
@@ -58,12 +57,15 @@ export const redeemDurableAccessToken = async (token) => {
     throw new Error('Seu acesso esta bloqueado ou expirado. Entre em contato com o suporte.');
   }
 
+  return { tokenHash, accessLink, userProfile };
+};
+
+export const markDurableAccessTokenUsed = async (tokenHash) => {
   await setDocument('accessLinks', tokenHash, {
+    passwordSetupCompletedAt: new Date(),
     lastRedeemedAt: new Date(),
     updatedAt: new Date()
   });
-
-  return generatePasswordSetupLink(accessLink.email);
 };
 
 const getAccessEmailTemplate = async () => {

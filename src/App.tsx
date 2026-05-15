@@ -165,12 +165,16 @@ function PasswordActionPage() {
 
 
 function AccessGatewayPage() {
-  const [status, setStatus] = useState<'loading' | 'error'>('loading');
-  const [message, setMessage] = useState('Preparando seu acesso...');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'success' | 'error'>('loading');
+  const [message, setMessage] = useState('Validando seu acesso...');
   const token = new URLSearchParams(window.location.search).get('token') || '';
 
   useEffect(() => {
-    const redeemAccess = async () => {
+    const validateAccess = async () => {
       if (!token) {
         setStatus('error');
         setMessage('Link de acesso inválido. Solicite um novo envio.');
@@ -181,29 +185,101 @@ function AccessGatewayPage() {
         const response = await fetch('/api/admin/students', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'access:redeem', token })
+          body: JSON.stringify({ action: 'access:validate', token })
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.setupPasswordUrl) {
+        if (!response.ok || !result.email) {
           throw new Error(result.error || 'Não foi possível validar seu acesso.');
         }
-        window.location.assign(result.setupPasswordUrl);
+        setEmail(result.email);
+        setName(result.name || '');
+        setStatus('ready');
+        setMessage('Crie sua senha para acessar a Comunidade Éden.');
       } catch (error) {
-        console.error('Access redemption error:', error);
+        console.error('Access validation error:', error);
         setStatus('error');
         setMessage(error instanceof Error ? error.message : 'Não foi possível validar seu acesso.');
       }
     };
 
-    redeemAccess();
+    validateAccess();
   }, [token]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (password.length < 8) {
+      setMessage('A senha precisa ter pelo menos 8 caracteres.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMessage('As senhas não conferem.');
+      return;
+    }
+
+    try {
+      setStatus('loading');
+      setMessage('Salvando sua senha...');
+      const response = await fetch('/api/admin/students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'access:set-password', token, password })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || 'Não foi possível salvar sua senha.');
+      }
+
+      try {
+        await signInWithEmailAndPassword(auth, result.email || email, password);
+        setMessage('Senha criada com sucesso. Entrando na comunidade...');
+        setStatus('success');
+        window.setTimeout(() => window.location.assign('/'), 800);
+      } catch (loginError) {
+        console.error('Access password auto-login error:', loginError);
+        setStatus('success');
+        setMessage('Senha criada com sucesso. Toque abaixo para entrar com seu email e senha.');
+      }
+    } catch (error) {
+      console.error('Access password setup error:', error);
+      setStatus('ready');
+      setMessage(error instanceof Error ? error.message : 'Não foi possível salvar sua senha.');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#020507] text-white flex items-center justify-center px-6">
-      <div className="w-full max-w-md bg-[#071418] border border-[#4bd3ff]/20 rounded-3xl p-8 shadow-2xl text-center">
-        <p className="text-[#4bd3ff] text-xs font-black uppercase tracking-[0.25em] mb-3">Acesso Éden</p>
-        <h1 className="text-3xl font-black tracking-tight mb-3">{status === 'loading' ? 'Preparando sua entrada' : 'Link indisponível'}</h1>
+      <div className="w-full max-w-md bg-[#071418] border border-[#4bd3ff]/20 rounded-3xl p-8 shadow-2xl">
+        <p className="text-[#4bd3ff] text-xs font-black uppercase tracking-[0.25em] mb-3">Primeiro acesso</p>
+        <h1 className="text-3xl font-black tracking-tight mb-3">Crie sua senha</h1>
         <p className="text-gray-400 text-sm leading-relaxed mb-8">{message}</p>
+
+        {status === 'ready' && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Email</label>
+              <input value={email} disabled className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-gray-400" />
+            </div>
+            {name && <p className="text-sm text-gray-400">Olá, <span className="text-white font-bold">{name}</span>.</p>}
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Nova senha</label>
+              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]" />
+            </div>
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Confirmar senha</label>
+              <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]" />
+            </div>
+            <button type="submit" className="w-full bg-[#4bd3ff] text-[#020507] rounded-xl py-4 font-black uppercase tracking-widest text-xs hover:bg-[#38bdf8] transition-colors">
+              Criar senha e entrar
+            </button>
+          </form>
+        )}
+
+        {status === 'success' && (
+          <a href="/" className="block w-full text-center bg-[#4bd3ff] text-[#020507] rounded-xl py-4 font-black uppercase tracking-widest text-xs hover:bg-[#38bdf8] transition-colors">
+            Entrar na comunidade
+          </a>
+        )}
+
         {status === 'error' && (
           <a href="/" className="block w-full text-center bg-white/10 border border-white/10 text-white rounded-xl py-4 font-black uppercase tracking-widest text-xs hover:bg-white/15 transition-colors">
             Voltar para o login

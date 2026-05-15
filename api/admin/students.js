@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
-import { getDefaultAccessExpiresAt, normalizeAccessExpiresAt, normalizePhone, provisionStudentAccess, redeemDurableAccessToken, resendStudentAccessEmail } from '../lib/accessProvisioning.js';
-import { deleteDocument, getAuthUserByIdToken, getDocument, queryUsers, setDocument } from '../lib/firebaseRest.js';
+import { getDefaultAccessExpiresAt, markDurableAccessTokenUsed, normalizeAccessExpiresAt, normalizePhone, provisionStudentAccess, resendStudentAccessEmail, validateDurableAccessToken } from '../lib/accessProvisioning.js';
+import { deleteDocument, getAuthUserByIdToken, getDocument, queryUsers, setAuthUserPassword, setDocument } from '../lib/firebaseRest.js';
 
 const ADMIN_EMAIL = 'gu.correa98@gmail.com';
 
@@ -35,14 +35,9 @@ const assertAdmin = async (request) => {
 
 const handlePublicAccessAction = async (request, response) => {
   const action = String(request.body?.action || '').trim();
-  if (!['access:redeem', 'access:complete-password-setup'].includes(action)) return null;
+  if (!['access:validate', 'access:set-password', 'access:complete-password-setup'].includes(action)) return null;
 
   try {
-    if (action === 'access:redeem') {
-      const setupPasswordUrl = await redeemDurableAccessToken(request.body?.token);
-      return response.status(200).json({ ok: true, setupPasswordUrl });
-    }
-
     if (action === 'access:complete-password-setup') {
       const idToken = String(request.body?.idToken || '').trim();
       if (!idToken) return response.status(400).json({ error: 'Sessao ausente.' });
@@ -69,7 +64,35 @@ const handlePublicAccessAction = async (request, response) => {
       return response.status(200).json({ ok: true });
     }
 
-    return null;
+    const { tokenHash, accessLink, userProfile } = await validateDurableAccessToken(request.body?.token);
+
+    if (action === 'access:validate') {
+      return response.status(200).json({
+        ok: true,
+        email: accessLink.email,
+        name: userProfile.name || accessLink.email
+      });
+    }
+
+    const password = String(request.body?.password || '');
+    if (password.length < 8) {
+      return response.status(400).json({ error: 'A senha precisa ter pelo menos 8 caracteres.' });
+    }
+
+    await setAuthUserPassword(accessLink.uid, password);
+    await setDocument('users', accessLink.uid, {
+      requiresPasswordSetup: false,
+      updatedAt: new Date()
+    });
+    await setDocument('studentInvites', encodeURIComponent(normalizeEmail(accessLink.email)), {
+      status: 'accepted',
+      acceptedBy: accessLink.uid,
+      passwordSetupCompletedAt: new Date(),
+      updatedAt: new Date()
+    });
+    await markDurableAccessTokenUsed(tokenHash);
+
+    return response.status(200).json({ ok: true, email: accessLink.email });
   } catch (error) {
     return response.status(400).json({ error: error.message || 'Nao foi possivel validar o acesso.' });
   }
