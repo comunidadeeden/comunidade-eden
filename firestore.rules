@@ -118,6 +118,12 @@ service cloud.firestore {
              ]);
     }
 
+    function isStudentLastAccessUpdate() {
+      return incoming().diff(existing()).affectedKeys().hasOnly(['lastAccessAt', 'updatedAt']) &&
+             incoming().lastAccessAt is string &&
+             incoming().lastAccessAt.size() <= 40;
+    }
+
     function isStudentPasswordSetupFlagUpdate() {
       return incoming().role == existing().role &&
              incoming().points == existing().points &&
@@ -149,7 +155,8 @@ service cloud.firestore {
         isValidUser(incoming()) &&
         (
           isStudentProfileUpdate() ||
-          isStudentPasswordSetupFlagUpdate()
+          isStudentPasswordSetupFlagUpdate() ||
+          isStudentLastAccessUpdate()
         )
       );
       allow delete: if isAdmin();
