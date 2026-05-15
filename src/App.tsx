@@ -4845,7 +4845,7 @@ export default function App() {
         <div className="fixed inset-0 z-[1000] bg-[#020507] flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
              <div className="w-16 h-16 border-4 border-[#4bd3ff]/20 border-t-[#4bd3ff] rounded-full animate-spin"></div>
-             <p className="text-[#4bd3ff] font-black uppercase tracking-widest animate-pulse">Despertando o Éden...</p>
+             <p className="text-[#4bd3ff] font-black uppercase tracking-widest animate-pulse">Entrando no Jardim</p>
           </div>
         </div>
       )}
@@ -4926,6 +4926,18 @@ export default function App() {
                         : 'Entrar'}
                 </button>
               </form>
+              <a
+                href={SUPPORT_WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mx-auto flex w-fit items-center gap-3 rounded-full border border-[#4bd3ff]/25 bg-[#4bd3ff]/10 px-5 py-3 text-left transition-all hover:border-[#4bd3ff]/50 hover:bg-[#4bd3ff]/15 active:scale-95"
+              >
+                <MessageSquare size={18} className="text-[#4bd3ff]" />
+                <span className="flex flex-col leading-tight">
+                  <span className="text-[9px] font-black uppercase tracking-[0.24em] text-[#4bd3ff]">Suporte</span>
+                  <span className="text-sm font-black text-white">Precisa de ajuda?</span>
+                </span>
+              </a>
               <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Acesso restrito para membros autorizados</p>
            </div>
          </div>
