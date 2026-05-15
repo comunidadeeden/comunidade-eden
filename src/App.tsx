@@ -2566,7 +2566,7 @@ export default function App() {
               <aside className="hidden lg:flex bg-[#1b2b2f] border-r border-white/10 flex-col">
                 <div className="px-6 py-6 flex items-center gap-3">
                   <img
-                    src="http://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-Guardiao.png"
+                    src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-Guardiao.png"
                     alt="Logo do Guardião"
                     className="h-9 w-9 object-contain opacity-80"
                   />
@@ -2622,7 +2622,7 @@ export default function App() {
               <div className="flex h-full flex-col bg-[#0a4544]">
                 <header className="h-16 sm:h-[72px] bg-[#163437] border-b border-white/10 px-5 sm:px-8 flex items-center gap-4">
                   <img
-                    src="http://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-Guardiao.png"
+                    src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-Guardiao.png"
                     alt="Logo do Guardião"
                     className="h-10 w-10 object-contain lg:hidden"
                   />
