@@ -3,6 +3,10 @@
     {
       "source": "/auth/action",
       "destination": "/index.html"
+    },
+    {
+      "source": "/acesso",
+      "destination": "/index.html"
     }
   ]
 }
