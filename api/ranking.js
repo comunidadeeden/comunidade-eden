@@ -67,8 +67,8 @@ export default async function handler(request, response) {
 
     const monthKey = String(request.query?.month || getSaoPauloMonthKey()).trim();
     const [users, monthlyScores, monthlyRankingSettings] = await Promise.all([
-      queryTopUsersByPoints(100),
-      queryMonthlyScores(monthKey, 100),
+      queryTopUsersByPoints(1000),
+      queryMonthlyScores(monthKey, 1000),
       getDocument('settings', 'monthlyRanking').catch(() => null)
     ]);
     return response.status(200).json({

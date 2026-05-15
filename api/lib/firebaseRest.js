@@ -121,7 +121,7 @@ export const deleteDocument = async (collection, id) => {
 };
 
 export const queryTopUsersByPoints = async (limit = 5) => {
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 5, 100));
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 5, 1000));
   const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {
     method: 'POST',
     body: JSON.stringify({
@@ -202,7 +202,7 @@ export const queryUsers = async (limit = 1000) => {
 };
 
 export const queryMonthlyScores = async (monthKey, limit = 20) => {
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 1000));
   const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {
     method: 'POST',
     body: JSON.stringify({
@@ -215,7 +215,7 @@ export const queryMonthlyScores = async (monthKey, limit = 20) => {
             value: toFirestoreValue(monthKey)
           }
         },
-        limit: 500
+        limit: 1000
       }
     })
   });

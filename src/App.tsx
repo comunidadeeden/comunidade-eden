@@ -5910,75 +5910,109 @@ export default function App() {
               )}
 
               <div className="space-y-4">
-                {(rankingMode === 'mensal' ? monthlyRankingUsers : rankingUsers).length > 0 ? (
-                  (rankingMode === 'mensal' ? monthlyRankingUsers : rankingUsers).map((rUser, idx) => {
-                    const medalColors = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
-                    const points = rUser.points || 0;
-                    const level = getUserLevel(rankingMode === 'mensal' ? ((rUser as MonthlyRankingUser).totalPoints || 0) : points);
-                    const LevelIcon = level.icon;
-                    const isCofounder = rUser.isCofounder;
-                    const isCurrentUser = rUser.uid === user?.uid;
-                    
-                    return (
-                      <div key={rUser.uid} className={`flex items-center gap-4 py-4 px-4 border rounded-xl transition-all group ${isCurrentUser ? 'border-[#4bd3ff]/60 bg-[#4bd3ff]/10 shadow-[0_0_28px_rgba(75,211,255,0.12)]' : 'border-white/5 hover:bg-white/[0.02]'}`}>
-                        <div className="w-10 h-10 flex flex-col items-center justify-center shrink-0">
-                          {idx < 3 ? (
-                            <div className="flex flex-col items-center">
-                               <span className="text-[8px] font-bold text-gray-500 mb-0.5">#{idx + 1}</span>
-                               <Trophy size={20} className={medalColors[idx]} />
-                            </div>
-                          ) : (
-                            <span className="text-gray-600 font-black">#{idx + 1}</span>
-                          )}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-white font-extrabold text-base sm:text-lg truncate tracking-tight flex items-center gap-2">
-                            {rUser.name || 'Membro do Éden'}
-                            {isCurrentUser && (
-                              <span className="rounded-full bg-[#4bd3ff] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#020507]">
-                                Você
-                              </span>
-                            )}
-                            {isCofounder && (
-                               <div className="group relative flex items-center">
-                                 <Key size={16} className="text-[#4bd3ff]" />
-                                 <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#0b2831] px-2 py-1 text-[10px] font-bold text-[#4bd3ff] opacity-0 transition-opacity group-hover:opacity-100 border border-[#4bd3ff]/20 z-100 shadow-xl">
-                                   Essa é uma co fundadora do Éden
-                                 </div>
-                               </div>
-                            )}
-                          </h4>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
-                            <div className="flex items-center gap-1.5">
-                              <LevelIcon size={12} className="text-[#4bd3ff]" />
-                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                                {level.title}
-                              </span>
-                            </div>
-                            {isCofounder && (
-                              <div className="flex items-center gap-1.5 opacity-80">
-                                <Key size={10} className="text-[#4bd3ff]" />
-                                <span className="text-[10px] font-bold text-[#4bd3ff] uppercase tracking-widest">
-                                  Co-fundadora
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                {(() => {
+                  const rankingList = (rankingMode === 'mensal' ? monthlyRankingUsers : rankingUsers);
 
-                        <div className="flex items-center gap-2 text-emerald-400">
-                          <span className="text-xl">🍃</span>
-                          <span className="font-black text-xl">{points}</span>
-                        </div>
+                  if (rankingList.length === 0) {
+                    return (
+                      <div className="py-12 text-center border-2 border-dashed border-white/5 rounded-2xl">
+                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Aguardando as primeiras folhas aparecerem...</p>
                       </div>
                     );
-                  })
-                ) : (
-                  <div className="py-12 text-center border-2 border-dashed border-white/5 rounded-2xl">
-                    <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Aguardando as primeiras folhas aparecerem...</p>
-                  </div>
-                )}
+                  }
+
+                  const currentUserIndex = rankingList.findIndex(rUser => rUser.uid === user?.uid);
+                  const topThree = rankingList.slice(0, 3).map((rUser, idx) => ({ rUser, position: idx + 1 }));
+                  const currentUserRanking = currentUserIndex >= 0 ? { rUser: rankingList[currentUserIndex], position: currentUserIndex + 1 } : null;
+                  const rows = currentUserRanking && currentUserRanking.position > 3
+                    ? [...topThree, currentUserRanking]
+                    : topThree;
+
+                  return (
+                    <>
+                      {rows.map(({ rUser, position }, rowIndex) => {
+                        const medalColors = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
+                        const points = rUser.points || 0;
+                        const level = getUserLevel(rankingMode === 'mensal' ? ((rUser as MonthlyRankingUser).totalPoints || 0) : points);
+                        const LevelIcon = level.icon;
+                        const isCofounder = rUser.isCofounder;
+                        const isCurrentUser = rUser.uid === user?.uid;
+                        const showDivider = rowIndex === 3;
+
+                        return (
+                          <React.Fragment key={`${rUser.uid}-${position}`}>
+                            {showDivider && (
+                              <div className="flex items-center gap-3 py-1">
+                                <div className="h-px flex-1 bg-white/10" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.24em] text-gray-500">Sua colocação</span>
+                                <div className="h-px flex-1 bg-white/10" />
+                              </div>
+                            )}
+                            <div className={`flex items-center gap-4 py-4 px-4 border rounded-xl transition-all group ${isCurrentUser ? 'border-[#4bd3ff]/60 bg-[#4bd3ff]/10 shadow-[0_0_28px_rgba(75,211,255,0.12)]' : 'border-white/5 hover:bg-white/[0.02]'}`}>
+                              <div className="w-10 h-10 flex flex-col items-center justify-center shrink-0">
+                                {position <= 3 ? (
+                                  <div className="flex flex-col items-center">
+                                    <span className="text-[8px] font-bold text-gray-500 mb-0.5">#{position}</span>
+                                    <Trophy size={20} className={medalColors[position - 1]} />
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-500 font-black">#{position}</span>
+                                )}
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-white font-extrabold text-base sm:text-lg truncate tracking-tight flex items-center gap-2">
+                                  {isCurrentUser ? 'Você' : (rUser.name || 'Membro do Éden')}
+                                  {isCurrentUser && (
+                                    <span className="rounded-full bg-[#4bd3ff] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#020507]">
+                                      #{position}
+                                    </span>
+                                  )}
+                                  {isCofounder && (
+                                    <div className="group relative flex items-center">
+                                      <Key size={16} className="text-[#4bd3ff]" />
+                                      <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#0b2831] px-2 py-1 text-[10px] font-bold text-[#4bd3ff] opacity-0 transition-opacity group-hover:opacity-100 border border-[#4bd3ff]/20 z-100 shadow-xl">
+                                        Essa é uma co fundadora do Éden
+                                      </div>
+                                    </div>
+                                  )}
+                                </h4>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <LevelIcon size={12} className="text-[#4bd3ff]" />
+                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                                      {level.title}
+                                    </span>
+                                  </div>
+                                  {isCofounder && (
+                                    <div className="flex items-center gap-1.5 opacity-80">
+                                      <Key size={10} className="text-[#4bd3ff]" />
+                                      <span className="text-[10px] font-bold text-[#4bd3ff] uppercase tracking-widest">
+                                        Co-fundadora
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 text-emerald-400">
+                                <span className="text-xl">🍃</span>
+                                <span className="font-black text-xl">{points}</span>
+                              </div>
+                            </div>
+                          </React.Fragment>
+                        );
+                      })}
+
+                      {!currentUserRanking && (
+                        <div className="border border-[#4bd3ff]/20 bg-[#4bd3ff]/5 rounded-2xl p-4 text-center">
+                          <p className="text-[#4bd3ff] text-[10px] font-black uppercase tracking-widest">Você ainda não entrou neste ranking</p>
+                          <p className="text-gray-400 text-xs mt-1">Ganhe folhas para aparecer com sua colocação.</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
