@@ -4852,8 +4852,12 @@ export default function App() {
 	      {!loading && !user && (
          <div className="fixed inset-0 z-[1000] bg-[#020507] flex items-center justify-center p-4">
            <div className="max-w-md w-full text-center space-y-7 animate-in fade-in zoom-in duration-500">
-              <div className="w-24 h-24 bg-white/5 border border-white/10 rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_30px_rgba(75,211,255,0.2)]">
-                <Shield size={48} className="text-[#4bd3ff]" />
+              <div className="w-24 h-24 bg-white/5 border border-white/10 rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_30px_rgba(75,211,255,0.2)] overflow-hidden">
+                <img
+                  src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Icone-branco.png"
+                  alt="Ícone Éden"
+                  className="h-16 w-16 object-contain"
+                />
               </div>
               <div className="space-y-4">
                 <h2 className="text-4xl font-black text-white tracking-tighter uppercase">Bem-Vindo ao Éden</h2>
