@@ -329,6 +329,7 @@ export default async function handler(request, response) {
     });
   } catch (error) {
     console.error('Admin students API error:', error);
-    return response.status(401).json({ error: error.message || 'Nao autorizado.' });
+    const isAuthError = String(error.message || '').toLowerCase().includes('token') || String(error.message || '').toLowerCase().includes('permissao');
+    return response.status(isAuthError ? 401 : 500).json({ error: error.message || 'Nao foi possivel concluir a acao.' });
   }
 }

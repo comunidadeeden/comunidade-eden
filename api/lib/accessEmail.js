@@ -146,7 +146,9 @@ export const sendAccessEmail = async ({
   const responseBody = await resendResponse.json().catch(() => ({}));
   if (!resendResponse.ok) {
     console.error('Resend API error:', responseBody);
-    throw new Error('Nao foi possivel enviar o email de acesso.');
+    const resendMessage = responseBody?.message || responseBody?.error?.message || responseBody?.name || '';
+    const statusText = resendResponse.status ? `Resend ${resendResponse.status}` : 'Resend';
+    throw new Error(resendMessage ? `Nao foi possivel enviar o email de acesso (${statusText}: ${resendMessage}).` : `Nao foi possivel enviar o email de acesso (${statusText}).`);
   }
 
   return responseBody;
