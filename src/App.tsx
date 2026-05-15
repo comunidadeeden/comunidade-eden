@@ -81,24 +81,42 @@ function PasswordActionPage() {
       return;
     }
 
+    setStatus('loading');
+    setMessage('Salvando sua senha...');
+
     try {
-      setStatus('loading');
-      setMessage('Salvando sua senha...');
       await confirmPasswordReset(auth, oobCode, password);
+    } catch (error: any) {
+      console.error('Password reset confirmation error:', error);
+      setStatus('error');
+      setMessage(error?.code === 'auth/expired-action-code' || error?.code === 'auth/invalid-action-code'
+        ? 'Este link já foi usado ou expirou. Solicite um novo link de acesso.'
+        : 'Não foi possível salvar sua senha. Solicite um novo link de acesso.');
+      return;
+    }
+
+    try {
+      setMessage('Senha criada. Entrando na comunidade...');
       const credential = await signInWithEmailAndPassword(auth, email, password);
-      await updateDoc(doc(db, 'users', credential.user.uid), {
-        requiresPasswordSetup: false,
-        updatedAt: serverTimestamp()
+      const idToken = await credential.user.getIdToken();
+      const response = await fetch('/api/admin/students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'access:complete-password-setup', idToken })
       });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || 'Não foi possível concluir o primeiro acesso.');
+      }
       setStatus('success');
       setMessage('Senha criada com sucesso. Entrando na comunidade...');
       window.setTimeout(() => {
         window.location.assign('/');
       }, 800);
     } catch (error) {
-      console.error('Password setup error:', error);
-      setStatus('error');
-      setMessage('Não foi possível criar sua senha. Solicite um novo link de acesso.');
+      console.error('Password setup post-confirmation error:', error);
+      setStatus('success');
+      setMessage('Senha criada com sucesso. Toque abaixo para entrar com seu email e senha.');
     }
   };
 
@@ -131,7 +149,7 @@ function PasswordActionPage() {
 
         {status === 'success' && (
           <a href="/" className="block w-full text-center bg-[#4bd3ff] text-[#020507] rounded-xl py-4 font-black uppercase tracking-widest text-xs hover:bg-[#38bdf8] transition-colors">
-            Entrando...
+            Entrar na comunidade
           </a>
         )}
 

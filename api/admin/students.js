@@ -35,11 +35,41 @@ const assertAdmin = async (request) => {
 
 const handlePublicAccessAction = async (request, response) => {
   const action = String(request.body?.action || '').trim();
-  if (action !== 'access:redeem') return null;
+  if (!['access:redeem', 'access:complete-password-setup'].includes(action)) return null;
 
   try {
-    const setupPasswordUrl = await redeemDurableAccessToken(request.body?.token);
-    return response.status(200).json({ ok: true, setupPasswordUrl });
+    if (action === 'access:redeem') {
+      const setupPasswordUrl = await redeemDurableAccessToken(request.body?.token);
+      return response.status(200).json({ ok: true, setupPasswordUrl });
+    }
+
+    if (action === 'access:complete-password-setup') {
+      const idToken = String(request.body?.idToken || '').trim();
+      if (!idToken) return response.status(400).json({ error: 'Sessao ausente.' });
+
+      const authUser = await getAuthUserByIdToken(idToken);
+      if (!authUser?.uid || !authUser.email) return response.status(401).json({ error: 'Sessao invalida.' });
+
+      const userProfile = await getDocument('users', authUser.uid);
+      if (!userProfile || normalizeEmail(userProfile.email) !== normalizeEmail(authUser.email)) {
+        return response.status(404).json({ error: 'Cadastro de aluna nao encontrado.' });
+      }
+      if (userProfile.isBlocked) return response.status(403).json({ error: 'Acesso bloqueado.' });
+
+      await setDocument('users', authUser.uid, {
+        requiresPasswordSetup: false,
+        updatedAt: new Date()
+      });
+      await setDocument('studentInvites', encodeURIComponent(normalizeEmail(authUser.email)), {
+        status: 'accepted',
+        acceptedBy: authUser.uid,
+        passwordSetupCompletedAt: new Date(),
+        updatedAt: new Date()
+      });
+      return response.status(200).json({ ok: true });
+    }
+
+    return null;
   } catch (error) {
     return response.status(400).json({ error: error.message || 'Nao foi possivel validar o acesso.' });
   }
