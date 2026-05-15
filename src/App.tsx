@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
 import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, DailyCommitmentCompletion, NotificationNotice, CustomLevel, Offer, MonthlyRankingUser, JourneyFormSubmission } from './types';
-import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut, Dumbbell, Bell, Home } from 'lucide-react';
+import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut, Dumbbell, Bell, Home, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { confirmPasswordReset, isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword, verifyPasswordResetCode } from 'firebase/auth';
@@ -295,6 +295,113 @@ const sanitizeOfferUrls = <T extends { imageUrl?: string }>(offer: T): T => ({
   imageUrl: upgradeInsecureUrl(offer.imageUrl)
 });
 
+const normalizeStudentImportHeader = (value: string) => value
+  .trim()
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]/g, '');
+
+const parseDelimitedRows = (text: string, delimiter: string) => {
+  const rows: string[][] = [];
+  let current = '';
+  let row: string[] = [];
+  let insideQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const nextChar = text[index + 1];
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+      continue;
+    }
+
+    if (char === delimiter && !insideQuotes) {
+      row.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !insideQuotes) {
+      if (char === '\r' && nextChar === '\n') index += 1;
+      row.push(current.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  row.push(current.trim());
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+};
+
+const detectDelimitedSeparator = (text: string) => {
+  const firstLine = text.split(/\r?\n/).find(line => line.trim()) || '';
+  const separators = [',', ';', '\t'];
+  return separators
+    .map(separator => ({ separator, count: (firstLine.match(new RegExp(separator === '\t' ? '\\t' : `\\${separator}`, 'g')) || []).length }))
+    .sort((a, b) => b.count - a.count)[0]?.separator || ',';
+};
+
+const normalizeImportDate = (value: string) => {
+  const cleanValue = value.trim();
+  if (!cleanValue) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) return cleanValue;
+
+  const brazilianDate = cleanValue.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (!brazilianDate) return cleanValue;
+
+  const [, day, month, year] = brazilianDate;
+  const fullYear = year.length === 2 ? `20${year}` : year;
+  return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+};
+
+type ImportedStudentRow = { name: string; email: string; phone: string; accessExpiresAt: string };
+
+const parseStudentsFromDelimitedText = (text: string): ImportedStudentRow[] => {
+  const separator = detectDelimitedSeparator(text);
+  const rows = parseDelimitedRows(text, separator);
+  if (rows.length === 0) return [];
+
+  const firstRowHeaders = rows[0].map(normalizeStudentImportHeader);
+  const headerAliases: Record<keyof ImportedStudentRow, string[]> = {
+    name: ['nome', 'name', 'aluno', 'aluna', 'cliente'],
+    email: ['email', 'e-mail', 'mail'],
+    phone: ['telefone', 'whatsapp', 'celular', 'phone'],
+    accessExpiresAt: ['expiraem', 'expiracao', 'datadeexpiracao', 'acessoate', 'accessexpiresat', 'validade']
+  };
+  const headerIndexes = Object.fromEntries(
+    Object.entries(headerAliases).map(([field, aliases]) => [
+      field,
+      firstRowHeaders.findIndex(header => aliases.includes(header))
+    ])
+  ) as Record<keyof ImportedStudentRow, number>;
+  const hasHeader = headerIndexes.email >= 0 || headerIndexes.name >= 0;
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+
+  return dataRows
+    .map(row => {
+      const getColumn = (field: keyof ImportedStudentRow, fallbackIndex: number) => row[hasHeader && headerIndexes[field] >= 0 ? headerIndexes[field] : fallbackIndex] || '';
+      return {
+        name: getColumn('name', 0).trim(),
+        email: normalizeEmail(getColumn('email', 1)),
+        phone: getColumn('phone', 2).trim(),
+        accessExpiresAt: normalizeImportDate(getColumn('accessExpiresAt', 3))
+      };
+    })
+    .filter(student => student.name && student.email);
+};
+
 const sortLevelsByStart = (levels: CustomLevel[]) => [...levels].sort((a, b) => b.points - a.points);
 
 enum OperationType {
@@ -583,6 +690,8 @@ export default function App() {
   const [adminMissionView, setAdminMissionView] = useState<'scheduled' | 'past'>('scheduled');
   const [expandedAdminModules, setExpandedAdminModules] = useState<Record<string, boolean>>({});
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const studentImportFileInputRef = useRef<HTMLInputElement>(null);
+  const [isImportingStudentsFile, setIsImportingStudentsFile] = useState(false);
   const [missionResponses, setMissionResponses] = useState<Record<string, string | string[]>>({});
   const [journeyResponses, setJourneyResponses] = useState<Record<string, any>>({});
   const [weeklyOath, setWeeklyOath] = useState({ identity: '', conquest: '' });
@@ -692,6 +801,46 @@ export default function App() {
     return result;
   };
 
+  const importStudents = async (students: ImportedStudentRow[], sourceLabel: string) => {
+    const uniqueStudents = Array.from(
+      new Map(students.map(student => [student.email, student])).values()
+    ).filter(student => student.email && student.name);
+
+    if (uniqueStudents.length === 0) {
+      alert(`Nenhuma aluna válida encontrada em ${sourceLabel}. Confira se existem colunas de nome e email.`);
+      return;
+    }
+
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error('Sessão de admin expirada.');
+
+    const chunkSize = 100;
+    const results: any[] = [];
+    for (let index = 0; index < uniqueStudents.length; index += chunkSize) {
+      const chunk = uniqueStudents.slice(index, index + chunkSize);
+      const response = await fetch('/api/admin/students', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ students: chunk })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || 'Erro ao importar alunos.');
+      }
+      results.push(...(result.results || []));
+    }
+
+    const created = results.filter(result => result.ok).length;
+    const failed = results.filter(result => !result.ok);
+    const failedText = failed.length > 0
+      ? ` ${failed.length} falharam: ${failed.slice(0, 5).map(result => result.email).join(', ')}${failed.length > 5 ? '...' : ''}`
+      : '';
+    alert(`${created} aluna(s) importada(s) e notificada(s).${failedText}`);
+  };
+
   const handleCreateStudent = async (data: Record<string, string>) => {
     const email = normalizeEmail(data.email || '');
     const name = data.name?.trim();
@@ -704,22 +853,7 @@ export default function App() {
     }
 
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('Sessão de admin expirada.');
-
-      const response = await fetch('/api/admin/students', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          student: { email, name, phone, accessExpiresAt }
-        })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || result.results?.[0]?.error || 'Erro ao criar aluno.');
-      alert(`Aluno criado. Enviamos o email para ${email} criar a senha de acesso.`);
+      await importStudents([{ email, name, phone, accessExpiresAt }], 'cadastro manual');
     } catch (error) {
       console.error('Error creating student invite:', error);
       alert(error instanceof Error ? error.message : 'Erro ao criar aluno.');
@@ -727,40 +861,36 @@ export default function App() {
   };
 
   const handleImportStudents = async (data: Record<string, string>) => {
-    const lines = (data.students || '')
-      .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean);
-    const students = lines.map(line => {
-      const [name = '', email = '', phone = '', accessExpiresAt = ''] = line.split(',').map(value => value.trim());
-      return { name, email: normalizeEmail(email), phone, accessExpiresAt };
-    });
+    const students = parseStudentsFromDelimitedText(data.students || '');
 
-    if (students.length === 0) {
-      alert('Cole ao menos um aluno para importar.');
+    try {
+      await importStudents(students, 'lista colada');
+    } catch (error) {
+      console.error('Error importing students:', error);
+      alert(error instanceof Error ? error.message : 'Erro ao importar alunos.');
+    }
+  };
+
+  const handleImportStudentsFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (/\.(xlsx|xls)$/i.test(file.name)) {
+      alert('Para importar planilha do Excel/Google Sheets, exporte ou salve o arquivo como CSV e envie aqui. Assim evitamos erro de leitura no navegador.');
       return;
     }
 
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('Sessão de admin expirada.');
-
-      const response = await fetch('/api/admin/students', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ students })
-      });
-      const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || 'Erro ao importar alunos.');
-
-      const failedText = result.failed > 0 ? ` ${result.failed} falharam.` : '';
-      alert(`${result.created} aluno(s) importado(s) e notificado(s).${failedText}`);
+      setIsImportingStudentsFile(true);
+      const fileText = await file.text();
+      const students = parseStudentsFromDelimitedText(fileText);
+      await importStudents(students, file.name);
     } catch (error) {
-      console.error('Error importing students:', error);
-      alert(error instanceof Error ? error.message : 'Erro ao importar alunos.');
+      console.error('Error importing student file:', error);
+      alert(error instanceof Error ? error.message : 'Erro ao importar arquivo de alunos.');
+    } finally {
+      setIsImportingStudentsFile(false);
     }
   };
 
@@ -4322,14 +4452,28 @@ export default function App() {
 	                  >
 	                    <Download size={18} /> Exportar CSV
 	                  </button>
+	                  <input
+	                    ref={studentImportFileInputRef}
+	                    type="file"
+	                    accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values"
+	                    className="hidden"
+	                    onChange={handleImportStudentsFile}
+	                  />
+	                  <button
+	                    onClick={() => studentImportFileInputRef.current?.click()}
+	                    disabled={isImportingStudentsFile}
+	                    className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 border border-white/10 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all disabled:opacity-60 disabled:cursor-wait"
+	                  >
+	                    <Upload size={18} /> {isImportingStudentsFile ? 'Importando...' : 'Importar CSV'}
+	                  </button>
 	                  <button
 	                    onClick={() => {
 	                      setPromptConfig({
-	                        title: 'Importar Alunos',
-	                        description: 'Cole um aluno por linha no formato: Nome, email, telefone, data de expiração. O telefone e a data são opcionais.',
+	                        title: 'Colar Alunos',
+	                        description: 'Cole um aluno por linha no formato: Nome, email, telefone, data de expiração. Também aceitamos cabeçalho com Nome, Email, Telefone e Expiração.',
 	                        submitText: 'Importar e Enviar Acesso',
 	                        fields: [
-	                          { name: 'students', label: 'Alunos', type: 'textarea', required: true, placeholder: 'Maria Silva, maria@email.com, 11999999999, 2026-12-31' }
+	                          { name: 'students', label: 'Alunos', type: 'textarea', required: true, placeholder: 'Nome, Email, Telefone, Expiração\nMaria Silva, maria@email.com, 11999999999, 2026-12-31' }
 	                        ],
 	                        onSubmit: handleImportStudents,
 	                        onCancel: () => setPromptConfig(null)
@@ -4337,7 +4481,7 @@ export default function App() {
 	                    }}
 	                    className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 border border-white/10 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all"
 	                  >
-	                    <Users size={18} /> Importar
+	                    <Users size={18} /> Colar Lista
 	                  </button>
 	                  <button
 	                    onClick={() => {
