@@ -4131,12 +4131,18 @@ export default function App() {
 
               {/* Stats Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                  { label: 'Total de Módulos', value: trailsState.reduce((acc, t) => acc + (t.modules?.length || 0), 0), icon: Video, color: 'bg-blue-500/10 text-blue-400' },
-                  { label: 'Total de Alunos', value: adminStudents.length, icon: Users, color: 'bg-emerald-500/10 text-emerald-400' },
-                  { label: 'Atividade no Éden', value: '2', icon: Mic, color: 'bg-purple-500/10 text-purple-400' },
-                  { label: 'Folhas Distribuídas', value: adminStudents.reduce((acc, s) => acc + (s.points || 0), 0), icon: FileText, color: 'bg-emerald-500/10 text-emerald-400' },
-                ].map((stat, i) => (
+                {(() => {
+                  const studentUsers = adminStudents.filter(student => student.role !== 'admin');
+                  const activeStudents = studentUsers.filter(student => Boolean(student.lastAccessAt) || student.requiresPasswordSetup === false);
+                  const pendingAccessStudents = studentUsers.filter(student => student.requiresPasswordSetup !== false && !student.lastAccessAt);
+
+                  return [
+                    { label: 'Total de Alunas', value: studentUsers.length, icon: Users, color: 'bg-emerald-500/10 text-emerald-400' },
+                    { label: 'Alunas Ativas', value: activeStudents.length, icon: CheckCircle, color: 'bg-[#4bd3ff]/10 text-[#4bd3ff]' },
+                    { label: 'Ainda Não Acessaram', value: pendingAccessStudents.length, icon: Lock, color: 'bg-amber-500/10 text-amber-300' },
+                    { label: 'Folhas Distribuídas', value: studentUsers.reduce((acc, s) => acc + (s.points || 0), 0), icon: FileText, color: 'bg-emerald-500/10 text-emerald-400' },
+                  ];
+                })().map((stat, i) => (
                   <div key={i} className="bg-white/5 border border-white/10 p-6 rounded-2xl flex flex-col justify-between min-h-[140px] hover:border-white/20 transition-all hover:-translate-y-1">
                     <div className="flex items-start justify-between">
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{stat.label}</p>
