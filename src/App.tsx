@@ -868,6 +868,7 @@ export default function App() {
   const [adminMissionView, setAdminMissionView] = useState<'scheduled' | 'past'>('scheduled');
   const [expandedAdminModules, setExpandedAdminModules] = useState<Record<string, boolean>>({});
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [studentStatusFilter, setStudentStatusFilter] = useState<'all' | 'accessed' | 'notAccessed' | 'cofounder' | 'blocked' | 'expired' | 'activeAccess'>('all');
   const studentImportFileInputRef = useRef<HTMLInputElement>(null);
   const [isImportingStudentsFile, setIsImportingStudentsFile] = useState(false);
   const [isRepairingStudentImport, setIsRepairingStudentImport] = useState(false);
@@ -4797,6 +4798,34 @@ export default function App() {
                 />
               </div>
 
+
+              {(() => {
+                const studentUsers = adminStudents.filter(student => student.role !== 'admin');
+                const filterOptions = [
+                  { id: 'all', label: 'Todas', count: studentUsers.length },
+                  { id: 'accessed', label: 'Acessaram', count: studentUsers.filter(student => Boolean(student.lastAccessAt) || student.requiresPasswordSetup === false).length },
+                  { id: 'notAccessed', label: 'Não acessaram', count: studentUsers.filter(student => student.requiresPasswordSetup !== false && !student.lastAccessAt).length },
+                  { id: 'activeAccess', label: 'Acesso ativo', count: studentUsers.filter(student => !student.isBlocked && !isAccessExpired(student.accessExpiresAt)).length },
+                  { id: 'cofounder', label: 'Cofundadoras', count: studentUsers.filter(student => student.isCofounder).length },
+                  { id: 'blocked', label: 'Bloqueadas', count: studentUsers.filter(student => student.isBlocked).length },
+                  { id: 'expired', label: 'Expiradas', count: studentUsers.filter(student => isAccessExpired(student.accessExpiresAt)).length },
+                ] as const;
+
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {filterOptions.map(option => (
+                      <button
+                        key={option.id}
+                        onClick={() => setStudentStatusFilter(option.id)}
+                        className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${studentStatusFilter === option.id ? 'bg-[#4bd3ff] border-[#4bd3ff] text-[#020507]' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:border-white/20'}`}
+                      >
+                        {option.label} <span className="ml-1 opacity-70">{option.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
               <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden mt-8 shadow-2xl">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
@@ -4814,6 +4843,14 @@ export default function App() {
                     </thead>
                     <tbody className="divide-y divide-white/5">
                       {adminStudents.filter((student) => {
+                        if (student.role === 'admin') return false;
+                        if (studentStatusFilter === 'accessed' && !(Boolean(student.lastAccessAt) || student.requiresPasswordSetup === false)) return false;
+                        if (studentStatusFilter === 'notAccessed' && (student.requiresPasswordSetup === false || Boolean(student.lastAccessAt))) return false;
+                        if (studentStatusFilter === 'activeAccess' && (student.isBlocked || isAccessExpired(student.accessExpiresAt))) return false;
+                        if (studentStatusFilter === 'cofounder' && !student.isCofounder) return false;
+                        if (studentStatusFilter === 'blocked' && !student.isBlocked) return false;
+                        if (studentStatusFilter === 'expired' && !isAccessExpired(student.accessExpiresAt)) return false;
+
                         const search = studentSearchTerm.trim().toLowerCase();
                         if (!search) return true;
                         return [student.name, student.email, student.phone, student.birthDate, student.profession, student.instagram, student.maritalStatus].some((value) => (value || '').toLowerCase().includes(search));
