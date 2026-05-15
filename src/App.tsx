@@ -278,7 +278,7 @@ enum OperationType {
   WRITE = 'write',
 }
 
-const SUPPORT_WHATSAPP_URL = '';
+const SUPPORT_WHATSAPP_URL = 'https://wa.me/5543996090109';
 
 const CIA_DAILY_POINTS = 30;
 const CIA_PROTOCOL: DailyChallenge = {
