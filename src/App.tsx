@@ -5894,7 +5894,7 @@ export default function App() {
                               <h4 className="text-white font-black truncate">{rUser.name || 'Aluna'}</h4>
                               <div className="mt-3 flex items-center justify-center gap-1 text-emerald-400">
                                 <span>🍃</span>
-                                <span className="text-2xl font-black">{rUser.points || 0}</span>
+                                <span className="text-2xl font-black">{Math.max(0, rUser.points || 0)}</span>
                               </div>
                             </div>
                           );
@@ -5932,8 +5932,8 @@ export default function App() {
                     <>
                       {rows.map(({ rUser, position }, rowIndex) => {
                         const medalColors = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
-                        const points = rUser.points || 0;
-                        const level = getUserLevel(rankingMode === 'mensal' ? ((rUser as MonthlyRankingUser).totalPoints || 0) : points);
+                        const points = Math.max(0, rUser.points || 0);
+                        const level = getUserLevel(rankingMode === 'mensal' ? Math.max(0, (rUser as MonthlyRankingUser).totalPoints || 0) : points);
                         const LevelIcon = level.icon;
                         const isCofounder = rUser.isCofounder;
                         const isCurrentUser = rUser.uid === user?.uid;

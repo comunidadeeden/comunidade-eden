@@ -2,6 +2,8 @@ import { getAuthUserByIdToken, getDocument, queryMonthlyScores, queryNotificatio
 
 const DEFAULT_MONTHLY_PRIZE = '1 sessão individual com Bruno Simplicio';
 
+const safePoints = (value) => Math.max(0, Number(value || 0));
+
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
   return authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
@@ -76,7 +78,7 @@ export default async function handler(request, response) {
         uid: user.uid,
         name: user.name || 'Aluna',
         avatar: user.avatar || '',
-        points: user.points || 0,
+        points: safePoints(user.points),
         isCofounder: Boolean(user.isCofounder)
       })),
       monthly: {
@@ -87,8 +89,8 @@ export default async function handler(request, response) {
           uid: score.uid,
           name: score.name || 'Aluna',
           avatar: score.avatar || '',
-          points: score.points || 0,
-          totalPoints: score.totalPoints || 0,
+          points: safePoints(score.points),
+          totalPoints: safePoints(score.totalPoints),
           isCofounder: Boolean(score.isCofounder)
         }))
       }
