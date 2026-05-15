@@ -72,6 +72,7 @@ export interface UserProfile {
   childrenCount?: number;
   lastAudioDate?: string;
   lastMissionRewardDate?: string;
+  lastAccessAt?: string;
   isCofounder?: boolean;
   completedChallenges?: string[];
   purchasedOfferIds?: string[];

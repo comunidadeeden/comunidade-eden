@@ -197,6 +197,10 @@ const getTimestampMillis = (value: any) => {
   if (typeof value.toMillis === 'function') return value.toMillis();
   if (typeof value.seconds === 'number') return value.seconds * 1000;
   if (value instanceof Date) return value.getTime();
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
   return 0;
 };
 
@@ -204,6 +208,18 @@ const formatNotificationDate = (value: any) => {
   const millis = getTimestampMillis(value);
   if (!millis) return 'Agora';
   return new Date(millis).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+};
+
+const formatLastAccess = (value: any) => {
+  const millis = getTimestampMillis(value);
+  if (!millis) return 'Nunca acessou';
+  return new Date(millis).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 };
 
 const formatMonthKey = (monthKey: string) => {
@@ -928,6 +944,7 @@ export default function App() {
       'Folhas',
       'Nível',
       'Status',
+      'Último acesso',
       'Expira em',
       'Co-fundadora',
       'Aulas / desafios concluídos',
@@ -955,6 +972,7 @@ export default function App() {
         student.points || 0,
         getUserLevel(student.points || 0).title,
         status,
+        formatLastAccess(student.lastAccessAt),
         student.accessExpiresAt || '',
         formatBoolean(student.isCofounder),
         student.completedChallenges?.length || 0,
@@ -1441,8 +1459,11 @@ export default function App() {
               await updateDoc(doc(db, 'users', authUser.uid), { points: 0 });
               userData.points = 0;
             }
-            setUser(userData);
+            const lastAccessAt = new Date().toISOString();
+            setUser({ ...userData, lastAccessAt });
             setLeaves(userData.points);
+            updateDoc(doc(db, 'users', authUser.uid), { lastAccessAt, updatedAt: serverTimestamp() })
+              .catch((error) => handleFirestoreError(error, OperationType.UPDATE, `users/${authUser.uid}`));
 	          } else {
 	            const inviteDoc = authUser.email
 	              ? await getDoc(doc(db, 'studentInvites', getInviteIdFromEmail(authUser.email)))
@@ -1472,6 +1493,7 @@ export default function App() {
               maritalStatus: '',
               hasChildren: false,
               childrenCount: 0,
+              lastAccessAt: new Date().toISOString(),
 	              updatedAt: serverTimestamp()
 	            };
 	            await setDoc(doc(db, 'users', authUser.uid), newUser);
@@ -4521,16 +4543,15 @@ export default function App() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="border-b border-white/10 text-gray-500 text-[10px] font-black uppercase tracking-[0.2em]">
-                        <th className="px-8 py-6">Nome</th>
-                        <th className="px-6 py-6">Email</th>
-                        <th className="px-6 py-6">Telefone</th>
-                        <th className="px-6 py-6 text-center">Role</th>
-                        <th className="px-6 py-6 text-center">Status</th>
-                        <th className="px-6 py-6">Expira em</th>
-                        <th className="px-6 py-6 text-center">Folhas</th>
-                        <th className="px-6 py-6">Nível</th>
-                        <th className="px-8 py-6 text-right">Ações</th>
+                      <tr className="border-b border-white/10 text-gray-500 text-[9px] font-black uppercase tracking-[0.16em]">
+                        <th className="px-5 py-4">Nome</th>
+                        <th className="px-4 py-4">Email</th>
+                        <th className="px-4 py-4">Telefone</th>
+                        <th className="px-4 py-4 text-center">Status</th>
+                        <th className="px-4 py-4">Último acesso</th>
+                        <th className="px-4 py-4">Expira</th>
+                        <th className="px-4 py-4 text-center">Folhas</th>
+                        <th className="px-5 py-4 text-right">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -4540,47 +4561,41 @@ export default function App() {
                         return [student.name, student.email, student.phone, student.birthDate, student.profession, student.instagram, student.maritalStatus].some((value) => (value || '').toLowerCase().includes(search));
                       }).map((student) => (
                         <tr key={student.uid} className="hover:bg-white/5 transition-colors group">
-                          <td className="px-8 py-5">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-blue-500/20 border border-white/5 flex items-center justify-center text-blue-400 font-bold text-xs shadow-inner">
+                          <td className="px-5 py-3">
+                            <div className="flex items-center gap-2.5 min-w-[190px]">
+                              <div className="w-8 h-8 rounded-full bg-blue-500/20 border border-white/5 flex items-center justify-center text-blue-400 font-bold text-xs shadow-inner shrink-0">
                                 {student.avatar ? <img src={student.avatar} className="w-full h-full rounded-full object-cover" /> : student.name ? student.name[0] : 'U'}
                               </div>
-                              <span className="text-white font-extrabold tracking-tight">{student.name}</span>
+                              <div className="min-w-0">
+                                <p className="text-white font-extrabold tracking-tight text-sm truncate">{student.name}</p>
+                                {student.role === 'admin' && <p className="text-[9px] font-black uppercase tracking-widest text-[#4bd3ff]">Admin</p>}
+                              </div>
                             </div>
                           </td>
-                          <td className="px-6 py-5 text-gray-400 font-medium text-sm tracking-tight">{student.email}</td>
-                          <td className="px-6 py-5 text-gray-400 font-medium text-sm tracking-tight whitespace-nowrap">{student.phone || '-'}</td>
-                          <td className="px-6 py-5 text-center">
-                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${student.role === 'admin' ? 'bg-[#4bd3ff] text-[#020507] shadow-lg' : 'bg-white/5 text-gray-400 border border-white/10'}`}>
-                              {student.role === 'admin' ? 'Admin' : 'Aluno'}
+                          <td className="px-4 py-3 text-gray-400 font-medium text-xs tracking-tight max-w-[230px] truncate">{student.email}</td>
+                          <td className="px-4 py-3 text-gray-400 font-medium text-xs tracking-tight whitespace-nowrap">{student.phone || '-'}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${student.isBlocked || isAccessExpired(student.accessExpiresAt) ? 'bg-red-500/15 text-red-300 border border-red-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                              {student.isBlocked ? 'Bloq.' : isAccessExpired(student.accessExpiresAt) ? 'Exp.' : 'Ativo'}
                             </span>
                           </td>
-                          <td className="px-6 py-5 text-center">
-                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${student.isBlocked || isAccessExpired(student.accessExpiresAt) ? 'bg-red-500/15 text-red-300 border border-red-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
-                              {student.isBlocked ? 'Bloqueado' : isAccessExpired(student.accessExpiresAt) ? 'Expirado' : 'Ativo'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-5 text-gray-400 font-medium text-sm tracking-tight whitespace-nowrap">{student.accessExpiresAt || '-'}</td>
-                          <td className="px-6 py-5 text-center">
-                            <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-black">
-                              <FileText size={14} className="fill-emerald-400" />
+                          <td className="px-4 py-3 text-gray-400 font-medium text-xs tracking-tight whitespace-nowrap">{formatLastAccess(student.lastAccessAt)}</td>
+                          <td className="px-4 py-3 text-gray-400 font-medium text-xs tracking-tight whitespace-nowrap">{student.accessExpiresAt || '-'}</td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-black text-xs">
+                              <FileText size={12} className="fill-emerald-400" />
                               {student.points || 0}
                             </div>
                           </td>
-                          <td className="px-6 py-5">
-                            <span className="text-gray-400 text-sm font-medium tracking-tight">
-                              {getUserLevel(student.points || 0).title}
-                            </span>
-                          </td>
-                          <td className="px-8 py-5 text-right">
-                            <div className="flex items-center justify-end gap-2">
+                          <td className="px-5 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
                               <button 
                                 onClick={() => handleToggleStudentBlock(student)}
                                 disabled={student.role === 'admin'}
-                                className={`p-2.5 bg-black/40 border border-white/5 rounded-lg transition-all ${student.isBlocked ? 'text-red-300 hover:bg-red-500 hover:text-white' : 'text-gray-400 hover:text-red-300'}`}
+                                className={`p-2 bg-black/40 border border-white/5 rounded-lg transition-all ${student.isBlocked ? 'text-red-300 hover:bg-red-500 hover:text-white' : 'text-gray-400 hover:text-red-300'}`}
                                 title={student.role === 'admin' ? 'Admins não podem ser bloqueados por aqui' : student.isBlocked ? 'Desbloquear aluno' : 'Bloquear aluno'}
                               >
-                                <Lock size={16} />
+                                <Lock size={14} />
                               </button>
 
                               <button 
@@ -4593,25 +4608,25 @@ export default function App() {
                                     handleFirestoreError(e, OperationType.UPDATE, `users/${student.uid}`);
                                   }
                                 }}
-                                className={`p-2.5 bg-black/40 border border-white/5 rounded-lg transition-all ${student.isCofounder ? 'text-[#4bd3ff] hover:text-[#38bdf8]' : 'text-gray-400 hover:text-[#4bd3ff]'}`}
+                                className={`p-2 bg-black/40 border border-white/5 rounded-lg transition-all ${student.isCofounder ? 'text-[#4bd3ff] hover:text-[#38bdf8]' : 'text-gray-400 hover:text-[#4bd3ff]'}`}
                                 title={student.isCofounder ? "Remover status de Co-fundadora" : "Tornar Co-fundadora"}
                               >
-                                <Key size={16} />
+                                <Key size={14} />
                               </button>
                               <button 
                                 onClick={() => {
                                   setSelectedUser(student);
                                   setIsRoleModalOpen(true);
                                 }}
-                                className="p-2.5 bg-black/40 border border-white/5 rounded-lg text-gray-400 hover:text-white hover:border-[#4bd3ff]/50 transition-all group/btn"
+                                className="p-2 bg-black/40 border border-white/5 rounded-lg text-gray-400 hover:text-white hover:border-[#4bd3ff]/50 transition-all group/btn"
                                 title="Gerenciar Role"
                               >
-                                <Settings size={18} className="group-hover/btn:rotate-90 transition-transform duration-500" />
+                                <Settings size={14} className="group-hover/btn:rotate-90 transition-transform duration-500" />
                               </button>
                               
                               <button
                                 onClick={() => setSelectedJourneyUser(student)}
-                                className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-gray-300 font-black text-[10px] uppercase tracking-widest hover:border-[#4bd3ff]/50 hover:text-[#4bd3ff] transition-colors"
+                                className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-gray-300 font-black text-[9px] uppercase tracking-widest hover:border-[#4bd3ff]/50 hover:text-[#4bd3ff] transition-colors"
                                 title="Ver protocolos da aluna"
                               >
                                 Jornada
@@ -4623,7 +4638,7 @@ export default function App() {
                                   setIsFolhasModalOpen(true);
                                   setLeavesAmount(0);
                                 }}
-                                className="px-4 py-2 bg-[#4bd3ff] rounded-lg text-[#020507] font-black text-[10px] uppercase tracking-widest hover:bg-[#3bc2ee] transition-colors shadow-lg"
+                                className="px-3 py-2 bg-[#4bd3ff] rounded-lg text-[#020507] font-black text-[9px] uppercase tracking-widest hover:bg-[#3bc2ee] transition-colors shadow-lg"
                               >
                                 Folhas
                               </button>
@@ -4664,10 +4679,10 @@ export default function App() {
                                   });
                                 }}
                                 disabled={student.role === 'admin' || student.email === ADMIN_EMAIL}
-                                className="p-2.5 bg-black/40 border border-white/5 rounded-lg text-gray-400 hover:text-red-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                className="p-2 bg-black/40 border border-white/5 rounded-lg text-gray-400 hover:text-red-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                                 title={student.role === 'admin' || student.email === ADMIN_EMAIL ? 'Admins não podem ser excluídos por aqui' : 'Excluir usuário'}
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={14} />
                               </button>
 
                             </div>

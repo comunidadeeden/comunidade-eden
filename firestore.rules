@@ -67,6 +67,7 @@ service cloud.firestore {
                'childrenCount',
                'lastAudioDate',
                'lastMissionRewardDate',
+               'lastAccessAt',
                'isCofounder',
                'completedChallenges',
                'purchasedOfferIds',
@@ -88,6 +89,7 @@ service cloud.firestore {
              (!('childrenCount' in data) || (data.childrenCount is int)) &&
              (!('lastAudioDate' in data) || (data.lastAudioDate is string)) &&
              (!('lastMissionRewardDate' in data) || (data.lastMissionRewardDate is string)) &&
+             (!('lastAccessAt' in data) || (data.lastAccessAt is string)) &&
              (!('isCofounder' in data) || (data.isCofounder is bool)) &&
              (!('completedChallenges' in data) || (data.completedChallenges is list && data.completedChallenges.size() <= 500)) &&
              (!('purchasedOfferIds' in data) || (data.purchasedOfferIds is list && data.purchasedOfferIds.size() <= 200)) &&
@@ -111,6 +113,7 @@ service cloud.firestore {
                'maritalStatus',
                'hasChildren',
                'childrenCount',
+               'lastAccessAt',
                'updatedAt'
              ]);
     }
