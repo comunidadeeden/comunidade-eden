@@ -1,10 +1,17 @@
 import crypto from 'node:crypto';
-import { provisionStudentAccess } from '../lib/accessProvisioning.js';
-import { deleteDocument, getAuthUserByIdToken, getDocument, setDocument } from '../lib/firebaseRest.js';
+import { getDefaultAccessExpiresAt, normalizeAccessExpiresAt, normalizePhone, provisionStudentAccess, resendStudentAccessEmail } from '../lib/accessProvisioning.js';
+import { deleteDocument, getAuthUserByIdToken, getDocument, queryUsers, setDocument } from '../lib/firebaseRest.js';
 
 const ADMIN_EMAIL = 'gu.correa98@gmail.com';
 
 const normalizeEmail = (email = '') => String(email).trim().toLowerCase();
+
+
+const looksLikeEmail = (value = '') => String(value || '').includes('@');
+const looksLikePhone = (value = '') => {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 8 && digits.length <= 15;
+};
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
@@ -22,6 +29,78 @@ const assertAdmin = async (request) => {
   const userProfile = await getDocument('users', authUser.uid);
   if (userProfile?.role !== 'admin') throw new Error('Usuario sem permissao de admin.');
   return authUser;
+};
+
+
+const handleStudentAction = async (request, response) => {
+  const action = String(request.body?.action || '').trim();
+
+  if (action === 'student:resend-access') {
+    const email = normalizeEmail(request.body?.email);
+    const uid = String(request.body?.uid || '').trim();
+    if (!email || !uid) return response.status(400).json({ error: 'Informe a aluna para reenviar o acesso.' });
+
+    const userProfile = await getDocument('users', uid);
+    if (!userProfile || normalizeEmail(userProfile.email) !== email) {
+      return response.status(404).json({ error: 'Aluna nao encontrada.' });
+    }
+    if (userProfile.role === 'admin') return response.status(400).json({ error: 'Nao e possivel reenviar acesso para admin por aqui.' });
+
+    await resendStudentAccessEmail({ email, name: userProfile.name || email, productName: 'Comunidade Eden' });
+    await setDocument('studentInvites', encodeURIComponent(email), {
+      email,
+      name: userProfile.name || email.split('@')[0],
+      phone: userProfile.phone || '',
+      accessExpiresAt: userProfile.accessExpiresAt || getDefaultAccessExpiresAt(),
+      role: 'student',
+      status: 'accepted',
+      acceptedBy: uid,
+      lastAccessEmailSentAt: new Date(),
+      updatedAt: new Date()
+    });
+    return response.status(200).json({ ok: true, emailSent: true });
+  }
+
+  if (action === 'students:repair-import-fields') {
+    const users = await queryUsers(2000);
+    let repaired = 0;
+    const repairedEmails = [];
+
+    for (const userProfile of users) {
+      if (!userProfile?.uid || userProfile.role === 'admin') continue;
+      const email = normalizeEmail(userProfile.email);
+      const phone = String(userProfile.phone || '').trim();
+      const accessExpiresAt = String(userProfile.accessExpiresAt || '').trim();
+      const hasDuplicatedEmailInPhone = email && looksLikeEmail(phone) && normalizeEmail(phone) === email;
+      const accessHasPhone = looksLikePhone(accessExpiresAt) && !normalizeAccessExpiresAt(accessExpiresAt);
+
+      if (!hasDuplicatedEmailInPhone || !accessHasPhone) continue;
+
+      const fixedPhone = normalizePhone(accessExpiresAt);
+      const fixedAccessExpiresAt = getDefaultAccessExpiresAt();
+      await setDocument('users', userProfile.uid, {
+        phone: fixedPhone,
+        accessExpiresAt: fixedAccessExpiresAt,
+        updatedAt: new Date()
+      });
+      await setDocument('studentInvites', encodeURIComponent(email), {
+        email,
+        name: userProfile.name || email.split('@')[0],
+        phone: fixedPhone,
+        accessExpiresAt: fixedAccessExpiresAt,
+        role: 'student',
+        status: 'accepted',
+        acceptedBy: userProfile.uid,
+        updatedAt: new Date()
+      });
+      repaired += 1;
+      repairedEmails.push(email);
+    }
+
+    return response.status(200).json({ ok: true, repaired, repairedEmails });
+  }
+
+  return null;
 };
 
 const handleNotificationAction = async (request, response, adminUser) => {
@@ -89,6 +168,11 @@ export default async function handler(request, response) {
       if (notificationResponse) return notificationResponse;
     }
 
+    if (String(request.body?.action || '').startsWith('student')) {
+      const studentActionResponse = await handleStudentAction(request, response);
+      if (studentActionResponse) return studentActionResponse;
+    }
+
     const students = Array.isArray(request.body?.students)
       ? request.body.students
       : [request.body?.student || request.body || {}];
@@ -117,7 +201,8 @@ export default async function handler(request, response) {
           ...student,
           grantMainAccess: true,
           productName: 'Comunidade Eden',
-          sendEmail: true
+          sendEmail: true,
+          skipExisting: true
         });
         results.push({ email: student.email, ok: true, ...result });
       } catch (error) {
@@ -126,12 +211,15 @@ export default async function handler(request, response) {
       }
     }
 
-    const created = results.filter((result) => result.ok).length;
-    return response.status(created > 0 ? 200 : 500).json({
-      ok: created > 0,
+    const succeeded = results.filter((result) => result.ok).length;
+    const created = results.filter((result) => result.ok && !result.skipped).length;
+    const skipped = results.filter((result) => result.ok && result.skipped).length;
+    return response.status(succeeded > 0 ? 200 : 500).json({
+      ok: succeeded > 0,
       total: results.length,
       created,
-      failed: results.length - created,
+      skipped,
+      failed: results.length - succeeded,
       results
     });
   } catch (error) {

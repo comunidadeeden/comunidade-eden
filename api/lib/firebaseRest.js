@@ -174,6 +174,33 @@ export const queryNotifications = async (limit = 20) => {
     }));
 };
 
+
+export const queryUsers = async (limit = 1000) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 1000, 2000));
+  const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'users' }],
+        limit: safeLimit
+      }
+    })
+  });
+
+  if (!response.ok) {
+    console.error('Firestore users query error:', body);
+    throw new Error('Nao foi possivel carregar os usuarios.');
+  }
+
+  return (Array.isArray(body) ? body : [])
+    .map(item => item.document)
+    .filter(Boolean)
+    .map(document => ({
+      uid: String(document.name || '').split('/').pop(),
+      ...fromFirestoreDocument(document)
+    }));
+};
+
 export const queryMonthlyScores = async (monthKey, limit = 20) => {
   const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
   const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {

@@ -722,6 +722,8 @@ export default function App() {
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const studentImportFileInputRef = useRef<HTMLInputElement>(null);
   const [isImportingStudentsFile, setIsImportingStudentsFile] = useState(false);
+  const [isRepairingStudentImport, setIsRepairingStudentImport] = useState(false);
+  const [resendingAccessUid, setResendingAccessUid] = useState<string | null>(null);
   const [missionResponses, setMissionResponses] = useState<Record<string, string | string[]>>({});
   const [journeyResponses, setJourneyResponses] = useState<Record<string, any>>({});
   const [weeklyOath, setWeeklyOath] = useState({ identity: '', conquest: '' });
@@ -863,12 +865,65 @@ export default function App() {
       results.push(...(result.results || []));
     }
 
-    const created = results.filter(result => result.ok).length;
+    const created = results.filter(result => result.ok && !result.skipped).length;
+    const skipped = results.filter(result => result.ok && result.skipped).length;
     const failed = results.filter(result => !result.ok);
+    const skippedText = skipped > 0 ? ` ${skipped} já existiam e não receberam novo email.` : '';
     const failedText = failed.length > 0
       ? ` ${failed.length} falharam: ${failed.slice(0, 5).map(result => result.email).join(', ')}${failed.length > 5 ? '...' : ''}`
       : '';
-    alert(`${created} aluna(s) importada(s) e notificada(s).${failedText}`);
+    alert(`${created} aluna(s) nova(s) importada(s) e notificada(s).${skippedText}${failedText}`);
+  };
+
+  const requestStudentAdminAction = async (payload: Record<string, string>) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error('Sessão de admin expirada.');
+
+    const response = await fetch('/api/admin/students', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${idToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível concluir a ação.');
+    return result;
+  };
+
+  const handleRepairStudentImportFields = async () => {
+    if (!window.confirm('Corrigir apenas cadastros em que o telefone virou email e a expiração virou telefone? Folhas, protocolos e histórico não serão alterados.')) return;
+
+    try {
+      setIsRepairingStudentImport(true);
+      const result = await requestStudentAdminAction({ action: 'students:repair-import-fields' });
+      alert(`${result.repaired || 0} cadastro(s) corrigido(s).`);
+    } catch (error) {
+      console.error('Error repairing student import fields:', error);
+      alert(error instanceof Error ? error.message : 'Não foi possível corrigir os cadastros.');
+    } finally {
+      setIsRepairingStudentImport(false);
+    }
+  };
+
+  const handleResendStudentAccess = async (student: UserProfile) => {
+    if (!window.confirm(`Reenviar um novo email de acesso para ${student.name || student.email}?`)) return;
+
+    try {
+      setResendingAccessUid(student.uid);
+      await requestStudentAdminAction({
+        action: 'student:resend-access',
+        uid: student.uid,
+        email: student.email
+      });
+      alert(`Email de acesso reenviado para ${student.email}.`);
+    } catch (error) {
+      console.error('Error resending student access:', error);
+      alert(error instanceof Error ? error.message : 'Não foi possível reenviar o acesso.');
+    } finally {
+      setResendingAccessUid(null);
+    }
   };
 
   const handleCreateStudent = async (data: Record<string, string>) => {
@@ -4483,6 +4538,13 @@ export default function App() {
 	                </div>
 	                <div className="flex flex-col sm:flex-row gap-3">
 	                  <button
+	                    onClick={handleRepairStudentImportFields}
+	                    disabled={isRepairingStudentImport}
+	                    className="flex items-center justify-center gap-2 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 text-amber-200 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all disabled:opacity-60 disabled:cursor-wait"
+	                  >
+	                    <Settings size={18} /> {isRepairingStudentImport ? 'Corrigindo...' : 'Corrigir Importação'}
+	                  </button>
+	                  <button
 	                    onClick={handleExportStudents}
 	                    className="flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 text-emerald-300 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all"
 	                  >
@@ -4603,6 +4665,14 @@ export default function App() {
                           </td>
                           <td className="px-5 py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleResendStudentAccess(student)}
+                                disabled={student.role === 'admin' || resendingAccessUid === student.uid}
+                                className="p-2 bg-black/40 border border-white/5 rounded-lg text-gray-400 hover:text-[#4bd3ff] disabled:opacity-30 disabled:cursor-wait transition-all"
+                                title={student.role === 'admin' ? 'Admins não recebem acesso por aqui' : 'Reenviar email de acesso'}
+                              >
+                                <Send size={14} />
+                              </button>
                               <button 
                                 onClick={() => handleToggleStudentBlock(student)}
                                 disabled={student.role === 'admin'}

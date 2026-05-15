@@ -26,7 +26,7 @@ export const getDefaultAccessExpiresAt = () => {
   return addDays(new Date(), Number.isFinite(days) ? days : 365);
 };
 
-const normalizeAccessExpiresAt = (value = '') => {
+export const normalizeAccessExpiresAt = (value = '') => {
   const cleanValue = String(value || '').trim();
   if (!cleanValue) return '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) return '';
@@ -35,7 +35,7 @@ const normalizeAccessExpiresAt = (value = '') => {
   return Number.isNaN(date.getTime()) ? '' : cleanValue;
 };
 
-const normalizePhone = (value = '') => {
+export const normalizePhone = (value = '') => {
   const cleanValue = String(value || '').trim();
   return cleanValue.includes('@') ? '' : cleanValue;
 };
@@ -48,13 +48,26 @@ export const provisionStudentAccess = async ({
   offerId = '',
   grantMainAccess = true,
   productName = 'Comunidade Eden',
-  sendEmail = true
+  sendEmail = true,
+  skipExisting = false
 }) => {
   const authUser = await createAuthUserIfNeeded({ email, name });
+  const existingUser = await getDocument('users', authUser.uid);
+  if (skipExisting && existingUser) {
+    return {
+      uid: authUser.uid,
+      created: false,
+      skipped: true,
+      emailSent: false,
+      accessExpiresAt: existingUser.accessExpiresAt || '',
+      purchasedOfferIds: existingUser.purchasedOfferIds || []
+    };
+  }
+
   if (grantMainAccess) {
     await setAuthUserDisabled(authUser.uid, false);
   }
-  const existingUser = await getDocument('users', authUser.uid);
+
   const purchasedOfferIds = new Set(existingUser?.purchasedOfferIds || []);
   if (offerId) purchasedOfferIds.add(offerId);
 
@@ -69,7 +82,7 @@ export const provisionStudentAccess = async ({
     avatar: existingUser?.avatar || '',
     points: existingUser?.points || 0,
     role: existingUser?.role || 'student',
-    requiresPasswordSetup: true,
+    requiresPasswordSetup: existingUser ? Boolean(existingUser.requiresPasswordSetup) : true,
     isBlocked: false,
     accessExpiresAt: finalAccessExpiresAt,
     profession: existingUser?.profession || '',
@@ -120,4 +133,18 @@ export const provisionStudentAccess = async ({
     accessExpiresAt: finalAccessExpiresAt,
     purchasedOfferIds: Array.from(purchasedOfferIds)
   };
+};
+
+
+export const resendStudentAccessEmail = async ({ email, name, productName = 'Comunidade Eden' }) => {
+  const setupPasswordUrl = await generatePasswordSetupLink(email);
+  const template = await getAccessEmailTemplate();
+  await sendAccessEmail({
+    to: email,
+    name,
+    productName,
+    setupPasswordUrl,
+    template
+  });
+  return { emailSent: true };
 };
