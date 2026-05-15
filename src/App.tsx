@@ -267,6 +267,34 @@ const getVideoThumbnail = (url: string | undefined) => {
 
 const isDirectVideoUrl = (url?: string) => /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(url || '');
 
+const upgradeInsecureUrl = (value?: string) => {
+  if (typeof value !== 'string') return value || '';
+  return value.replace(/^http:\/\//i, 'https://');
+};
+
+const sanitizeContentItemUrls = <T extends { imageUrl?: string; videoUrl?: string; audioUrl?: string }>(item: T): T => ({
+  ...item,
+  imageUrl: upgradeInsecureUrl(item.imageUrl),
+  videoUrl: upgradeInsecureUrl(item.videoUrl),
+  audioUrl: upgradeInsecureUrl(item.audioUrl)
+});
+
+const sanitizeModuleUrls = <T extends { imageUrl?: string; items?: any[] }>(module: T): T => ({
+  ...module,
+  imageUrl: upgradeInsecureUrl(module.imageUrl),
+  items: Array.isArray(module.items) ? module.items.map(sanitizeContentItemUrls) : []
+});
+
+const sanitizeTrailUrls = <T extends { modules?: any[] }>(trail: T): T => ({
+  ...trail,
+  modules: Array.isArray(trail.modules) ? trail.modules.map(sanitizeModuleUrls) : []
+});
+
+const sanitizeOfferUrls = <T extends { imageUrl?: string }>(offer: T): T => ({
+  ...offer,
+  imageUrl: upgradeInsecureUrl(offer.imageUrl)
+});
+
 const sortLevelsByStart = (levels: CustomLevel[]) => [...levels].sort((a, b) => b.points - a.points);
 
 enum OperationType {
@@ -1370,7 +1398,7 @@ export default function App() {
 
     const unsubscribeTrails = onSnapshot(trailsQuery, (snapshot) => {
        const trailsData = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as any))
+        .map(doc => sanitizeTrailUrls({ id: doc.id, ...doc.data() } as any))
         .sort((a, b) => (a.order || 0) - (b.order || 0));
        setTrailsState(trailsData.length > 0 ? trailsData : [
         {
@@ -1395,7 +1423,7 @@ export default function App() {
     });
 
     const unsubscribeMaterials = onSnapshot(collection(db, 'materials'), (snapshot) => {
-      const materialsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      const materialsData = snapshot.docs.map(doc => sanitizeContentItemUrls({ id: doc.id, ...doc.data() } as any));
       setMateriaisState([{
         id: "pdfs",
         title: "Materiais Complementares",
@@ -1406,7 +1434,7 @@ export default function App() {
     });
 
     const unsubscribeOffers = onSnapshot(query(collection(db, 'offers'), orderBy('createdAt', 'desc')), (snapshot) => {
-      const offersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Offer));
+      const offersData = snapshot.docs.map(doc => sanitizeOfferUrls({ id: doc.id, ...doc.data() } as Offer));
       setOffersState(offersData);
     }, (error) => {
       handleFirestoreError(error, 'LIST', 'offers');
