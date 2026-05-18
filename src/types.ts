@@ -77,6 +77,7 @@ export interface UserProfile {
   completedChallenges?: string[];
   purchasedOfferIds?: string[];
   updatedAt?: any;
+  rankPosition?: number;
 }
 
 export interface MonthlyRankingUser {
@@ -86,6 +87,7 @@ export interface MonthlyRankingUser {
   points: number;
   totalPoints?: number;
   isCofounder?: boolean;
+  rankPosition?: number;
 }
 
 export interface Offer {

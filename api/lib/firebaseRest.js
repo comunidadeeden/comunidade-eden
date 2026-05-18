@@ -81,7 +81,9 @@ export const getDocument = async (collection, id) => {
   if (response.status === 404) return null;
   if (!response.ok) {
     console.error('Firestore get error:', body);
-    throw new Error(`Nao foi possivel ler ${collection}/${id}.`);
+    const firestoreStatus = body?.error?.status || response.status;
+    const firestoreMessage = body?.error?.message ? ` ${body.error.message}` : '';
+    throw new Error(`Nao foi possivel ler ${collection}/${id}. Firestore: ${firestoreStatus}.${firestoreMessage}`);
   }
   return fromFirestoreDocument(body);
 };
@@ -121,7 +123,7 @@ export const deleteDocument = async (collection, id) => {
 };
 
 export const queryTopUsersByPoints = async (limit = 5) => {
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 5, 1000));
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 5, 100));
   const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {
     method: 'POST',
     body: JSON.stringify({
@@ -202,7 +204,7 @@ export const queryUsers = async (limit = 1000) => {
 };
 
 export const queryMonthlyScores = async (monthKey, limit = 20) => {
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 1000));
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
   const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runQuery`, {
     method: 'POST',
     body: JSON.stringify({
@@ -215,7 +217,8 @@ export const queryMonthlyScores = async (monthKey, limit = 20) => {
             value: toFirestoreValue(monthKey)
           }
         },
-        limit: 1000
+        orderBy: [{ field: { fieldPath: 'points' }, direction: 'DESCENDING' }],
+        limit: safeLimit
       }
     })
   });
@@ -231,10 +234,72 @@ export const queryMonthlyScores = async (monthKey, limit = 20) => {
     .map(document => ({
       id: String(document.name || '').split('/').pop(),
       ...fromFirestoreDocument(document)
-    }))
-    .sort((a, b) => (b.points || 0) - (a.points || 0))
-    .slice(0, safeLimit);
+    }));
 };
+
+export const getMonthlyScore = async (uid, monthKey) => getDocument('monthlyScores', `${monthKey}_${uid}`);
+
+const getAggregationCount = (body) => {
+  const aggregateFields = (Array.isArray(body) ? body : [])
+    .map(item => item.result?.aggregateFields)
+    .find(Boolean);
+  return Number(aggregateFields?.count?.integerValue || 0);
+};
+
+const runCountAggregation = async (structuredQuery) => {
+  const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}:runAggregationQuery`, {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredAggregationQuery: {
+        structuredQuery,
+        aggregations: [{ alias: 'count', count: {} }]
+      }
+    })
+  });
+
+  if (!response.ok) {
+    console.error('Firestore count query error:', body);
+    throw new Error('Nao foi possivel calcular a posicao no ranking.');
+  }
+
+  return getAggregationCount(body);
+};
+
+export const countUsersAheadByPoints = async (points = 0) => runCountAggregation({
+  from: [{ collectionId: 'users' }],
+  where: {
+    fieldFilter: {
+      field: { fieldPath: 'points' },
+      op: 'GREATER_THAN',
+      value: toFirestoreValue(points)
+    }
+  }
+});
+
+export const countMonthlyScoresAhead = async (monthKey, points = 0) => runCountAggregation({
+  from: [{ collectionId: 'monthlyScores' }],
+  where: {
+    compositeFilter: {
+      op: 'AND',
+      filters: [
+        {
+          fieldFilter: {
+            field: { fieldPath: 'monthKey' },
+            op: 'EQUAL',
+            value: toFirestoreValue(monthKey)
+          }
+        },
+        {
+          fieldFilter: {
+            field: { fieldPath: 'points' },
+            op: 'GREATER_THAN',
+            value: toFirestoreValue(points)
+          }
+        }
+      ]
+    }
+  }
+});
 
 export const incrementDocumentField = async (collection, id, fieldPath, amount = 1) => {
   const { response, body } = await authorizedFetch(`https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents:commit`, {

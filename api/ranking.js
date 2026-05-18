@@ -1,4 +1,4 @@
-import { getAuthUserByIdToken, getDocument, queryMonthlyScores, queryNotifications, queryTopUsersByPoints } from './lib/firebaseRest.js';
+import { countMonthlyScoresAhead, countUsersAheadByPoints, getAuthUserByIdToken, getDocument, getMonthlyScore, queryMonthlyScores, queryNotifications, queryTopUsersByPoints } from './lib/firebaseRest.js';
 
 const DEFAULT_MONTHLY_PRIZE = '1 sessão individual com Bruno Simplicio';
 
@@ -68,31 +68,64 @@ export default async function handler(request, response) {
     }
 
     const monthKey = String(request.query?.month || getSaoPauloMonthKey()).trim();
-    const [users, monthlyScores, monthlyRankingSettings] = await Promise.all([
-      queryTopUsersByPoints(1000),
-      queryMonthlyScores(monthKey, 1000),
+    const requesterPoints = safePoints(requester.points);
+    const [topUsers, usersAhead, monthlyScores, currentMonthlyScore, monthlyRankingSettings] = await Promise.all([
+      queryTopUsersByPoints(3),
+      countUsersAheadByPoints(requesterPoints).catch(() => null),
+      queryMonthlyScores(monthKey, 3),
+      getMonthlyScore(authUser.uid, monthKey).catch(() => null),
       getDocument('settings', 'monthlyRanking').catch(() => null)
     ]);
+
+    const generalUsers = topUsers.map((user, index) => ({
+      uid: user.uid,
+      name: user.name || 'Aluna',
+      avatar: user.avatar || '',
+      points: safePoints(user.points),
+      isCofounder: Boolean(user.isCofounder),
+      rankPosition: index + 1
+    }));
+    if (!generalUsers.some(user => user.uid === authUser.uid)) {
+      generalUsers.push({
+        uid: authUser.uid,
+        name: requester.name || 'Você',
+        avatar: requester.avatar || '',
+        points: requesterPoints,
+        isCofounder: Boolean(requester.isCofounder),
+        rankPosition: usersAhead === null ? generalUsers.length + 1 : usersAhead + 1
+      });
+    }
+
+    const monthlyUsers = monthlyScores.map((score, index) => ({
+      uid: score.uid,
+      name: score.name || 'Aluna',
+      avatar: score.avatar || '',
+      points: safePoints(score.points),
+      totalPoints: safePoints(score.totalPoints),
+      isCofounder: Boolean(score.isCofounder),
+      rankPosition: index + 1
+    }));
+    if (currentMonthlyScore?.uid && !monthlyUsers.some(user => user.uid === authUser.uid)) {
+      const monthlyPoints = safePoints(currentMonthlyScore.points);
+      const monthlyUsersAhead = await countMonthlyScoresAhead(monthKey, monthlyPoints).catch(() => null);
+      monthlyUsers.push({
+        uid: authUser.uid,
+        name: currentMonthlyScore.name || requester.name || 'Você',
+        avatar: currentMonthlyScore.avatar || requester.avatar || '',
+        points: monthlyPoints,
+        totalPoints: safePoints(currentMonthlyScore.totalPoints),
+        isCofounder: Boolean(currentMonthlyScore.isCofounder || requester.isCofounder),
+        rankPosition: monthlyUsersAhead === null ? monthlyUsers.length + 1 : monthlyUsersAhead + 1
+      });
+    }
+
     return response.status(200).json({
-      users: users.map((user) => ({
-        uid: user.uid,
-        name: user.name || 'Aluna',
-        avatar: user.avatar || '',
-        points: safePoints(user.points),
-        isCofounder: Boolean(user.isCofounder)
-      })),
+      users: generalUsers,
       monthly: {
         monthKey,
         daysRemaining: monthKey === getSaoPauloMonthKey() ? getDaysRemainingInMonth() : 0,
         prize: monthlyRankingSettings?.prize || DEFAULT_MONTHLY_PRIZE,
-        users: monthlyScores.map((score) => ({
-          uid: score.uid,
-          name: score.name || 'Aluna',
-          avatar: score.avatar || '',
-          points: safePoints(score.points),
-          totalPoints: safePoints(score.totalPoints),
-          isCofounder: Boolean(score.isCofounder)
-        }))
+        users: monthlyUsers
       }
     });
   } catch (error) {

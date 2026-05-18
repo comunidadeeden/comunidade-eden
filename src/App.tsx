@@ -5921,9 +5921,12 @@ export default function App() {
                     );
                   }
 
-                  const currentUserIndex = rankingList.findIndex(rUser => rUser.uid === user?.uid);
-                  const topThree = rankingList.slice(0, 3).map((rUser, idx) => ({ rUser, position: idx + 1 }));
-                  const currentUserRanking = currentUserIndex >= 0 ? { rUser: rankingList[currentUserIndex], position: currentUserIndex + 1 } : null;
+                  const rankedList = rankingList.map((rUser, idx) => ({
+                    rUser,
+                    position: Number((rUser as UserProfile | MonthlyRankingUser).rankPosition || idx + 1)
+                  }));
+                  const topThree = rankedList.filter(({ position }) => position <= 3).slice(0, 3);
+                  const currentUserRanking = rankedList.find(({ rUser }) => rUser.uid === user?.uid) || null;
                   const rows = currentUserRanking && currentUserRanking.position > 3
                     ? [...topThree, currentUserRanking]
                     : topThree;
