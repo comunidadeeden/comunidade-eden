@@ -2980,9 +2980,9 @@ export default function App() {
         return null;
       case 'guardiao':
         return (
-          <div className="h-[calc(100vh-74px)] w-full">
-            <div className="h-full overflow-hidden bg-[#0a4544] shadow-2xl lg:grid lg:grid-cols-[280px_1fr]">
-              <aside className="hidden lg:flex bg-[#1b2b2f] border-r border-white/10 flex-col">
+          <div className="w-full" style={{ height: 'calc(100dvh - 88px - env(safe-area-inset-bottom, 0px))' }}>
+            <div className="h-full min-h-0 overflow-hidden bg-[#0a4544] shadow-2xl lg:grid lg:grid-cols-[280px_1fr]">
+              <aside className="hidden min-h-0 lg:flex bg-[#1b2b2f] border-r border-white/10 flex-col">
                 <div className="px-6 py-6 flex items-center gap-3">
                   <img
                     src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-Guardiao.png"
@@ -3007,7 +3007,7 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="flex-1 px-2 space-y-2">
+                <div className="min-h-0 flex-1 overflow-y-auto px-2 space-y-2 custom-scrollbar">
                   {guardianSessions.map((session) => (
                     <button
                       key={session.id}
@@ -3038,7 +3038,7 @@ export default function App() {
                 </button>
               </aside>
 
-              <div className="flex h-full flex-col bg-[#0a4544]">
+              <div className="flex h-full min-h-0 flex-col bg-[#0a4544]">
                 <header className="h-16 sm:h-[72px] bg-[#163437] border-b border-white/10 px-5 sm:px-8 flex items-center gap-4">
                   <img
                     src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-Guardiao.png"
@@ -3082,7 +3082,7 @@ export default function App() {
                   ))}
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-10 sm:py-10 custom-scrollbar">
+                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-10 sm:py-10 custom-scrollbar">
                   <div className="mx-auto max-w-[800px] space-y-7">
                     {guardianMessages.map((message, index) => (
                       <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -3110,7 +3110,7 @@ export default function App() {
                     event.preventDefault();
                     handleGuardianSubmit();
                   }}
-                  className="border-t border-white/10 bg-[#0d3b3b]/90 px-4 py-4 sm:px-10 sm:py-5"
+                  className="shrink-0 border-t border-white/10 bg-[#0d3b3b]/90 px-4 py-3 sm:px-10 sm:py-5"
                 >
                   {guardianError && (
                     <p className="mx-auto mb-3 max-w-[800px] text-sm font-bold text-red-200 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
