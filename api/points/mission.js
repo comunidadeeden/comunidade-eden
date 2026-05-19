@@ -193,6 +193,6 @@ export default async function handler(request, response) {
     return response.status(200).json(result);
   } catch (error) {
     console.error('Mission reward API error:', error);
-    return response.status(500).json({ error: 'Nao foi possivel concluir a missao.' });
+    return response.status(500).json({ error: error.message || 'Nao foi possivel concluir a missao.' });
   }
 }

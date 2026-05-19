@@ -503,9 +503,7 @@ export const commitDailyMissionReward = async ({ uid, userProfile = {}, completi
             }
           ],
           currentDocument: { exists: true }
-        },
-        monthlyScoreWrite({ uid, userProfile, monthKey, points, now }),
-        monthlyPointEventWrite({ uid, userProfile, monthKey, points, source: 'daily_mission', sourceId: challengeDate, now })
+        }
       ]
     })
   });
@@ -518,6 +516,24 @@ export const commitDailyMissionReward = async ({ uid, userProfile = {}, completi
     }
     console.error('Daily mission reward commit error:', body);
     throw new Error('Nao foi possivel registrar a missao diaria.');
+  }
+
+  try {
+    const monthlyResponse = await authorizedFetch(`https://firestore.googleapis.com/v1/projects/${projectId()}/databases/${databaseId()}/documents:commit`, {
+      method: 'POST',
+      body: JSON.stringify({
+        writes: [
+          monthlyScoreWrite({ uid, userProfile, monthKey, points, now }),
+          monthlyPointEventWrite({ uid, userProfile, monthKey, points, source: 'daily_mission', sourceId: challengeDate, now })
+        ]
+      })
+    });
+
+    if (!monthlyResponse.response.ok) {
+      console.error('Daily mission monthly ranking sync error:', monthlyResponse.body);
+    }
+  } catch (error) {
+    console.error('Daily mission monthly ranking sync exception:', error);
   }
 
   return { rewarded: true, challengeDate, pointsAwarded: points };
