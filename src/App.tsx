@@ -416,14 +416,36 @@ const getAuthErrorMessage = (error: any) => {
   }
 };
 
-const getVideoThumbnail = (url: string | undefined) => {
+const getYouTubeVideoId = (url: string | undefined) => {
   if (!url) return '';
-  const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+  const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
   const match = url.match(youtubeRegex);
-  if (match && match[1]) {
-    return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`;
+  return match?.[1] || '';
+};
+
+const getVideoThumbnail = (url: string | undefined) => {
+  const youtubeId = getYouTubeVideoId(url);
+  if (youtubeId) {
+    return `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`;
   }
   return '';
+};
+
+const getEmbeddableVideoUrl = (url: string | undefined) => {
+  if (!url) return '';
+  const secureUrl = upgradeInsecureUrl(url.trim());
+  const youtubeId = getYouTubeVideoId(secureUrl);
+  if (!youtubeId) return secureUrl;
+
+  let startSeconds = 0;
+  try {
+    const parsedUrl = new URL(secureUrl);
+    const time = parsedUrl.searchParams.get('t') || parsedUrl.searchParams.get('start') || '';
+    if (/^\d+$/.test(time)) startSeconds = Number(time);
+  } catch {}
+
+  const startQuery = startSeconds > 0 ? `?start=${startSeconds}` : '';
+  return `https://www.youtube.com/embed/${youtubeId}${startQuery}`;
 };
 
 const isDirectVideoUrl = (url?: string) => /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(url || '');
@@ -436,7 +458,7 @@ const upgradeInsecureUrl = (value?: string) => {
 const sanitizeContentItemUrls = <T extends { imageUrl?: string; videoUrl?: string; audioUrl?: string }>(item: T): T => ({
   ...item,
   imageUrl: upgradeInsecureUrl(item.imageUrl),
-  videoUrl: upgradeInsecureUrl(item.videoUrl),
+  videoUrl: getEmbeddableVideoUrl(item.videoUrl),
   audioUrl: upgradeInsecureUrl(item.audioUrl)
 });
 
@@ -818,7 +840,7 @@ export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const isAdmin = user?.role === 'admin' || user?.email === ADMIN_EMAIL;
-  
+
   const [userLevels, setUserLevels] = useState<CustomLevel[]>([
     { id: '1', title: 'Guardiã do Éden', points: 2000, maxPoints: 999999, level: 5, iconName: 'Crown' },
     { id: '2', title: 'Decidida', points: 1200, maxPoints: 1999, level: 4, iconName: 'Star' },
@@ -841,9 +863,9 @@ export default function App() {
       return { nextTitle: 'Nível Máximo Alcançado', percentage: 100 };
     }
     const currentLevel = [...orderedLevels].reverse().find(l => points >= l.points) || { points: 0 };
-    return { 
-       nextTitle: nextLevel.title, 
-       percentage: ((points - currentLevel.points) / (nextLevel.points - currentLevel.points)) * 100 
+    return {
+       nextTitle: nextLevel.title,
+       percentage: ((points - currentLevel.points) / (nextLevel.points - currentLevel.points)) * 100
     };
   };
 
@@ -851,7 +873,7 @@ export default function App() {
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  
+
   // Admin UI state
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [adminActiveSection, setAdminActiveSection] = useState('geral');
@@ -1383,7 +1405,7 @@ export default function App() {
   const [materiaisState, setMateriaisState] = useState(materiaisDeApoio);
   const [audioState, setAudioState] = useState(audioOfTheDay);
   const [offersState, setOffersState] = useState<Offer[]>([]);
-  
+
   // Admin settings for tab visibility
   const [tabVisibility, setTabVisibility] = useState({
     jornada: true,
@@ -1579,7 +1601,7 @@ export default function App() {
   // Gamification states
   const [leaves, setLeaves] = useState(0);
   const [completedChallenges, setCompletedChallenges] = useState<string[]>([]);
-  
+
   useEffect(() => {
     if (!user?.uid) return;
 
@@ -2174,7 +2196,7 @@ export default function App() {
                     <User size={48} />
                   </div>
                 )}
-                <div 
+                <div
                    onClick={() => {
                      setPromptConfig({
                        title: 'Alterar Foto',
@@ -2194,9 +2216,9 @@ export default function App() {
                 </div>
               </div>
 	              <div className="pb-2 flex-1 min-w-0">
-                <input 
-                  type="text" 
-                  value={user.name} 
+                <input
+                  type="text"
+                  value={user.name}
                   onChange={(e) => setUser({...user, name: e.target.value})}
 	                  className="text-2xl sm:text-3xl font-black text-white tracking-tight bg-transparent border-b border-transparent focus:border-[#4bd3ff] focus:outline-none w-full"
                 />
@@ -2210,36 +2232,36 @@ export default function App() {
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
                     <Briefcase size={14} /> Profissão
                   </label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={user.profession || ''}
                     onChange={(e) => setUser({...user, profession: e.target.value})}
                     placeholder="Ex: Engenheira, Médica..."
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-[#4bd3ff] transition-colors" 
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-[#4bd3ff] transition-colors"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
                     <Instagram size={14} /> Instagram (@)
                   </label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={user.instagram || ''}
                     onChange={(e) => setUser({...user, instagram: e.target.value})}
                     placeholder="@seuinsta"
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-[#4bd3ff] transition-colors" 
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-[#4bd3ff] transition-colors"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
                     <Phone size={14} /> Telefone / WhatsApp
                   </label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={user.phone || ''}
                     onChange={(e) => setUser({...user, phone: e.target.value})}
                     placeholder="(00) 00000-0000"
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-[#4bd3ff] transition-colors" 
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-[#4bd3ff] transition-colors"
                   />
                 </div>
                 <div className="space-y-2">
@@ -2257,7 +2279,7 @@ export default function App() {
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
                     <Heart size={14} /> Estado Civil
                   </label>
-                  <select 
+                  <select
                     value={user.maritalStatus || ''}
                     onChange={(e) => setUser({...user, maritalStatus: e.target.value})}
                     className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-[#4bd3ff] transition-colors appearance-none"
@@ -2276,17 +2298,17 @@ export default function App() {
                   </label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 text-white cursor-pointer">
-                      <input 
-                        type="radio" 
-                        checked={user.hasChildren === true} 
+                      <input
+                        type="radio"
+                        checked={user.hasChildren === true}
                         onChange={() => setUser({...user, hasChildren: true})}
                         className="accent-[#4bd3ff]"
                       /> Sim
                     </label>
                     <label className="flex items-center gap-2 text-white cursor-pointer">
-                      <input 
-                        type="radio" 
-                        checked={user.hasChildren === false} 
+                      <input
+                        type="radio"
+                        checked={user.hasChildren === false}
                         onChange={() => setUser({...user, hasChildren: false, childrenCount: 0})}
                         className="accent-[#4bd3ff]"
                       /> Não
@@ -2298,11 +2320,11 @@ export default function App() {
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
                       Quantidade de Filhos
                     </label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={user.childrenCount || 0}
                       onChange={(e) => setUser({...user, childrenCount: parseInt(e.target.value) || 0})}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-[#4bd3ff] transition-colors" 
+                      className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-[#4bd3ff] transition-colors"
                     />
                   </div>
                 )}
@@ -2323,7 +2345,7 @@ export default function App() {
               </div>
 
               <div className="pt-4 space-y-4">
-                <button 
+                <button
                     onClick={async () => {
                       if (!user) return;
                       try {
@@ -2356,13 +2378,13 @@ export default function App() {
     );
   };
   // Finding active level index based on progress
-  const activeLevelIndex = JOURNEY_LEVELS.findIndex(level => 
+  const activeLevelIndex = JOURNEY_LEVELS.findIndex(level =>
     !level.tasks.every(t => completedChallenges.includes(t.id))
   );
-  
+
   const currentLevelIndex = activeLevelIndex === -1 ? JOURNEY_LEVELS.length - 1 : activeLevelIndex;
   const activeLevel = JOURNEY_LEVELS[currentLevelIndex];
-  
+
   // Progress within the current level
   const completedInCurrentLevel = activeLevel.tasks.filter(t => completedChallenges.includes(t.id)).length;
   const progressToNextLevel = (completedInCurrentLevel / activeLevel.tasks.length) * 100;
@@ -2726,9 +2748,9 @@ export default function App() {
             <div className="space-y-8">
               <div className="space-y-4">
                 {visibleContentTrails.map(trail => (
-                  <TrailRow 
-                    key={trail.id} 
-                    trail={trail} 
+                  <TrailRow
+                    key={trail.id}
+                    trail={trail}
                     user={user}
                     onLockedModule={setLockedModule}
                     onSelectModule={(mod, index) => {
@@ -2740,7 +2762,7 @@ export default function App() {
                         setSelectedModule(mod);
                         setCurrentLessonIndex(index || 0);
                       }
-                    }} 
+                    }}
                   />
                 ))}
                 {purchasedExtraModules.length > 0 && (
@@ -2796,9 +2818,9 @@ export default function App() {
           <div className="max-w-4xl mx-auto flex flex-col gap-10 pt-4">
             <div className="space-y-4">
               {materiaisState.map(cat => (
-                <CategoryRow 
-                  key={cat.id} 
-                  category={cat} 
+                <CategoryRow
+                  key={cat.id}
+                  category={cat}
                   onSelect={(item) => {
                     const contentItem = item as ContentItem;
                     if (contentItem.videoUrl) {
@@ -2808,7 +2830,7 @@ export default function App() {
                     } else {
                       setSelectedItem(item);
                     }
-                  }} 
+                  }}
                 />
               ))}
             </div>
@@ -3163,13 +3185,13 @@ export default function App() {
               </h3>
             </div>
           </div>
-          
+
           <div className="space-y-6 bg-white/5 border border-white/10 p-6 rounded-2xl">
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Data</label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
                   value={toInputDate(editingMission.date)}
                   onChange={(e) => setEditingMission({ ...editingMission, date: fromInputDate(e.target.value) })}
@@ -3177,8 +3199,8 @@ export default function App() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Título</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
                   value={editingMission.title}
                   onChange={(e) => setEditingMission({ ...editingMission, title: e.target.value })}
@@ -3186,7 +3208,7 @@ export default function App() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Descrição</label>
-                <textarea 
+                <textarea
                   className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors min-h-[100px]"
                   value={editingMission.description}
                   onChange={(e) => setEditingMission({ ...editingMission, description: e.target.value })}
@@ -3198,7 +3220,7 @@ export default function App() {
               <h4 className="text-lg font-bold text-white mb-4">Perguntas Formato (Forms)</h4>
               {editingMission.questions.map((q, qIndex) => (
                 <div key={q.id} className="bg-black/30 border border-white/5 rounded-xl p-4 space-y-4 relative group">
-                  <button 
+                  <button
                     onClick={() => {
                       const newQuestions = [...editingMission.questions];
                       newQuestions.splice(qIndex, 1);
@@ -3211,7 +3233,7 @@ export default function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mr-8">
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Tipo de Pergunta</label>
-                        <select 
+                        <select
                           className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none"
                           value={q.type}
                           onChange={(e) => {
@@ -3231,8 +3253,8 @@ export default function App() {
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Enunciado (Pergunta)</label>
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none"
                           value={q.label}
                           onChange={(e) => {
@@ -3243,15 +3265,15 @@ export default function App() {
                         />
                       </div>
                   </div>
-                  
+
                   {(q.type === 'radio' || q.type === 'checkbox') && (
                     <div className="space-y-2 mt-4 pl-4 border-l-2 border-[#4bd3ff]/30">
                       <label className="block text-[10px] font-bold text-gray-500 uppercase">Opções de Resposta</label>
                       {q.options?.map((opt, optIndex) => (
                         <div key={optIndex} className="flex items-center gap-2">
                            <div className={`w-4 h-4 shrink-0 rounded-sm border border-white/20 ${q.type === 'radio' ? 'rounded-full' : ''}`} />
-                           <input 
-                             type="text" 
+                           <input
+                             type="text"
                              className="bg-transparent border-b border-white/10 px-2 py-1 text-sm text-white focus:outline-none focus:border-[#4bd3ff] w-full"
                              value={opt}
                              onChange={(e) => {
@@ -3269,7 +3291,7 @@ export default function App() {
                            </button>
                         </div>
                       ))}
-                      <button 
+                      <button
                         onClick={() => {
                            const newQuestions = [...editingMission.questions];
                            newQuestions[qIndex].options!.push(`Opção ${newQuestions[qIndex].options!.length + 1}`);
@@ -3283,8 +3305,8 @@ export default function App() {
                   )}
                 </div>
               ))}
-              
-              <button 
+
+              <button
                 onClick={() => {
                   setEditingMission({
                     ...editingMission,
@@ -3345,7 +3367,7 @@ export default function App() {
             <h3 className="text-2xl font-black text-white uppercase tracking-tight">Missões Diárias</h3>
             <p className="text-gray-400 text-sm">Crie desafios específicos para cada data.</p>
           </div>
-          <button 
+          <button
             onClick={() => setEditingMission({
                date: new Date().toLocaleDateString('pt-BR').split('/').join('-'),
                title: '',
@@ -3404,18 +3426,18 @@ export default function App() {
                   {isEnded && <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider ml-2">Encerrada</span>}
                 </div>
                 <div className="flex gap-2">
-                  <button 
+                  <button
                     onClick={() => setEditingMission(mission)}
                     className="p-2 text-gray-400 hover:text-white"
                   >
                     <Edit2 size={16} />
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       setPromptConfig({
                         title: 'Excluir Missão?',
                         description: 'Tem certeza que deseja excluir esta missão permanentemente?',
-                        fields: [], 
+                        fields: [],
                         submitText: 'Excluir',
                         onSubmit: async () => {
                           await deleteDoc(doc(db, 'dailyChallenges', mission.id!));
@@ -3431,16 +3453,16 @@ export default function App() {
               </div>
               <h4 className="text-xl font-bold text-white mb-2">{mission.title}</h4>
               <p className="text-gray-400 text-sm mb-4">{mission.description || 'Sem descrição'}</p>
-              
+
               <div className="mt-4 pt-4 border-t border-white/10">
                  <h5 className="text-sm font-bold text-gray-300 mb-4 flex items-center justify-between cursor-pointer hover:text-white" onClick={(e) => {
                      const el = e.currentTarget.nextElementSibling;
                      if (el) el.classList.toggle('hidden');
-                     
+
                      const icon = e.currentTarget.querySelector('.chevron-icon');
                      if(icon) icon.classList.toggle('rotate-180');
                  }}>
-                    <span>Respostas ({missionCompletions.length})</span> 
+                    <span>Respostas ({missionCompletions.length})</span>
                     <ChevronDown size={16} className="chevron-icon transition-transform" />
                  </h5>
                  <div className="hidden space-y-4 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10">
@@ -3487,13 +3509,13 @@ export default function App() {
               </h3>
             </div>
           </div>
-          
+
           <div className="space-y-6 bg-white/5 border border-white/10 p-6 rounded-2xl">
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Data</label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
                   value={toInputDate(editingAudio.date)}
                   onChange={(e) => setEditingAudio({ ...editingAudio, date: fromInputDate(e.target.value) })}
@@ -3501,8 +3523,8 @@ export default function App() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Título</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
                   value={editingAudio.title}
                   onChange={(e) => setEditingAudio({ ...editingAudio, title: e.target.value })}
@@ -3510,7 +3532,7 @@ export default function App() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Tag</label>
-                <input 
+                <input
                    type="text"
                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
                    value={editingAudio.subtitle}
@@ -3527,8 +3549,8 @@ export default function App() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">URL do Áudio (MP3/WAV)</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
                   value={editingAudio.audioUrl}
                   onChange={(e) => setEditingAudio({ ...editingAudio, audioUrl: e.target.value })}
@@ -3581,7 +3603,7 @@ export default function App() {
             <h3 className="text-2xl font-black text-white uppercase tracking-tight">Áudios do Guardião</h3>
             <p className="text-gray-400 text-sm">Programe os áudios diários por data.</p>
           </div>
-          <button 
+          <button
             onClick={() => setEditingAudio({
 	               date: new Date().toLocaleDateString('pt-BR').split('/').join('-'),
 	               title: '',
@@ -3614,18 +3636,18 @@ export default function App() {
                     {isEnded && <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider ml-2">Passado</span>}
                   </div>
                   <div className="flex gap-2">
-                    <button 
+                    <button
                       onClick={() => setEditingAudio(audio)}
                       className="p-2 text-gray-400 hover:text-white"
                     >
                       <Edit2 size={16} />
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         setPromptConfig({
                           title: 'Excluir Áudio?',
                           description: 'Tem certeza que deseja excluir este áudio permanentemente?',
-                          fields: [], 
+                          fields: [],
                           submitText: 'Excluir',
                           onSubmit: async () => {
                             await deleteDoc(doc(db, 'dailyAudios', audio.id!));
@@ -3940,7 +3962,7 @@ export default function App() {
           <p className="text-gray-400 text-sm mt-1">Defina os intervalos de pontos, nomes e ícones de cada nível.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button 
+          <button
             onClick={() => {
               const minPoints = userLevels.length ? Math.max(...userLevels.map(level => level.maxPoints ?? level.points)) + 1 : 0;
               setUserLevels([
@@ -3959,7 +3981,7 @@ export default function App() {
           >
             <Plus size={16} /> Novo Nível
           </button>
-          <button 
+          <button
             onClick={handleSaveLevels}
             className="flex items-center gap-2 bg-[#4bd3ff] text-[#020507] hover:bg-[#38bdf8] px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors"
           >
@@ -3967,14 +3989,14 @@ export default function App() {
           </button>
         </div>
       </div>
-      
+
       <div className="space-y-4">
         {userLevels.map((lvl, index) => (
           <div key={lvl.id || index} className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr_1fr_1.2fr_auto] gap-4 p-4 border border-white/5 bg-white/5 rounded-xl items-end">
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Nome do Nível</label>
-              <input 
-                value={lvl.title} 
+              <input
+                value={lvl.title}
                 onChange={(e) => {
                   const newLevels = [...userLevels];
                   newLevels[index].title = e.target.value;
@@ -3985,9 +4007,9 @@ export default function App() {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Pontos início</label>
-              <input 
+              <input
                 type="number"
-                value={lvl.points} 
+                value={lvl.points}
                 onChange={(e) => {
                   const newLevels = [...userLevels];
                   newLevels[index].points = Number(e.target.value) || 0;
@@ -3998,9 +4020,9 @@ export default function App() {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Pontos final</label>
-              <input 
+              <input
                 type="number"
-                value={lvl.maxPoints ?? lvl.points} 
+                value={lvl.maxPoints ?? lvl.points}
                 onChange={(e) => {
                   const newLevels = [...userLevels];
                   newLevels[index].maxPoints = Number(e.target.value) || 0;
@@ -4018,7 +4040,7 @@ export default function App() {
                     return <LevelIcon size={22} />;
                   })()}
                 </div>
-                <select 
+                <select
                   value={lvl.iconName}
                   onChange={(e) => {
                     const newLevels = [...userLevels];
@@ -4055,7 +4077,7 @@ export default function App() {
           </div>
 	          <h2 className="text-sm sm:text-lg font-black text-white uppercase tracking-tighter leading-tight">Painel de Controle Éden</h2>
         </div>
-        <button 
+        <button
           onClick={() => setIsAdminPanelOpen(false)}
           className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
         >
@@ -4083,8 +4105,8 @@ export default function App() {
                 key={item.id}
                 onClick={() => setAdminActiveSection(item.id)}
 	                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${
-                  adminActiveSection === item.id 
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                  adminActiveSection === item.id
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                     : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent'
                 }`}
               >
@@ -4233,7 +4255,7 @@ export default function App() {
                           <div className={`p-2.5 rounded-xl ${isVisible ? 'bg-emerald-500/10 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>
                             <tab.icon size={20} />
                           </div>
-                          <button 
+                          <button
                             onClick={() => handleToggleTabVisibility(tab.id)}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isVisible ? 'bg-emerald-500' : 'bg-gray-700'}`}
                           >
@@ -4286,14 +4308,14 @@ export default function App() {
                             <div className="w-1 h-1 rounded-full bg-current"></div>
                           </div>
                         </div>
-                        
+
                         <div className="w-16 h-24 rounded-lg bg-gray-800 border border-white/5 overflow-hidden relative">
                           <img src={module.imageUrl} className="w-full h-full object-cover opacity-60" alt="" />
                           <div className="absolute top-0 inset-x-0 bg-gradient-to-b from-black/80 to-transparent p-1">
                             <p className="text-[8px] font-black uppercase text-emerald-400 text-center tracking-widest truncate">{module.trailTitle}</p>
                           </div>
                         </div>
-                        
+
                         <div>
                           <h4 className="text-xl font-extrabold text-white mb-1">{module.title}</h4>
                           <div className="flex flex-wrap items-center gap-3 text-gray-500 text-sm">
@@ -4313,7 +4335,7 @@ export default function App() {
                       </button>
 
                       <div className="flex shrink-0 items-center gap-3">
-                        <button 
+                        <button
                            onClick={() => {
                              setPromptConfig({
                                title: 'Adicionar Conteúdo',
@@ -4329,7 +4351,7 @@ export default function App() {
                                      id: Math.random().toString(36).substr(2, 9),
                                      title: data.title,
                                      type: 'video',
-                                     videoUrl: data.videoUrl,
+                                     videoUrl: getEmbeddableVideoUrl(data.videoUrl),
                                      imageUrl: getVideoThumbnail(data.videoUrl),
                                      description: data.description || ''
                                    }];
@@ -4339,9 +4361,9 @@ export default function App() {
 
                                    const updatedModules = (trail.modules || []).map(m => m.id === module.id ? { ...m, items: updatedItems } : m);
                                    await updateDoc(doc(db, 'trails', trail.id), { modules: updatedModules });
-                                 } catch (e) { 
+                                 } catch (e) {
                                    console.error('Erro ao adicionar conteúdo:', e);
-                                   handleFirestoreError(e, OperationType.UPDATE, `trails/${module.trailId}`); 
+                                   handleFirestoreError(e, OperationType.UPDATE, `trails/${module.trailId}`);
                                  }
                                },
                                onCancel: () => setPromptConfig(null)
@@ -4382,7 +4404,7 @@ export default function App() {
                         >
                           <Trash2 size={20} />
                         </button>
-                        <button 
+                        <button
                           onClick={() => {
                             setPromptConfig({
                               title: 'Editar Módulo',
@@ -4396,8 +4418,8 @@ export default function App() {
                                   const trail = trailsState.find(t => t.id === module.trailId);
                                   if (!trail) return;
 
-                                  const updatedModules = (trail.modules || []).map(m => 
-                                    m.id === module.id 
+                                  const updatedModules = (trail.modules || []).map(m =>
+                                    m.id === module.id
                                       ? { ...m, title: data.title, imageUrl: data.imageUrl || m.imageUrl, requiredPoints: Number(data.requiredPoints || 0) || 0 }
                                       : m
                                   );
@@ -4436,7 +4458,7 @@ export default function App() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                          <button 
+                          <button
                             onClick={() => {
                               setPromptConfig({
                                 title: 'Editar Aula',
@@ -4450,13 +4472,13 @@ export default function App() {
                                     const trail = trailsState.find(t => t.id === module.trailId);
                                     if (!trail) return;
 
-                                    const updatedItems = (module.items || []).map((i: any) => 
-                                      i.id === lesson.id 
-                                        ? { ...i, title: data.title, videoUrl: data.videoUrl, description: data.description || '', imageUrl: getVideoThumbnail(data.videoUrl) } 
+                                    const updatedItems = (module.items || []).map((i: any) =>
+                                      i.id === lesson.id
+                                        ? { ...i, title: data.title, videoUrl: getEmbeddableVideoUrl(data.videoUrl), description: data.description || '', imageUrl: getVideoThumbnail(data.videoUrl) }
                                         : i
                                     );
-                                    
-                                    const updatedModules = (trail.modules || []).map((m: any) => 
+
+                                    const updatedModules = (trail.modules || []).map((m: any) =>
                                       m.id === module.id ? { ...m, items: updatedItems } : m
                                     );
 
@@ -4521,7 +4543,7 @@ export default function App() {
                   <h3 className="text-2xl font-black text-white uppercase tracking-tight">Trilhas</h3>
                   <p className="text-gray-400 text-sm mt-1">Organize seus módulos em trilhas de aprendizado para os alunos.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     setPromptConfig({
                       title: 'Nova Trilha',
@@ -4553,7 +4575,7 @@ export default function App() {
                     <div className="flex items-center justify-between mb-6">
                        <h4 className="text-xl font-bold text-white flex items-center gap-3">
                          <div className="flex flex-col gap-0.5">
-                           <button 
+                           <button
                              disabled={index === 0}
                              className={`p-1 rounded hover:bg-white/10 transition-colors ${index === 0 ? 'opacity-30 cursor-not-allowed' : 'text-gray-400 hover:text-white'}`}
                              onClick={async () => {
@@ -4571,7 +4593,7 @@ export default function App() {
                            >
                              <ArrowUp size={14} />
                            </button>
-                           <button 
+                           <button
                              disabled={index === trailsState.length - 1}
                              className={`p-1 rounded hover:bg-white/10 transition-colors ${index === trailsState.length - 1 ? 'opacity-30 cursor-not-allowed' : 'text-gray-400 hover:text-white'}`}
                              onClick={async () => {
@@ -4593,7 +4615,7 @@ export default function App() {
                          {trail.title}
                        </h4>
                        <div className="flex gap-2">
-                         <button 
+                         <button
                            onClick={() => {
                              setPromptConfig({
                                title: 'Editar Trilha',
@@ -4608,7 +4630,7 @@ export default function App() {
                          >
                            <Edit2 size={18} />
                          </button>
-                         <button 
+                         <button
                            onClick={() => {
                              setPromptConfig({
                                title: 'Excluir Trilha?',
@@ -4627,7 +4649,7 @@ export default function App() {
                          </button>
                        </div>
                     </div>
-                    
+
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                       {trail.modules?.map((mod, modIndex) => {
                         const moduleRequiredPoints = getModuleRequiredPoints(mod);
@@ -4654,7 +4676,7 @@ export default function App() {
                         </div>
                       );
                       })}
-                      <button 
+                      <button
                         onClick={() => {
                           const isLegacyMock = trail.id === 'trail-1' && !trailsState.some(t => t.id !== 'trail-1');
                           setPromptConfig({
@@ -4674,7 +4696,7 @@ export default function App() {
                                   requiredPoints: Number(data.requiredPoints || 0) || 0,
                                   items: []
                                 };
-                                
+
                                 if (isLegacyMock) {
                                   await addDoc(collection(db, 'trails'), {
                                     title: 'Minha Trilha de Conteúdo',
@@ -4892,7 +4914,7 @@ export default function App() {
                               >
                                 <Send size={14} />
                               </button>
-                              <button 
+                              <button
                                 onClick={() => handleToggleStudentBlock(student)}
                                 disabled={student.role === 'admin'}
                                 className={`p-2 bg-black/40 border border-white/5 rounded-lg transition-all ${student.isBlocked ? 'text-red-300 hover:bg-red-500 hover:text-white' : 'text-gray-400 hover:text-red-300'}`}
@@ -4901,7 +4923,7 @@ export default function App() {
                                 <Lock size={14} />
                               </button>
 
-                              <button 
+                              <button
                                 onClick={async () => {
                                   try {
                                     await updateDoc(doc(db, 'users', student.uid), {
@@ -4916,7 +4938,7 @@ export default function App() {
                               >
                                 <Key size={14} />
                               </button>
-                              <button 
+                              <button
                                 onClick={() => {
                                   setSelectedUser(student);
                                   setIsRoleModalOpen(true);
@@ -4926,7 +4948,7 @@ export default function App() {
                               >
                                 <Settings size={14} className="group-hover/btn:rotate-90 transition-transform duration-500" />
                               </button>
-                              
+
                               <button
                                 onClick={() => setSelectedJourneyUser(student)}
                                 className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-gray-300 font-black text-[9px] uppercase tracking-widest hover:border-[#4bd3ff]/50 hover:text-[#4bd3ff] transition-colors"
@@ -4935,7 +4957,7 @@ export default function App() {
                                 Jornada
                               </button>
 
-                              <button 
+                              <button
                                 onClick={() => {
                                   setSelectedUser(student);
                                   setIsFolhasModalOpen(true);
@@ -5006,7 +5028,7 @@ export default function App() {
                   <h3 className="text-2xl font-black text-white uppercase tracking-tight">Arquivos Disponíveis</h3>
                   <p className="text-gray-400 text-sm mt-1">Materiais em PDF, E-books e Planners para download.</p>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     setPromptConfig({
                       title: 'Novo Material',
@@ -5467,14 +5489,14 @@ export default function App() {
       <AnimatePresence>
         {isMissionModalOpen && (
           <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMissionModalOpen(false)}
               className="fixed inset-0 bg-black/90 backdrop-blur-md"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -5500,8 +5522,8 @@ export default function App() {
                        <p className="text-white font-bold">Confirmação de Áudio</p>
                     </div>
                     <label className="flex items-center gap-3 cursor-pointer group">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         checked={audioChecked}
                         onChange={(e) => setAudioChecked(e.target.checked)}
                         className="w-5 h-5 rounded border-white/10 bg-black/40 text-[#4bd3ff] focus:ring-[#4bd3ff]"
@@ -5514,9 +5536,9 @@ export default function App() {
                     {activeCiaChallenge.questions.map(q => (
                       <div key={q.id} className="space-y-3">
                         <label className="block text-sm font-black text-gray-400 uppercase tracking-widest">{q.label} <span className="text-[#4bd3ff]">*</span></label>
-                        
+
                         {q.type === 'textarea' ? (
-	                          <textarea 
+	                          <textarea
 	                            value={(missionResponses[q.id] as string) || ''}
                             onChange={(e) => setMissionResponses({...missionResponses, [q.id]: e.target.value})}
                             className="w-full bg-black/40 border border-white/10 rounded-none p-4 text-white text-sm focus:outline-none focus:border-[#4bd3ff] transition-colors min-h-[120px] resize-none"
@@ -5526,8 +5548,8 @@ export default function App() {
                           <div className="space-y-2">
                             {q.options?.map(opt => (
                               <label key={opt} className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-none cursor-pointer hover:bg-white/10 transition-all">
-                                <input 
-                                  type="radio" 
+                                <input
+                                  type="radio"
                                   name={q.id}
                                   value={opt}
                                   checked={missionResponses[q.id] === opt}
@@ -5542,13 +5564,13 @@ export default function App() {
                           <div className="space-y-2">
                             {q.options?.map(opt => (
                               <label key={opt} className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-none cursor-pointer hover:bg-white/10 transition-all">
-                                <input 
-                                  type="checkbox" 
+                                <input
+                                  type="checkbox"
                                   value={opt}
                                   checked={Array.isArray(missionResponses[q.id]) && missionResponses[q.id].includes(opt)}
                                   onChange={(e) => {
                                     const currentValues = Array.isArray(missionResponses[q.id]) ? missionResponses[q.id] : [];
-                                    const nextValues = e.target.checked 
+                                    const nextValues = e.target.checked
                                       ? [...currentValues, opt]
                                       : currentValues.filter((v: string) => v !== opt);
                                     setMissionResponses({...missionResponses, [q.id]: nextValues});
@@ -5560,11 +5582,11 @@ export default function App() {
                             ))}
                           </div>
                         ) : (
-	                          <input 
+	                          <input
 	                            type="text"
 	                            value={(missionResponses[q.id] as string) || ''}
                             onChange={(e) => setMissionResponses({...missionResponses, [q.id]: e.target.value})}
-                            className="w-full bg-black/40 border border-white/10 rounded-none p-4 text-white text-sm focus:outline-none focus:border-[#4bd3ff] transition-colors" 
+                            className="w-full bg-black/40 border border-white/10 rounded-none p-4 text-white text-sm focus:outline-none focus:border-[#4bd3ff] transition-colors"
                             placeholder="Sua resposta..."
                           />
                         )}
@@ -5573,7 +5595,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <button 
+                <button
                   onClick={handleSubmitMission}
                   disabled={isSubmittingMission || !audioChecked}
                   className="w-full bg-[#4bd3ff] hover:bg-[#38bdf8] disabled:opacity-50 disabled:cursor-not-allowed text-[#020507] font-black py-4 rounded-none uppercase tracking-[0.2em] text-xs transition-all shadow-[0_20px_40px_-10px_rgba(75,211,255,0.3)]"
@@ -5585,15 +5607,15 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-      
+
       {/* Navigation */}
       {activeTab !== 'guardiao' && (
 	      <nav className="fixed top-0 w-full z-50 flex items-center justify-between gap-3 px-4 sm:px-12 pt-5 pb-4 sm:pt-7 sm:pb-5 bg-gradient-to-b from-black/90 via-black/55 to-transparent transition-all duration-300 border-b border-white/5 backdrop-blur-sm">
 	        <div className="flex min-w-0 items-center gap-4 sm:gap-8">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('jornada')}>
-            <img 
-	              src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-horizontal-branca.png" 
-              alt="Éden Logo" 
+            <img
+	              src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-horizontal-branca.png"
+              alt="Éden Logo"
 	              className="h-7 sm:h-10 w-auto max-w-[150px] sm:max-w-none object-contain transition-transform hover:scale-105"
               referrerPolicy="no-referrer"
             />
@@ -5601,7 +5623,7 @@ export default function App() {
         </div>
 	        <div className="flex shrink-0 items-center gap-2 sm:gap-4 text-white">
           {isAdmin && (
-            <button 
+            <button
               onClick={() => setIsAdminPanelOpen(true)}
 	              className="flex items-center gap-2.5 px-3 sm:px-5 py-2.5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all sm:mr-2 group shadow-xl"
             >
@@ -5682,8 +5704,8 @@ export default function App() {
               <span className="text-base drop-shadow-sm">🍃</span>
               <span>{user?.points || 0}</span>
             </div>
-            
-            <div 
+
+            <div
               className="flex items-center gap-2 group cursor-pointer"
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
             >
@@ -5707,7 +5729,7 @@ export default function App() {
                   </div>
                   <div className="p-2">
                     {isAdmin && (
-                      <button 
+                      <button
                         onClick={() => {
                           setIsAdminPanelOpen(true);
                           setShowProfileDropdown(false);
@@ -5718,7 +5740,7 @@ export default function App() {
                         <span>Painel Admin</span>
                       </button>
                     )}
-                    <button 
+                    <button
                       onClick={() => {
                         setActiveTab('perfil');
                         setShowProfileDropdown(false);
@@ -5729,7 +5751,7 @@ export default function App() {
                       <span>Meu Perfil</span>
                     </button>
                     <div className="h-[1px] bg-white/5 my-2 mx-2"></div>
-                    <button 
+                    <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-3 p-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-colors font-bold"
                     >
@@ -5749,11 +5771,11 @@ export default function App() {
       {activeTab === 'jornada' && (
 	        <div className="relative w-full z-0 h-[430px] sm:h-[520px] lg:h-[600px] max-h-[600px] overflow-hidden">
 	          <div className="absolute inset-0">
-             <video 
-               autoPlay 
-               muted 
-               loop 
-               playsInline 
+             <video
+               autoPlay
+               muted
+               loop
+               playsInline
 	               className="w-full h-full object-cover opacity-65 scale-105"
 	             >
 	               <source src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Capa-Hubla.mp4" type="video/mp4" />
@@ -5771,7 +5793,7 @@ export default function App() {
         <div className="relative w-full z-0 pt-24 pb-16 px-4 sm:px-12 flex justify-center">
           <div className="w-full max-w-2xl bg-[#040e11] border border-white/10 p-6 sm:p-10 rounded-2xl shadow-2xl relative">
             <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[100px] rounded-full -mr-32 -mt-32"></div>
-            
+
             <div className="space-y-10 relative z-10">
               <div className="bg-[#0b0c10]/55 backdrop-blur-3xl border border-[#4bd3ff]/20 rounded-2xl p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)]">
                 <div className="flex items-center justify-between mb-8">
@@ -6031,7 +6053,7 @@ export default function App() {
           {/* Header */}
           <div className="h-16 shrink-0 border-b border-white/5 bg-[#040e11] flex items-center justify-between px-4 sm:px-8 z-10">
             <div className="flex items-center gap-4">
-              <button 
+              <button
                 onClick={() => setSelectedModule(null)}
                 className="p-2 hover:bg-white/5 rounded-full transition text-gray-400 hover:text-white"
               >
@@ -6045,7 +6067,7 @@ export default function App() {
               <div className="flex items-center gap-2 bg-[#0b2831] border border-[#144b5c] px-3 py-1 rounded-full text-xs font-black text-emerald-400">
                 <span>🍃</span> {user?.points || 0}
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedModule(null)}
                 className="text-gray-400 hover:text-white transition"
               >
@@ -6067,10 +6089,10 @@ export default function App() {
                 {/* Video Player Box */}
                 <div className="relative aspect-video bg-black rounded-none shadow-2xl border border-white/5 bg-[#0b2831]/10">
                    {activeLesson?.videoUrl ? (
-                     <iframe 
-                      src={activeLesson.videoUrl} 
+                     <iframe
+                      src={getEmbeddableVideoUrl(activeLesson.videoUrl)}
                       className="absolute inset-0 w-full h-full border-0"
-                      allow="autoplay; fullscreen; picture-in-picture; xr-spatial-tracking; clipboard-write" 
+                      allow="autoplay; fullscreen; picture-in-picture; xr-spatial-tracking; clipboard-write"
                       allowFullScreen
                       title={activeLesson.title}
                     />
@@ -6092,14 +6114,14 @@ export default function App() {
                       Módulo: <span className="text-gray-300">{selectedModule.title}</span>
                     </p>
                   </div>
-                  
-                  <button 
+
+                  <button
                     onClick={() => {
                       if (activeLesson) toggleChallengeCompletion(activeLesson.id);
                     }}
                     className={`shrink-0 flex items-center justify-center gap-2 px-6 py-3 rounded-sm font-black text-[10px] uppercase tracking-widest transition-all ${
-                      user?.completedChallenges?.includes(activeLesson?.id || '') 
-                      ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
+                      user?.completedChallenges?.includes(activeLesson?.id || '')
+                      ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
                       : 'bg-[#4bd3ff] text-[#020507] shadow-[0_0_15px_rgba(75,211,255,0.3)] hover:scale-105 active:scale-95'
                     }`}
                   >
@@ -6128,7 +6150,7 @@ export default function App() {
                 <div id="comments" className="px-4 sm:px-0 pt-8 border-t border-white/5">
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                      Comentários 
+                      Comentários
                       <span className="text-gray-500 text-sm font-bold bg-white/5 px-2 py-0.5 rounded-lg border border-white/5">
                         {comments.length}
                       </span>
@@ -6145,14 +6167,14 @@ export default function App() {
                       )}
                     </div>
                     <div className="flex-1 space-y-3">
-                      <textarea 
+                      <textarea
                         value={commentInput}
                         onChange={(e) => setCommentInput(e.target.value)}
                         placeholder="Escreva seu comentário..."
                         className="w-full bg-black/30 border border-white/10 rounded-none p-4 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4bd3ff]/50 focus:border-[#4bd3ff]/50 transition-all resize-none h-24"
                       />
                       <div className="flex justify-end">
-                    <button 
+                    <button
                       onClick={handleAddComment}
                       disabled={!commentInput.trim() || isSubmittingComment}
                       className="bg-[#4bd3ff] hover:bg-[#38bdf8] disabled:opacity-50 disabled:cursor-not-allowed text-[#020507] font-black py-2.5 px-6 rounded-none text-xs uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(75,211,255,0.2)]"
@@ -6219,7 +6241,7 @@ export default function App() {
               </div>
               <div className="flex-1 overflow-y-auto custom-scrollbar p-0">
                 {(selectedTrail?.modules || [selectedModule]).map((mod, mIdx) => (
-                  <ModuleAccordionItem 
+                  <ModuleAccordionItem
                     key={mod.id}
                     mod={mod}
                     mIdx={mIdx}
@@ -6322,20 +6344,20 @@ export default function App() {
       <AnimatePresence>
         {selectedLessonChallenge && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedLessonChallenge(null)}
               className="fixed inset-0 bg-black/90 backdrop-blur-md"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative w-full max-w-lg bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-10"
             >
-              <button 
+              <button
                 onClick={() => setSelectedLessonChallenge(null)}
                 className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors z-20"
               >
@@ -6343,10 +6365,10 @@ export default function App() {
               </button>
 
               <div className="aspect-video w-full relative overflow-hidden bg-[#061418]">
-                <img 
-                  src={selectedLessonChallenge.imageUrl || 'https://images.unsplash.com/photo-1533240332313-0db49b459ad6?auto=format&fit=crop&q=80&w=800'} 
-                  className="w-full h-full object-cover opacity-40" 
-                  alt="" 
+                <img
+                  src={selectedLessonChallenge.imageUrl || 'https://images.unsplash.com/photo-1533240332313-0db49b459ad6?auto=format&fit=crop&q=80&w=800'}
+                  className="w-full h-full object-cover opacity-40"
+                  alt=""
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="w-16 h-16 rounded-full bg-[#4bd3ff]/20 border border-[#4bd3ff]/30 flex items-center justify-center shadow-[0_0_30px_rgba(75,211,255,0.2)]">
@@ -6369,7 +6391,7 @@ export default function App() {
                 </p>
 
                 <div className="space-y-4">
-                  <button 
+                  <button
                     onClick={() => {
                       toggleChallengeCompletion(selectedLessonChallenge.id);
                       setSelectedLessonChallenge(null);
@@ -6380,11 +6402,11 @@ export default function App() {
                       : 'bg-[#4bd3ff] text-[#020507] hover:scale-[1.02] active:scale-95 shadow-[0_0_20px_rgba(75,211,255,0.2)]'
                     }`}
                   >
-                    {user?.completedChallenges?.includes(selectedLessonChallenge.id) 
-                      ? 'Desafio Concluído!' 
+                    {user?.completedChallenges?.includes(selectedLessonChallenge.id)
+                      ? 'Desafio Concluído!'
                       : 'Marcar como Concluído'}
                   </button>
-                  <button 
+                  <button
                     onClick={() => setSelectedLessonChallenge(null)}
                     className="w-full py-4 rounded-xl font-black text-[10px] uppercase tracking-widest text-gray-500 hover:text-white transition-colors"
                   >
@@ -6458,12 +6480,12 @@ export default function App() {
       {/* Video/Resource Modal */}
       {selectedItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8">
-           <div 
+           <div
              className="absolute inset-0 bg-black/90 backdrop-blur-sm"
              onClick={() => setSelectedItem(null)}
            />
            <div className="relative w-full max-w-6xl aspect-video bg-[#0b2831]/20 rounded-xl overflow-hidden shadow-2xl border border-gray-800 animate-in fade-in zoom-in-95 duration-200">
-             <button 
+             <button
                onClick={() => setSelectedItem(null)}
                className="absolute top-4 right-4 z-50 p-2 bg-black/50 hover:bg-black text-white rounded-full transition"
              >
@@ -6471,10 +6493,10 @@ export default function App() {
              </button>
 
              {selectedItem.type === 'video' && selectedItem.videoUrl ? (
-               <iframe 
-                 src={selectedItem.videoUrl} 
+               <iframe
+                 src={getEmbeddableVideoUrl(selectedItem.videoUrl)}
                  className="w-full h-full border-0"
-                 allow="autoplay; fullscreen; picture-in-picture; xr-spatial-tracking; clipboard-write" 
+                 allow="autoplay; fullscreen; picture-in-picture; xr-spatial-tracking; clipboard-write"
                  allowFullScreen
                  title={selectedItem.title}
                />
@@ -6858,7 +6880,7 @@ export default function App() {
               <X size={24} />
             </button>
             <h3 className="text-2xl font-black text-white tracking-tight mb-8">Adicionar/Remover Folhas</h3>
-            
+
             <div className="bg-white/5 border border-white/5 rounded-2xl p-8 text-center mb-8">
               <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-1">Usuário</p>
               <h4 className="text-xl font-black text-white mb-3">{selectedUser.name}</h4>
@@ -6873,14 +6895,14 @@ export default function App() {
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-3 px-1">
                   Quantidade (use números negativos para remover)
                 </label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   value={leavesAmount}
                    onChange={(e) => setLeavesAmount(parseInt(e.target.value) || 0)}
                   className="w-full bg-black/40 border-2 border-[#4bd3ff]/30 rounded-xl p-4 text-white text-xl font-black focus:outline-none focus:border-[#4bd3ff] transition-all"
                 />
               </div>
-              <button 
+              <button
                 onClick={handleUpdateLeaves}
                 className="w-full bg-[#4bd3ff] text-[#020507] py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-[#3bc2ee] transition-all transform active:scale-95 shadow-xl"
               >
@@ -6899,7 +6921,7 @@ export default function App() {
               <X size={24} />
             </button>
             <h3 className="text-2xl font-black text-white tracking-tight mb-8">Gerenciar Role de {selectedUser.name}</h3>
-            
+
             <div className="space-y-6">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">Roles Atuais</p>
@@ -6912,14 +6934,14 @@ export default function App() {
 
               <div className="space-y-3">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 px-1">Alterar Role</p>
-                <button 
+                <button
                   onClick={() => handleUpdateRole('admin')}
                   className="w-full bg-[#4bd3ff] text-[#020507] py-4 rounded-xl font-black uppercase tracking-widest hover:bg-[#3bc2ee] transition-all disabled:opacity-50"
                   disabled={selectedUser.role === 'admin'}
                 >
                   Promover para Admin
                 </button>
-                <button 
+                <button
                   onClick={() => handleUpdateRole('student')}
                   className="w-full bg-white/5 border border-white/10 text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-white/10 transition-all disabled:opacity-50"
                   disabled={selectedUser.role === 'student'}
@@ -6955,7 +6977,7 @@ export default function App() {
       {promptConfig && (
         <div className="fixed inset-0 z-[1400] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={promptConfig.onCancel} />
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
@@ -6965,8 +6987,8 @@ export default function App() {
               <h3 className="text-xl font-black text-white tracking-tight leading-tight">{promptConfig.title}</h3>
               {promptConfig.description && <p className="text-sm text-gray-400 mt-2">{promptConfig.description}</p>}
             </div>
-            
-            <form 
+
+            <form
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (isPromptSubmitting) return;
@@ -6993,7 +7015,7 @@ export default function App() {
                 <div key={field.name} className="space-y-2">
                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">{field.label}</label>
                   {field.type === 'textarea' ? (
-                    <textarea 
+                    <textarea
                       name={field.name}
                       defaultValue={field.defaultValue}
                       required={field.required}
@@ -7001,7 +7023,7 @@ export default function App() {
                       className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm focus:outline-none focus:border-[#4bd3ff] transition-colors min-h-[100px]"
                     />
                   ) : (
-                    <input 
+                    <input
                       type={field.type || "text"}
                       name={field.name}
                       defaultValue={field.defaultValue}
@@ -7012,17 +7034,17 @@ export default function App() {
                   )}
                 </div>
               ))}
-              
+
               <div className="flex justify-end gap-3 pt-6">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={promptConfig.onCancel}
                   disabled={isPromptSubmitting}
                   className="px-6 py-3 font-bold text-gray-400 hover:text-white disabled:opacity-50 transition-colors uppercase tracking-widest text-xs"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   type="submit"
                   disabled={isPromptSubmitting}
                   className="px-6 py-3 bg-white text-black font-black hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed uppercase tracking-widest text-xs rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all transform hover:scale-105 active:scale-95"
@@ -7058,20 +7080,20 @@ function VideoThumbnail({ imageUrl, videoUrl, className = '' }: { imageUrl?: str
   );
 }
 
-function ModuleAccordionItem({ 
-  mod, 
-  mIdx, 
-  isCurrentModule, 
-  currentLessonIndex, 
-  user, 
+function ModuleAccordionItem({
+  mod,
+  mIdx,
+  isCurrentModule,
+  currentLessonIndex,
+  user,
   onLockedModule,
   onSelectLesson,
   onSelectChallenge
-}: { 
-  mod: Module, 
-  mIdx: number, 
-  isCurrentModule: boolean, 
-  currentLessonIndex: number, 
+}: {
+  mod: Module,
+  mIdx: number,
+  isCurrentModule: boolean,
+  currentLessonIndex: number,
   user: UserProfile | null,
   onLockedModule: (mod: Module) => void,
   onSelectLesson: (mod: Module, idx: number) => void,
@@ -7084,7 +7106,7 @@ function ModuleAccordionItem({
 
   return (
     <div className="border-b border-white/5">
-      <button 
+      <button
         onClick={() => {
           if (isLocked) {
             onLockedModule(mod);
@@ -7114,7 +7136,7 @@ function ModuleAccordionItem({
 
       <AnimatePresence>
         {isExpanded && !isLocked && (
-          <motion.div 
+          <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -7126,9 +7148,9 @@ function ModuleAccordionItem({
               const isLessonActive = isCurrentModule && currentLessonIndex === idx;
               const isCompleted = user?.completedChallenges?.includes(lesson.id);
               const isChallenge = lesson.type === 'desafio';
-              
+
               return (
-                <button 
+                <button
                   key={lesson.id}
                   onClick={() => {
                     if (isChallenge) {
@@ -7138,8 +7160,8 @@ function ModuleAccordionItem({
                     }
                   }}
                   className={`w-full flex items-center gap-4 p-4 transition-all text-left group relative border-l-2 ${
-                    isLessonActive 
-                    ? 'bg-[#4bd3ff]/10 border-[#4bd3ff]' 
+                    isLessonActive
+                    ? 'bg-[#4bd3ff]/10 border-[#4bd3ff]'
                     : 'border-transparent hover:bg-white/[0.03]'
                   }`}
                 >
@@ -7185,7 +7207,7 @@ function ModuleAccordionItem({
 // Component for a horizontal scrolling Trail row containing Modules
 function TrailRow({ trail, onSelectModule, onLockedModule, user }: { trail: Trail, onSelectModule: (mod: Module, index?: number) => void, onLockedModule: (mod: Module) => void, user: UserProfile | null, key?: any }) {
   const rowRef = useRef<HTMLDivElement>(null);
-  
+
   const scroll = (direction: 'left' | 'right') => {
     if (rowRef.current) {
       const { scrollLeft, clientWidth } = rowRef.current;
@@ -7199,16 +7221,16 @@ function TrailRow({ trail, onSelectModule, onLockedModule, user }: { trail: Trai
       <div className="mb-4 px-2 tracking-tight">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-200">{trail.title}</h2>
       </div>
-      
+
       <div className="relative">
-        <button 
+        <button
           onClick={() => scroll('left')}
           className="absolute -left-4 sm:-left-10 top-1/2 -translate-y-1/2 z-30 text-white hover:text-gray-300 transition hidden sm:flex items-center justify-center hover:scale-110 drop-shadow-md"
         >
           <ChevronLeft size={36} />
         </button>
 
-        <div 
+        <div
            ref={rowRef}
            className="flex gap-3 sm:gap-4 overflow-x-auto scrollbar-hide px-2 pb-4 pt-2 -mt-2 smooth-scroll"
            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -7219,7 +7241,7 @@ function TrailRow({ trail, onSelectModule, onLockedModule, user }: { trail: Trai
             const requiredPoints = getModuleRequiredPoints(mod);
             const isLocked = isModuleLockedForUser(mod, user);
             return (
-              <div 
+              <div
                 key={mod.id}
                 onClick={() => {
                   if (isLocked) {
@@ -7235,7 +7257,7 @@ function TrailRow({ trail, onSelectModule, onLockedModule, user }: { trail: Trai
                 }`}
               >
                 <img src={mod.imageUrl} alt={mod.title} className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110 opacity-90 group-hover/card:opacity-100" />
-                
+
                 <div className={`absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t ${isLocked ? 'from-black/90 to-transparent' : 'from-black/60 to-transparent'} pointer-events-none`} />
                 {isLocked && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/25 px-4 text-center">
@@ -7258,7 +7280,7 @@ function TrailRow({ trail, onSelectModule, onLockedModule, user }: { trail: Trai
           })}
         </div>
 
-        <button 
+        <button
           onClick={() => scroll('right')}
           className="absolute -right-4 sm:-right-10 top-1/2 -translate-y-1/2 z-30 text-white hover:text-gray-300 transition hidden sm:flex items-center justify-center hover:scale-110 drop-shadow-md"
         >
@@ -7272,7 +7294,7 @@ function TrailRow({ trail, onSelectModule, onLockedModule, user }: { trail: Trai
 // Component for a horizontal scrolling category row
 function CategoryRow({ category, onSelect }: { category: NetflixCategory, onSelect: (item: any) => void, key?: any }) {
   const rowRef = useRef<HTMLDivElement>(null);
-  
+
   const scroll = (direction: 'left' | 'right') => {
     if (rowRef.current) {
       const { scrollLeft, clientWidth } = rowRef.current;
@@ -7286,10 +7308,10 @@ function CategoryRow({ category, onSelect }: { category: NetflixCategory, onSele
       <div className="mb-4 px-2 tracking-tight">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-200">{category.title}</h2>
       </div>
-      
+
       <div className="relative">
         {/* Left Scroll Button */}
-        <button 
+        <button
           onClick={() => scroll('left')}
           className="absolute -left-4 sm:-left-10 top-1/2 -translate-y-1/2 z-30 text-white hover:text-gray-300 transition hidden sm:flex items-center justify-center hover:scale-110 drop-shadow-md"
           aria-label="Voltar"
@@ -7298,7 +7320,7 @@ function CategoryRow({ category, onSelect }: { category: NetflixCategory, onSele
         </button>
 
         {/* Scroll Container */}
-        <div 
+        <div
            ref={rowRef}
            className="flex gap-3 sm:gap-4 overflow-x-auto scrollbar-hide px-2 pb-4 pt-2 -mt-2 smooth-scroll"
            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -7306,13 +7328,13 @@ function CategoryRow({ category, onSelect }: { category: NetflixCategory, onSele
           {category.items.map(item => {
             const isContentItem = 'type' in item;
             return (
-              <div 
+              <div
                 key={item.id}
                 onClick={() => onSelect(item)}
                 className="relative shrink-0 w-36 sm:w-44 md:w-52 aspect-[9/16] rounded-none bg-[#0b2831]/20 cursor-pointer overflow-hidden transition-all duration-300 hover:scale-105 hover:z-20 shadow-lg hover:shadow-2xl group/card border border-white/5 hover:border-white/20"
               >
                 <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110 opacity-80 group-hover/card:opacity-100" />
-                
+
                   {/* Bottom Info Gradient - Always Visible */}
                   <div className="absolute inset-x-0 bottom-0 top-1/2 bg-gradient-to-t from-[#020507] via-[#020507]/60 to-transparent flex flex-col justify-end p-4 transition-opacity duration-300">
                      <h4 className="font-extrabold text-base sm:text-lg text-white leading-tight drop-shadow-md decoration-white/30 group-hover/card:underline underline-offset-4">{item.title}</h4>
@@ -7327,7 +7349,7 @@ function CategoryRow({ category, onSelect }: { category: NetflixCategory, onSele
         </div>
 
         {/* Right Scroll Button */}
-        <button 
+        <button
           onClick={() => scroll('right')}
           className="absolute -right-4 sm:-right-10 top-1/2 -translate-y-1/2 z-30 text-white hover:text-gray-300 transition hidden sm:flex items-center justify-center hover:scale-110 drop-shadow-md"
           aria-label="Avançar"
