@@ -450,6 +450,13 @@ const getEmbeddableVideoUrl = (url: string | undefined) => {
 
 const isDirectVideoUrl = (url?: string) => /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(url || '');
 
+const formatAudioTime = (seconds: number) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60).toString().padStart(2, '0');
+  return `${minutes}:${remainingSeconds}`;
+};
+
 const upgradeInsecureUrl = (value?: string) => {
   if (typeof value !== 'string') return value || '';
   return value.replace(/^http:\/\//i, 'https://');
@@ -872,6 +879,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('jornada');
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Admin UI state
@@ -1405,6 +1414,12 @@ export default function App() {
   const [materiaisState, setMateriaisState] = useState(materiaisDeApoio);
   const [audioState, setAudioState] = useState(audioOfTheDay);
   const [offersState, setOffersState] = useState<Offer[]>([]);
+
+  useEffect(() => {
+    setIsPlayingAudio(false);
+    setAudioCurrentTime(0);
+    setAudioDuration(0);
+  }, [audioState.audioUrl]);
 
   // Admin settings for tab visibility
   const [tabVisibility, setTabVisibility] = useState({
@@ -2390,46 +2405,61 @@ export default function App() {
   const progressToNextLevel = (completedInCurrentLevel / activeLevel.tasks.length) * 100;
 
   const toggleAudio = async () => {
-    if (audioRef.current) {
-      if (isPlayingAudio) {
-        audioRef.current.pause();
-      } else {
-        await audioRef.current.play();
-        const today = new Date().toLocaleDateString('pt-BR').split('/').join('-');
-        if (user && user.lastAudioDate !== today) {
-           try {
-              const idToken = await auth.currentUser?.getIdToken();
-              if (!idToken) throw new Error('Sessão expirada.');
+    const audioElement = audioRef.current;
+    if (!audioElement) return;
 
-              const response = await fetch('/api/audio/reward', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${idToken}`,
-                  'Content-Type': 'application/json'
-                }
-              });
-              const data = await response.json().catch(() => ({}));
-              if (!response.ok) throw new Error(data?.error || 'Não foi possível registrar o áudio diário.');
-              if (data.rewarded) {
-                applyMonthlyRankingDelta(data.pointsAwarded || 5);
-                setUser({
-                  ...user,
-                  points: (user.points || 0) + (data.pointsAwarded || 5),
-                  lastAudioDate: data.rewardDate || today
-                });
-              } else if (data.rewardDate) {
-                setUser({
-                  ...user,
-                  lastAudioDate: data.rewardDate
-                });
-              }
-           } catch(e) {
-              console.warn('Could not register daily audio reward:', e);
-           }
+    if (!audioElement.paused && !audioElement.ended) {
+      audioElement.pause();
+      setIsPlayingAudio(false);
+      return;
+    }
+
+    try {
+      await audioElement.play();
+      setIsPlayingAudio(true);
+      const today = new Date().toLocaleDateString('pt-BR').split('/').join('-');
+      if (user && user.lastAudioDate !== today) {
+        try {
+          const idToken = await auth.currentUser?.getIdToken();
+          if (!idToken) throw new Error('Sessão expirada.');
+
+          const response = await fetch('/api/audio/reward', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data?.error || 'Não foi possível registrar o áudio diário.');
+          if (data.rewarded) {
+            applyMonthlyRankingDelta(data.pointsAwarded || 5);
+            setUser({
+              ...user,
+              points: (user.points || 0) + (data.pointsAwarded || 5),
+              lastAudioDate: data.rewardDate || today
+            });
+          } else if (data.rewardDate) {
+            setUser({
+              ...user,
+              lastAudioDate: data.rewardDate
+            });
+          }
+        } catch(e) {
+          console.warn('Could not register daily audio reward:', e);
         }
       }
-      setIsPlayingAudio(!isPlayingAudio);
+    } catch (error) {
+      console.warn('Could not play daily audio:', error);
+      setIsPlayingAudio(false);
     }
+  };
+
+  const handleAudioSeek = (value: number) => {
+    const audioElement = audioRef.current;
+    if (!audioElement || !Number.isFinite(value)) return;
+    audioElement.currentTime = value;
+    setAudioCurrentTime(value);
   };
 
   const handleSubmitMission = async () => {
@@ -2696,25 +2726,59 @@ export default function App() {
   };
 
 
-  const renderAudioCard = () => (
-    <div className="relative group cursor-pointer w-full max-w-2xl mx-auto -mt-2 sm:-mt-6" onClick={toggleAudio}>
-      <div className="absolute inset-0 bg-gradient-to-r from-[#4bd3ff]/20 via-emerald-500/10 to-[#0b2831]/30 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500 opacity-60"></div>
-      <div className="relative bg-[#061418]/85 backdrop-blur-2xl border border-[#4bd3ff]/20 p-4 sm:p-5 rounded-2xl shadow-2xl flex items-center gap-4 transition-all duration-300 hover:bg-[#071b20] hover:border-[#4bd3ff]/35 hover:-translate-y-0.5">
-        <button className="w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-tr from-[#0b2831] to-[#4bd3ff]/20 border border-[#4bd3ff]/20 text-white flex items-center justify-center transition-transform duration-300 group-hover:scale-105 shadow-[0_0_24px_rgba(75,211,255,0.18)]">
-          {isPlayingAudio ? <Volume2 size={22} className="text-[#4bd3ff]" /> : <Play size={22} className="translate-x-0.5 fill-white" />}
-        </button>
-        <div className="flex-1 min-w-0 space-y-1">
-          <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-[0.22em] truncate">
-            {audioState.subtitle || 'Mensagem do Guardião'}
-          </p>
-          <h3 className="text-lg sm:text-xl font-black text-white truncate tracking-tight">{audioState.title || audioOfTheDay.title}</h3>
-          <p className="text-xs sm:text-sm text-gray-400 leading-relaxed line-clamp-2">
-            {audioState.description || audioOfTheDay.description}
-          </p>
+  const renderAudioCard = () => {
+    const audioProgress = audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0;
+
+    return (
+      <div className="relative group w-full max-w-2xl mx-auto -mt-2 sm:-mt-6">
+        <div className="absolute inset-0 bg-gradient-to-r from-[#4bd3ff]/20 via-emerald-500/10 to-[#0b2831]/30 rounded-2xl blur-xl group-hover:blur-2xl transition-all duration-500 opacity-60"></div>
+        <div className="relative bg-[#061418]/85 backdrop-blur-2xl border border-[#4bd3ff]/20 p-4 sm:p-5 rounded-2xl shadow-2xl transition-all duration-300 hover:bg-[#071b20] hover:border-[#4bd3ff]/35 hover:-translate-y-0.5">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={toggleAudio}
+              className="w-14 h-14 shrink-0 rounded-2xl bg-gradient-to-tr from-[#0b2831] to-[#4bd3ff]/20 border border-[#4bd3ff]/20 text-white flex items-center justify-center transition-transform duration-300 group-hover:scale-105 shadow-[0_0_24px_rgba(75,211,255,0.18)]"
+              aria-label={isPlayingAudio ? 'Pausar áudio diário' : 'Tocar áudio diário'}
+            >
+              {isPlayingAudio ? <Volume2 size={22} className="text-[#4bd3ff]" /> : <Play size={22} className="translate-x-0.5 fill-white" />}
+            </button>
+            <div className="flex-1 min-w-0 space-y-1">
+              <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-[0.22em] truncate">
+                {audioState.subtitle || 'Mensagem do Guardião'}
+              </p>
+              <h3 className="text-lg sm:text-xl font-black text-white truncate tracking-tight">{audioState.title || audioOfTheDay.title}</h3>
+              <p className="text-xs sm:text-sm text-gray-400 leading-relaxed line-clamp-2">
+                {audioState.description || audioOfTheDay.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <span className="w-10 text-right text-[10px] font-black tabular-nums text-[#4bd3ff]">{formatAudioTime(audioCurrentTime)}</span>
+            <div className="relative flex-1">
+              <div className="h-2 rounded-full bg-black/45 border border-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[#4bd3ff] to-emerald-400 shadow-[0_0_18px_rgba(75,211,255,0.28)]"
+                  style={{ width: `${Math.max(0, Math.min(100, audioProgress))}%` }}
+                />
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(1, audioDuration || 1)}
+                step="0.1"
+                value={Math.min(audioCurrentTime, Math.max(1, audioDuration || 1))}
+                onChange={(event) => handleAudioSeek(Number(event.target.value))}
+                className="absolute inset-x-0 -top-2 h-6 w-full cursor-pointer opacity-0"
+                aria-label="Linha do tempo do áudio diário"
+              />
+            </div>
+            <span className="w-10 text-[10px] font-black tabular-nums text-gray-500">{formatAudioTime(audioDuration)}</span>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderContent = () => {
     const currentTab = INITIAL_TABS.find(t => t.id === activeTab);
@@ -5427,7 +5491,23 @@ export default function App() {
          </div>
       )}
 	      {isAdminPanelOpen && renderAdminPanel()}
-	      <audio ref={audioRef} src={audioState.audioUrl} className="hidden" />
+	      <audio
+	        ref={audioRef}
+	        src={audioState.audioUrl}
+	        className="hidden"
+	        onLoadedMetadata={(event) => {
+	          setAudioDuration(event.currentTarget.duration || 0);
+	          setAudioCurrentTime(event.currentTarget.currentTime || 0);
+	        }}
+	        onDurationChange={(event) => setAudioDuration(event.currentTarget.duration || 0)}
+	        onTimeUpdate={(event) => setAudioCurrentTime(event.currentTarget.currentTime || 0)}
+	        onPlay={() => setIsPlayingAudio(true)}
+	        onPause={() => setIsPlayingAudio(false)}
+	        onEnded={() => {
+	          setIsPlayingAudio(false);
+	          setAudioCurrentTime(audioDuration || 0);
+	        }}
+	      />
 
 	      {user?.requiresPasswordSetup && (
 	        <div className="fixed inset-0 z-[1200] bg-[#020507] flex items-center justify-center p-4">
