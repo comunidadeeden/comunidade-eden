@@ -76,6 +76,13 @@ const authorizedFetch = async (url, options = {}, scopes = [FIRESTORE_SCOPE]) =>
   return { response, body };
 };
 
+const wait = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+const isRetryableAuthLookupError = (response, body = {}) => {
+  const status = body?.error?.status || '';
+  return response.status === 429 || response.status >= 500 || ['UNAVAILABLE', 'RESOURCE_EXHAUSTED'].includes(status);
+};
+
 export const getDocument = async (collection, id) => {
   const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}/${collection}/${encodeURIComponent(id)}`);
   if (response.status === 404) return null;
@@ -643,20 +650,34 @@ export const getAuthUserByEmail = async (email) => {
 };
 
 export const getAuthUserByIdToken = async (idToken) => {
-  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${webApiKey()}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken })
-  });
-  const body = await response.json().catch(() => ({}));
+  let lastBody = {};
+  let lastResponse = null;
 
-  if (!response.ok) {
-    console.error('Firebase Auth idToken lookup error:', body);
-    throw new Error('Token de autenticacao invalido.');
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${webApiKey()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken })
+    });
+    const body = await response.json().catch(() => ({}));
+
+    if (response.ok) {
+      const user = body.users?.[0];
+      return user?.localId ? { uid: user.localId, email: user.email } : null;
+    }
+
+    lastBody = body;
+    lastResponse = response;
+    if (!isRetryableAuthLookupError(response, body) || attempt === 2) break;
+    await wait(300 * (attempt + 1));
   }
 
-  const user = body.users?.[0];
-  return user?.localId ? { uid: user.localId, email: user.email } : null;
+  console.error('Firebase Auth idToken lookup error:', lastBody);
+  const status = lastBody?.error?.status || lastResponse?.status;
+  if (['UNAVAILABLE', 'RESOURCE_EXHAUSTED'].includes(status) || Number(status) >= 500 || Number(status) === 429) {
+    throw new Error('O Firebase ficou temporariamente indisponivel. Tente novamente em alguns segundos.');
+  }
+  throw new Error('Token de autenticacao invalido.');
 };
 
 
