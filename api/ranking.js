@@ -1,6 +1,7 @@
 import { countMonthlyScoresAhead, countUsersAheadByPoints, getAuthUserByIdToken, getDocument, getMonthlyScore, queryMonthlyScores, queryNotifications, queryTopUsersByPoints } from './lib/firebaseRest.js';
 
 const DEFAULT_MONTHLY_PRIZE = '1 sessão individual com Bruno Simplicio';
+const ADMIN_EMAIL = 'gu.correa98@gmail.com';
 
 const safePoints = (value) => Math.max(0, Number(value || 0));
 
@@ -68,6 +69,33 @@ export default async function handler(request, response) {
     }
 
     const monthKey = String(request.query?.month || getSaoPauloMonthKey()).trim();
+
+    if (request.query?.adminMonthlyHistory === '1') {
+      const isAdmin = authUser.email === ADMIN_EMAIL || requester.role === 'admin';
+      if (!isAdmin) return response.status(403).json({ error: 'Acesso restrito ao admin.' });
+
+      const [monthlyScores, monthlyRankingSettings] = await Promise.all([
+        queryMonthlyScores(monthKey, 20),
+        getDocument('settings', 'monthlyRanking').catch(() => null)
+      ]);
+
+      return response.status(200).json({
+        monthly: {
+          monthKey,
+          prize: monthlyRankingSettings?.prize || DEFAULT_MONTHLY_PRIZE,
+          users: monthlyScores.map((score, index) => ({
+            uid: score.uid,
+            name: score.name || 'Aluna',
+            avatar: score.avatar || '',
+            points: safePoints(score.points),
+            totalPoints: safePoints(score.totalPoints),
+            isCofounder: Boolean(score.isCofounder),
+            rankPosition: index + 1
+          }))
+        }
+      });
+    }
+
     const requesterPoints = safePoints(requester.points);
     const [topUsers, usersAhead, monthlyScores, currentMonthlyScore, monthlyRankingSettings] = await Promise.all([
       queryTopUsersByPoints(3),
