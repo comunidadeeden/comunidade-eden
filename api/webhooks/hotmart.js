@@ -16,6 +16,22 @@ import {
 } from '../lib/hotmart.js';
 
 const upsertStudentAccess = async ({ email, name, offerId, grantMainAccess }) => {
+  const lookupUser = await getAuthUserByEmail(email);
+  if (lookupUser?.uid) {
+    const existingUser = await getDocument('users', lookupUser.uid);
+    if (existingUser) {
+      return {
+        uid: lookupUser.uid,
+        created: false,
+        skipped: true,
+        reason: 'existing_user_no_access_email',
+        emailSent: false,
+        accessExpiresAt: existingUser.accessExpiresAt || '',
+        purchasedOfferIds: existingUser.purchasedOfferIds || []
+      };
+    }
+  }
+
   return provisionStudentAccess({ email, name, offerId, grantMainAccess });
 };
 
