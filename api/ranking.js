@@ -1,4 +1,5 @@
-import { countMonthlyScoresAhead, countUsersAheadByPoints, getAuthUserByIdToken, getDocument, getMonthlyScore, queryMonthlyScores, queryNotifications, queryTopUsersByPoints } from './lib/firebaseRest.js';
+import crypto from 'node:crypto';
+import { countMonthlyScoresAhead, countUsersAheadByPoints, getAuthUserByIdToken, getDocument, getMonthlyScore, queryMonthlyScores, queryNotifications, queryTopUsersByPoints, setDocument } from './lib/firebaseRest.js';
 
 const DEFAULT_MONTHLY_PRIZE = '1 sessão individual com Bruno Simplicio';
 const ADMIN_EMAIL = 'gu.correa98@gmail.com';
@@ -45,9 +46,53 @@ const getDaysRemainingInMonth = () => {
   return Math.max(0, lastDay - saoPauloDate.getDate());
 };
 
+const sanitizeText = (value = '', maxLength = 1000) => String(value || '').trim().slice(0, maxLength);
+
+const handleCreateComment = async (request, response, authUser, requester) => {
+  const lessonId = sanitizeText(request.body?.lessonId, 128);
+  const lessonTitle = sanitizeText(request.body?.lessonTitle || 'Aula', 160);
+  const text = sanitizeText(request.body?.text, 1000);
+
+  if (!lessonId || !text) {
+    return response.status(400).json({ error: 'Informe o comentario e a aula.' });
+  }
+
+  const now = new Date();
+  const commentId = 'comment_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
+
+  await setDocument('comments', commentId, {
+    userId: authUser.uid,
+    userName: requester.name || authUser.email || 'Aluna',
+    userAvatar: requester.avatar || '',
+    userPoints: safePoints(requester.points),
+    userInsignia: requester.levelTitle || '',
+    text,
+    lessonId,
+    createdAt: now
+  });
+
+  const notificationId = 'lesson_comment_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
+  const authorName = requester.name || authUser.email || 'Uma aluna';
+  const preview = text.slice(0, 180) + (text.length > 180 ? '...' : '');
+
+  await setDocument('adminNotifications', notificationId, {
+    type: 'lesson_comment',
+    title: 'Novo comentario em aula',
+    message: authorName + ' comentou em "' + lessonTitle + '": ' + preview,
+    lessonId,
+    lessonTitle,
+    userId: authUser.uid,
+    userName: requester.name || authUser.email || 'Aluna',
+    createdAt: now,
+    publishedAt: now
+  });
+
+  return response.status(201).json({ ok: true, id: commentId });
+};
+
 export default async function handler(request, response) {
-  if (request.method !== 'GET') {
-    response.setHeader('Allow', 'GET');
+  if (!['GET', 'POST'].includes(request.method)) {
+    response.setHeader('Allow', 'GET, POST');
     return response.status(405).json({ error: 'Metodo nao permitido.' });
   }
 
@@ -61,6 +106,14 @@ export default async function handler(request, response) {
     const requester = await getDocument('users', authUser.uid);
     if (!requester || requester.isBlocked || isAccessExpired(requester.accessExpiresAt)) {
       return response.status(403).json({ error: 'Acesso indisponivel.' });
+    }
+
+    if (request.method === 'POST') {
+      const action = String(request.body?.action || '').trim();
+      if (action === 'comment:create') {
+        return handleCreateComment(request, response, authUser, requester);
+      }
+      return response.status(400).json({ error: 'Acao invalida.' });
     }
 
     if (request.query?.notificationsOnly === '1') {

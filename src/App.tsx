@@ -373,6 +373,24 @@ const formatNotificationDate = (value: any) => {
   return new Date(millis).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 };
 
+const renderTextWithLinks = (text: string) => {
+  const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  return text.split(urlPattern).map((part, index) => {
+    if (!part.match(urlPattern)) return part;
+    const cleanUrl = part.replace(/[.,;:!?)]$/, '');
+    const suffix = part.slice(cleanUrl.length);
+    const href = cleanUrl.startsWith('http') ? cleanUrl : 'https://' + cleanUrl;
+    return (
+      <React.Fragment key={'lesson-link-' + index}>
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#4bd3ff] underline decoration-[#4bd3ff]/40 underline-offset-4 hover:text-white">
+          {cleanUrl}
+        </a>
+        {suffix}
+      </React.Fragment>
+    );
+  });
+};
+
 const formatLastAccess = (value: any) => {
   const millis = getTimestampMillis(value);
   if (!millis) return 'Nunca acessou';
@@ -1435,6 +1453,7 @@ export default function App() {
   const [dailyChallenges, setDailyChallenges] = useState<DailyChallenge[]>([]);
   const [allCompletions, setAllCompletions] = useState<DailyChallengeCompletion[]>([]);
   const [notificationsState, setNotificationsState] = useState<NotificationNotice[]>([]);
+  const [adminNotificationsState, setAdminNotificationsState] = useState<NotificationNotice[]>([]);
   const [commitmentCompletions, setCommitmentCompletions] = useState<DailyCommitmentCompletion[]>([]);
   const [todayChallenge, setTodayChallenge] = useState<DailyChallenge | null>(null);
   const [allAudios, setAllAudios] = useState<DailyAudio[]>([]);
@@ -1572,6 +1591,16 @@ export default function App() {
   };
 
   const notificationItems = [
+    ...(isAdmin ? adminNotificationsState.map(notice => ({
+      id: String(notice.id || notice.title),
+      eyebrow: 'Alerta para admins',
+      title: notice.title,
+      message: notice.message,
+      dateLabel: formatNotificationDate(notice.publishedAt || notice.createdAt),
+      onClick: () => {
+        if (notice.linkUrl) window.open(notice.linkUrl, '_blank', 'noopener,noreferrer');
+      }
+    })) : []),
     ...notificationsState.map(notice => ({
       id: String(notice.id || notice.title),
       eyebrow: 'Aviso do Éden',
@@ -1920,6 +1949,19 @@ export default function App() {
       handleFirestoreError(error, 'LIST', 'notifications');
     });
 
+    let unsubscribeAdminNotifications: (() => void) | null = null;
+
+    if (isAdmin) {
+      unsubscribeAdminNotifications = onSnapshot(query(collection(db, 'adminNotifications'), orderBy('createdAt', 'desc'), limit(20)), (snapshot) => {
+        const notices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as NotificationNotice));
+        setAdminNotificationsState(notices);
+      }, (error) => {
+        handleFirestoreError(error, 'LIST', 'adminNotifications');
+      });
+    } else {
+      setAdminNotificationsState([]);
+    }
+
     let unsubscribeStudents: (() => void) | null = null;
 
     if (isAdmin) {
@@ -1938,6 +1980,7 @@ export default function App() {
       unsubscribeMaterials();
       unsubscribeOffers();
       unsubscribeNotifications();
+      if (unsubscribeAdminNotifications) unsubscribeAdminNotifications();
       if (unsubscribeStudents) unsubscribeStudents();
     };
   }, [user, isAdmin]);
@@ -2152,19 +2195,24 @@ export default function App() {
 
     setIsSubmittingComment(true);
     try {
-      const userLevel = getUserLevel(user.points || 0);
-      const newComment = {
-        userId: user.uid,
-        userName: user.name,
-        userAvatar: user.avatar,
-        userPoints: user.points || 0,
-        userInsignia: userLevel.title,
-        text: commentInput,
-        lessonId: activeLesson.id,
-        createdAt: serverTimestamp(),
-      };
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Sessão expirada. Entre novamente.');
 
-      await setDoc(doc(collection(db, 'comments')), newComment);
+      const response = await fetch('/api/ranking', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + idToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'comment:create',
+          lessonId: activeLesson.id,
+          lessonTitle: activeLesson.title,
+          text: commentInput
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível publicar o comentário.');
       setCommentInput('');
     } catch (error) {
       handleFirestoreError(error, 'CREATE', 'comments');
@@ -6364,7 +6412,7 @@ export default function App() {
                       <h3 className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-300">Descrição da aula</h3>
                     </div>
                     <p className="text-gray-300 text-sm sm:text-base leading-7 whitespace-pre-wrap">
-                      {activeLesson.description}
+                      {renderTextWithLinks(activeLesson.description)}
                     </p>
                   </section>
                 )}

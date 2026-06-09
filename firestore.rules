@@ -228,6 +228,10 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /adminNotifications/{notificationId} {
+      allow read, write: if isAdmin();
+    }
+
     match /modules/{moduleId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
