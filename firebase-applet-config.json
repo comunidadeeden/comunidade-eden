@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0773439289",
-  "appId": "1:1029992571928:web:1f4130a6ddfa9c6fc68f6d",
-  "apiKey": "AIzaSyCRlRMc8IzSI0qTtseq0s-lNs5mvV5JT8c",
-  "authDomain": "gen-lang-client-0773439289.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-7894fd20-6f3b-4479-9bc3-4af439615a46",
-  "storageBucket": "gen-lang-client-0773439289.firebasestorage.app",
-  "messagingSenderId": "1029992571928",
-  "measurementId": ""
+  "projectId": "comunidade-eden",
+  "appId": "1:554758268137:web:d1a49177c3a80abcc6fc78",
+  "apiKey": "AIzaSyBcMMeEK5R4GoBq3cmwzzKIYtSzDsp-jRw",
+  "authDomain": "comunidade-eden.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "comunidade-eden.firebasestorage.app",
+  "messagingSenderId": "554758268137",
+  "measurementId": "G-77SKHKQ6HZ"
 }
