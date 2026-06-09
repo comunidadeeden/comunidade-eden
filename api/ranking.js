@@ -158,6 +158,9 @@ export default async function handler(request, response) {
     });
   } catch (error) {
     console.error('Ranking API error:', error);
+    if (error?.statusCode === 401) {
+      return response.status(401).json({ error: 'Sessao expirada. Entre novamente.' });
+    }
     return response.status(500).json({ error: 'Nao foi possivel carregar o ranking.' });
   }
 }

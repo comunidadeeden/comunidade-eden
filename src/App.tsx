@@ -1029,6 +1029,11 @@ export default function App() {
       headers: { 'Authorization': `Bearer ${idToken}` }
     });
     const result = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      await signOut(auth);
+      setLoginError('Sua sessão foi atualizada. Entre novamente para continuar.');
+      return;
+    }
     if (!response.ok) throw new Error(result.error || 'Não foi possível carregar os avisos.');
     if (Array.isArray(result.notifications)) {
       setNotificationsState(result.notifications as NotificationNotice[]);
@@ -2048,6 +2053,11 @@ export default function App() {
           headers: { 'Authorization': `Bearer ${idToken}` }
         });
         const data = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          await signOut(auth);
+          setLoginError('Sua sessão foi atualizada. Entre novamente para continuar.');
+          return;
+        }
         if (!response.ok) throw new Error(data?.error || 'Não foi possível carregar o ranking.');
         if (!isAdmin) setRankingUsers(data.users || []);
         setMonthlyRankingUsers(data.monthly?.users || []);

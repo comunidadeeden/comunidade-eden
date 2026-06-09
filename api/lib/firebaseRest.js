@@ -677,7 +677,9 @@ export const getAuthUserByIdToken = async (idToken) => {
   if (['UNAVAILABLE', 'RESOURCE_EXHAUSTED'].includes(status) || Number(status) >= 500 || Number(status) === 429) {
     throw new Error('O Firebase ficou temporariamente indisponivel. Tente novamente em alguns segundos.');
   }
-  throw new Error('Token de autenticacao invalido.');
+  const error = new Error('Token de autenticacao invalido.');
+  error.statusCode = 401;
+  throw error;
 };
 
 
