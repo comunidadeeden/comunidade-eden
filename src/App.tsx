@@ -39,6 +39,24 @@ const DEFAULT_ACCESS_EMAIL_TEMPLATE = {
 };
 const DEFAULT_MONTHLY_RANKING_PRIZE = '1 sessão individual com Bruno Simplicio';
 const DAILY_COMMITMENT_POINTS = 10;
+const IS_MAINTENANCE_MODE = (import.meta as any).env?.VITE_MAINTENANCE_MODE === 'true';
+
+function MaintenancePage() {
+  return (
+    <div className="min-h-screen bg-[#020507] text-white flex items-center justify-center px-6">
+      <div className="w-full max-w-xl rounded-[28px] border border-[#4bd3ff]/25 bg-[#071316] p-8 sm:p-12 text-center shadow-[0_0_60px_rgba(75,211,255,0.12)]">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full border border-[#4bd3ff]/35 bg-[#4bd3ff]/10">
+          <Leaf className="text-[#4bd3ff]" size={28} />
+        </div>
+        <p className="mb-3 text-xs font-black uppercase tracking-[0.32em] text-[#4bd3ff]">Comunidade Eden</p>
+        <h1 className="mb-4 text-3xl sm:text-4xl font-black tracking-tight">Estamos em manutencao</h1>
+        <p className="text-base sm:text-lg leading-relaxed text-gray-300">
+          Estamos organizando o Jardim para melhorar sua experiencia. Voltamos em breve.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 type GuardianMessage = { role: 'user' | 'assistant', content: string };
 type GuardianSession = { id: string, title: string, date: string, messages: GuardianMessage[] };
@@ -853,6 +871,10 @@ const JOURNEY_LEVELS = [
 ];
 
 export default function App() {
+  if (IS_MAINTENANCE_MODE) {
+    return <MaintenancePage />;
+  }
+
   if (window.location.pathname === '/auth/action') {
     return <PasswordActionPage />;
   }
