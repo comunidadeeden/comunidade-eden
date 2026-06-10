@@ -2872,29 +2872,30 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mt-4 flex items-center gap-3">
-            <span className="w-10 text-right text-[10px] font-black tabular-nums text-[#4bd3ff]">{formatAudioTime(audioCurrentTime)}</span>
-            <div className="relative flex-1">
-              <div className="h-2 rounded-full bg-black/45 border border-white/10 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#4bd3ff] to-emerald-400 shadow-[0_0_18px_rgba(75,211,255,0.28)]"
-                  style={{ width: `${Math.max(0, Math.min(100, audioProgress))}%` }}
+          {hasDailyAudio && (
+            <div className="mt-4 flex items-center gap-3">
+              <span className="w-10 text-right text-[10px] font-black tabular-nums text-[#4bd3ff]">{formatAudioTime(audioCurrentTime)}</span>
+              <div className="relative flex-1">
+                <div className="h-2 rounded-full bg-black/45 border border-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#4bd3ff] to-emerald-400 shadow-[0_0_18px_rgba(75,211,255,0.28)]"
+                    style={{ width: `${Math.max(0, Math.min(100, audioProgress))}%` }}
+                  />
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(1, audioDuration || 1)}
+                  step="0.1"
+                  value={Math.min(audioCurrentTime, Math.max(1, audioDuration || 1))}
+                  onChange={(event) => handleAudioSeek(Number(event.target.value))}
+                  className="absolute inset-x-0 -top-2 h-6 w-full cursor-pointer opacity-0"
+                  aria-label="Linha do tempo do áudio diário"
                 />
               </div>
-              <input
-                type="range"
-                disabled={!hasDailyAudio}
-                min={0}
-                max={Math.max(1, audioDuration || 1)}
-                step="0.1"
-                value={Math.min(audioCurrentTime, Math.max(1, audioDuration || 1))}
-                onChange={(event) => handleAudioSeek(Number(event.target.value))}
-                className="absolute inset-x-0 -top-2 h-6 w-full cursor-pointer opacity-0"
-                aria-label="Linha do tempo do áudio diário"
-              />
+              <span className="w-10 text-[10px] font-black tabular-nums text-gray-500">{formatAudioTime(audioDuration)}</span>
             </div>
-            <span className="w-10 text-[10px] font-black tabular-nums text-gray-500">{formatAudioTime(audioDuration)}</span>
-          </div>
+          )}
 
           {!hasDailyAudio && (
             <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-bold leading-relaxed text-gray-400">
