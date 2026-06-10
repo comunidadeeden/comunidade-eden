@@ -1,4 +1,4 @@
-import { getAuthUserByIdToken, getDocument } from './lib/firebaseRest.js';
+import { getAuthUserByIdToken, getDocument } from '../server/lib/firebaseRest.js';
 
 const DEFAULT_GUARDIAN_PROMPT = [
   'Você é o Guardião do Éden, um mentor conversacional para uma área de membros fechada.',

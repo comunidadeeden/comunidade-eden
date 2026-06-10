@@ -38,6 +38,16 @@ const DEFAULT_ACCESS_EMAIL_TEMPLATE = {
   note: 'Se você não reconhece essa compra, ignore este email.'
 };
 const DEFAULT_MONTHLY_RANKING_PRIZE = '1 sessão individual com Bruno Simplicio';
+const EMPTY_DAILY_AUDIO: DailyAudio = {
+  id: 'empty-daily-audio',
+  date: '',
+  tag: 'Áudio do dia',
+  subtitle: 'Mensagem do Jardim',
+  title: 'A mensagem de hoje ainda não chegou',
+  description: 'Volte um pouco mais tarde. Assim que o áudio for liberado, o play fica disponível por aqui.',
+  audioUrl: '',
+  createdAt: null
+};
 const DAILY_COMMITMENT_POINTS = 10;
 const IS_MAINTENANCE_MODE = (import.meta as any).env?.VITE_MAINTENANCE_MODE === 'true';
 
@@ -1478,13 +1488,15 @@ export default function App() {
 
   const activeLesson = selectedModule?.items[currentLessonIndex];
   const [materiaisState, setMateriaisState] = useState(materiaisDeApoio);
-  const [audioState, setAudioState] = useState(audioOfTheDay);
+  const [audioState, setAudioState] = useState<DailyAudio>(EMPTY_DAILY_AUDIO);
   const [offersState, setOffersState] = useState<Offer[]>([]);
+  const [audioUnavailableMessage, setAudioUnavailableMessage] = useState('');
 
   useEffect(() => {
     setIsPlayingAudio(false);
     setAudioCurrentTime(0);
     setAudioDuration(0);
+    setAudioUnavailableMessage('');
   }, [audioState.audioUrl]);
 
   // Admin settings for tab visibility
@@ -2023,10 +2035,10 @@ export default function App() {
     // Fetch today's audio
     const audioRefDoc = doc(db, 'dailyAudios', today);
     const unsubscribeTodayAudio = onSnapshot(audioRefDoc, (docC) => {
-       if (docC.exists()) {
+       if (docC.exists() && docC.data()?.audioUrl) {
          setAudioState(docC.data() as DailyAudio);
        } else {
-         setAudioState(audioOfTheDay); // fallback
+         setAudioState(EMPTY_DAILY_AUDIO);
        }
     }, (error) => {
       handleFirestoreError(error, 'GET' as any, 'dailyAudios');
@@ -2505,6 +2517,12 @@ export default function App() {
   const progressToNextLevel = (completedInCurrentLevel / activeLevel.tasks.length) * 100;
 
   const toggleAudio = async () => {
+    if (!audioState.audioUrl) {
+      setAudioUnavailableMessage('A mensagem de hoje ainda não chegou. Volte um pouco mais tarde para ouvir o áudio do dia.');
+      window.setTimeout(() => setAudioUnavailableMessage(''), 4200);
+      return;
+    }
+
     const audioElement = audioRef.current;
     if (!audioElement) return;
 
@@ -2827,6 +2845,7 @@ export default function App() {
 
 
   const renderAudioCard = () => {
+    const hasDailyAudio = Boolean(audioState.audioUrl);
     const audioProgress = audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0;
 
     return (
@@ -2864,6 +2883,7 @@ export default function App() {
               </div>
               <input
                 type="range"
+                disabled={!hasDailyAudio}
                 min={0}
                 max={Math.max(1, audioDuration || 1)}
                 step="0.1"
@@ -2875,6 +2895,12 @@ export default function App() {
             </div>
             <span className="w-10 text-[10px] font-black tabular-nums text-gray-500">{formatAudioTime(audioDuration)}</span>
           </div>
+
+          {!hasDailyAudio && (
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-bold leading-relaxed text-gray-400">
+              A mensagem de hoje ainda não chegou. Assim que o áudio for liberado, o play fica disponível.
+            </div>
+          )}
         </div>
       </div>
     );
@@ -5681,7 +5707,21 @@ export default function App() {
            </div>
          </div>
       )}
-	      {isAdminPanelOpen && renderAdminPanel()}
+	      <AnimatePresence>
+        {audioUnavailableMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            className="fixed bottom-24 left-1/2 z-[80] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-[#4bd3ff]/25 bg-[#061418]/95 px-5 py-4 text-center shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:bottom-28"
+          >
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#4bd3ff]">Áudio do dia</p>
+            <p className="mt-1 text-sm font-bold leading-relaxed text-white">{audioUnavailableMessage}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {isAdminPanelOpen && renderAdminPanel()}
 	      <audio
 	        ref={audioRef}
 	        src={audioState.audioUrl}
@@ -6808,9 +6848,9 @@ export default function App() {
                   <button
                     type="button"
                     onClick={toggleAudio}
-                    className={`relative -mt-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 transition-all sm:h-16 sm:w-16 ${isPlayingAudio ? 'border-emerald-400 bg-emerald-400/15 text-emerald-300 shadow-[0_0_28px_rgba(52,211,153,0.24)]' : 'border-[#4bd3ff] bg-[#071418] text-[#4bd3ff] shadow-[0_0_30px_rgba(75,211,255,0.22)] hover:bg-[#0b2831]'}`}
-                    aria-label={isPlayingAudio ? 'Pausar áudio do dia' : 'Tocar áudio do dia'}
-                    title={isPlayingAudio ? 'Pausar áudio do dia' : 'Tocar áudio do dia'}
+                    className={`relative -mt-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 transition-all sm:h-16 sm:w-16 ${!audioState.audioUrl ? 'border-white/15 bg-white/5 text-gray-500 shadow-none' : isPlayingAudio ? 'border-emerald-400 bg-emerald-400/15 text-emerald-300 shadow-[0_0_28px_rgba(52,211,153,0.24)]' : 'border-[#4bd3ff] bg-[#071418] text-[#4bd3ff] shadow-[0_0_30px_rgba(75,211,255,0.22)] hover:bg-[#0b2831]'}`}
+                    aria-label={audioState.audioUrl ? (isPlayingAudio ? 'Pausar áudio do dia' : 'Tocar áudio do dia') : 'Áudio do dia indisponível'}
+                    title={audioState.audioUrl ? (isPlayingAudio ? 'Pausar áudio do dia' : 'Tocar áudio do dia') : 'A mensagem de hoje ainda não chegou'}
                   >
                     {isPlayingAudio ? <Volume2 size={24} /> : <Play size={24} className="ml-1 fill-current" />}
                   </button>

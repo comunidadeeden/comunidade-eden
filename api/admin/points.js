@@ -1,4 +1,4 @@
-import { commitUserPointDelta, getAuthUserByIdToken, getDocument } from '../lib/firebaseRest.js';
+import { commitUserPointDelta, getAuthUserByIdToken, getDocument } from '../../server/lib/firebaseRest.js';
 
 const ADMIN_EMAIL = 'gu.correa98@gmail.com';
 

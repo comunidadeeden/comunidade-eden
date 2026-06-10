@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { countMonthlyScoresAhead, countUsersAheadByPoints, getAuthUserByIdToken, getDocument, getMonthlyScore, queryMonthlyScores, queryNotifications, queryTopUsersByPoints, setDocument } from './lib/firebaseRest.js';
+import { countMonthlyScoresAhead, countUsersAheadByPoints, getAuthUserByIdToken, getDocument, getMonthlyScore, queryMonthlyScores, queryNotifications, queryTopUsersByPoints, setDocument } from '../server/lib/firebaseRest.js';
 
 const DEFAULT_MONTHLY_PRIZE = '1 sessão individual com Bruno Simplicio';
 const ADMIN_EMAIL = 'gu.correa98@gmail.com';

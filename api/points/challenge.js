@@ -1,4 +1,4 @@
-import { commitUserPointDelta, getAuthUserByIdToken, getDocument } from '../lib/firebaseRest.js';
+import { commitUserPointDelta, getAuthUserByIdToken, getDocument } from '../../server/lib/firebaseRest.js';
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';

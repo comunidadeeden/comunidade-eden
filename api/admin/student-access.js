@@ -5,7 +5,7 @@ import {
   getDocument,
   setAuthUserDisabled,
   setDocument
-} from '../lib/firebaseRest.js';
+} from '../../server/lib/firebaseRest.js';
 
 const ADMIN_EMAIL = 'gu.correa98@gmail.com';
 

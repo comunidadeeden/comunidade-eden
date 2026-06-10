@@ -1,10 +1,10 @@
-import { provisionStudentAccess } from '../lib/accessProvisioning.js';
+import { provisionStudentAccess } from '../../server/lib/accessProvisioning.js';
 import {
   getAuthUserByEmail,
   getDocument,
   setAuthUserDisabled,
   setDocument
-} from '../lib/firebaseRest.js';
+} from '../../server/lib/firebaseRest.js';
 import {
   getEventId,
   getMappedOfferId,
@@ -13,7 +13,7 @@ import {
   isRevokedHotmartEvent,
   parseHotmartPayload,
   verifyHotmartRequest
-} from '../lib/hotmart.js';
+} from '../../server/lib/hotmart.js';
 
 const upsertStudentAccess = async ({ email, name, offerId, grantMainAccess }) => {
   const lookupUser = await getAuthUserByEmail(email);

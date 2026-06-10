@@ -1,4 +1,4 @@
-import { commitDailyCommitmentReward, commitDailyMissionReward, getAuthUserByIdToken, getDocument, setDocument } from '../lib/firebaseRest.js';
+import { commitDailyCommitmentReward, commitDailyMissionReward, getAuthUserByIdToken, getDocument, setDocument } from '../../server/lib/firebaseRest.js';
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';

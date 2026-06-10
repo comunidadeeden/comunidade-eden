@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
-import { getDefaultAccessExpiresAt, markDurableAccessTokenUsed, normalizeAccessExpiresAt, normalizePhone, provisionStudentAccess, resendStudentAccessEmail, validateDurableAccessToken } from '../lib/accessProvisioning.js';
-import { deleteDocument, getAuthUserByIdToken, getDocument, queryUsers, setAuthUserPassword, setDocument } from '../lib/firebaseRest.js';
+import { getDefaultAccessExpiresAt, markDurableAccessTokenUsed, normalizeAccessExpiresAt, normalizePhone, provisionStudentAccess, resendStudentAccessEmail, validateDurableAccessToken } from '../../server/lib/accessProvisioning.js';
+import { deleteDocument, getAuthUserByIdToken, getDocument, queryUsers, setAuthUserPassword, setDocument } from '../../server/lib/firebaseRest.js';
 
 const ADMIN_EMAIL = 'gu.correa98@gmail.com';
 

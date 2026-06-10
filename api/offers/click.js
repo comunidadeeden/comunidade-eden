@@ -1,4 +1,4 @@
-import { getAuthUserByIdToken, getDocument, incrementDocumentField } from '../lib/firebaseRest.js';
+import { getAuthUserByIdToken, getDocument, incrementDocumentField } from '../../server/lib/firebaseRest.js';
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
