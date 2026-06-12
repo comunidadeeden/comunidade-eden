@@ -683,6 +683,28 @@ export const getAuthUserByIdToken = async (idToken) => {
 };
 
 
+export const setAuthUserEmail = async (uid, email) => {
+  const scopes = [IDENTITY_TOOLKIT_SCOPE];
+  const result = await authorizedFetch(`${authBaseUrl()}/accounts:update?key=${webApiKey()}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      localId: uid,
+      email,
+      emailVerified: true
+    })
+  }, scopes);
+
+  if (!result.response.ok) {
+    console.error('Firebase Auth email update error:', result.body);
+    const message = result.body?.error?.message || '';
+    if (message.includes('EMAIL_EXISTS')) {
+      throw new Error('Este email ja esta vinculado a outro usuario.');
+    }
+    throw new Error('Nao foi possivel atualizar o email de acesso no Firebase Auth.');
+  }
+
+  return true;
+};
 export const setAuthUserPassword = async (uid, password) => {
   const scopes = [IDENTITY_TOOLKIT_SCOPE];
   const result = await authorizedFetch(`${authBaseUrl()}/accounts:update?key=${webApiKey()}`, {

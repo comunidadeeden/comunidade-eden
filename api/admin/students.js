@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { getDefaultAccessExpiresAt, markDurableAccessTokenUsed, normalizeAccessExpiresAt, normalizePhone, provisionStudentAccess, resendStudentAccessEmail, validateDurableAccessToken } from '../../server/lib/accessProvisioning.js';
-import { deleteDocument, getAuthUserByIdToken, getDocument, queryUsers, setAuthUserPassword, setDocument } from '../../server/lib/firebaseRest.js';
+import { deleteDocument, getAuthUserByEmail, getAuthUserByIdToken, getDocument, queryUsers, setAuthUserEmail, setAuthUserPassword, setDocument } from '../../server/lib/firebaseRest.js';
 
 const ADMIN_EMAIL = 'gu.correa98@gmail.com';
 
@@ -12,6 +12,13 @@ const looksLikePhone = (value = '') => {
   const digits = String(value || '').replace(/\D/g, '');
   return digits.length >= 8 && digits.length <= 15;
 };
+
+const parseEmailList = (value = '') => Array.from(new Set(
+  String(value || '')
+    .split(/[\n,;]+/)
+    .map(normalizeEmail)
+    .filter(email => email && email.includes('@'))
+));
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
@@ -127,6 +134,81 @@ const handleStudentAction = async (request, response) => {
     return response.status(200).json({ ok: true, emailSent: true });
   }
 
+
+  if (action === 'student:update-profile') {
+    const uid = String(request.body?.uid || '').trim();
+    const newEmail = normalizeEmail(request.body?.email);
+    const name = String(request.body?.name || '').trim();
+    const phone = normalizePhone(request.body?.phone || '');
+    const accessExpiresAt = normalizeAccessExpiresAt(request.body?.accessExpiresAt) || String(request.body?.accessExpiresAt || '').trim();
+    const birthDate = String(request.body?.birthDate || '').trim();
+    const profession = String(request.body?.profession || '').trim();
+    const instagram = String(request.body?.instagram || '').trim();
+    const maritalStatus = String(request.body?.maritalStatus || '').trim();
+    const requestedHotmartEmails = parseEmailList(request.body?.hotmartEmails);
+
+    if (!uid || !newEmail || !name) {
+      return response.status(400).json({ error: 'Informe nome, email e aluna para atualizar.' });
+    }
+
+    const userProfile = await getDocument('users', uid);
+    if (!userProfile) return response.status(404).json({ error: 'Aluna nao encontrada.' });
+    if (userProfile.role === 'admin' || normalizeEmail(userProfile.email) === ADMIN_EMAIL) {
+      return response.status(400).json({ error: 'Nao e possivel alterar email/perfil de admin por aqui.' });
+    }
+
+    const oldEmail = normalizeEmail(userProfile.email);
+    const emailChanged = oldEmail !== newEmail;
+    if (emailChanged) {
+      const existingAuthUser = await getAuthUserByEmail(newEmail);
+      if (existingAuthUser?.uid && existingAuthUser.uid !== uid) {
+        return response.status(409).json({ error: 'Este email ja esta vinculado a outra conta.' });
+      }
+      await setAuthUserEmail(uid, newEmail);
+      if (oldEmail) await deleteDocument('studentInvites', encodeURIComponent(oldEmail));
+    }
+
+    const hotmartEmails = Array.from(new Set([
+      ...requestedHotmartEmails,
+      oldEmail,
+      ...(Array.isArray(userProfile.hotmartEmails) ? userProfile.hotmartEmails.map(normalizeEmail) : [])
+    ].filter(email => email && email.includes('@'))));
+
+    await setDocument('users', uid, {
+      name,
+      email: newEmail,
+      phone,
+      accessExpiresAt,
+      birthDate,
+      profession,
+      instagram,
+      maritalStatus,
+      hotmartEmails,
+      updatedAt: new Date()
+    });
+
+    await setDocument('studentInvites', encodeURIComponent(newEmail), {
+      email: newEmail,
+      name,
+      phone,
+      accessExpiresAt,
+      role: 'student',
+      status: userProfile.requiresPasswordSetup === false ? 'accepted' : 'invited',
+      acceptedBy: userProfile.requiresPasswordSetup === false ? uid : '',
+      updatedAt: new Date()
+    });
+
+    for (const hotmartEmail of hotmartEmails) {
+      await setDocument('hotmartEmailAliases', encodeURIComponent(hotmartEmail), {
+        email: hotmartEmail,
+        uid,
+        currentEmail: newEmail,
+        updatedAt: new Date()
+      });
+    }
+
+    return response.status(200).json({ ok: true, uid, email: newEmail, hotmartEmails });
+  }
 
   if (action === 'students:resend-pending-access') {
     const users = await queryUsers(2000);

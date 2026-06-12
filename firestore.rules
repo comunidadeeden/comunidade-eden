@@ -71,6 +71,7 @@ service cloud.firestore {
                'isCofounder',
                'completedChallenges',
                'purchasedOfferIds',
+               'hotmartEmails',
                'updatedAt'
              ]) &&
              data.name is string && data.name.size() <= 100 &&
@@ -93,6 +94,7 @@ service cloud.firestore {
              (!('isCofounder' in data) || (data.isCofounder is bool)) &&
              (!('completedChallenges' in data) || (data.completedChallenges is list && data.completedChallenges.size() <= 500)) &&
              (!('purchasedOfferIds' in data) || (data.purchasedOfferIds is list && data.purchasedOfferIds.size() <= 200)) &&
+             (!('hotmartEmails' in data) || (data.hotmartEmails is list && data.hotmartEmails.size() <= 20)) &&
              (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 500));
     }
 
@@ -103,6 +105,7 @@ service cloud.firestore {
 	             incoming().isBlocked == existing().isBlocked &&
 	             incoming().accessExpiresAt == existing().accessExpiresAt &&
 	             incoming().purchasedOfferIds == existing().purchasedOfferIds &&
+	             incoming().hotmartEmails == existing().hotmartEmails &&
 	             incoming().diff(existing()).affectedKeys().hasOnly([
                'name',
                'avatar',
@@ -229,6 +232,10 @@ service cloud.firestore {
     }
 
     match /adminNotifications/{notificationId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /hotmartEmailAliases/{aliasId} {
       allow read, write: if isAdmin();
     }
 

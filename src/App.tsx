@@ -1196,6 +1196,38 @@ export default function App() {
   };
 
 
+  const handleUpdateStudentProfile = async (student: UserProfile, data: Record<string, string>) => {
+    const email = normalizeEmail(data.email || '');
+    const name = data.name?.trim();
+
+    if (!email || !name) {
+      alert('Informe nome e email da aluna.');
+      return;
+    }
+
+    const hotmartEmails = data.hotmartEmails || student.email;
+    const emailChanged = normalizeEmail(student.email) !== email;
+    const confirmed = emailChanged
+      ? window.confirm('Trocar o email de acesso de ' + student.email + ' para ' + email + '? O email antigo continuará vinculado como email Hotmart/cobrança para eventos de parcelamento, atraso ou cancelamento.')
+      : true;
+    if (!confirmed) return;
+
+    await requestStudentAdminAction({
+      action: 'student:update-profile',
+      uid: student.uid,
+      name,
+      email,
+      phone: data.phone || '',
+      accessExpiresAt: data.accessExpiresAt || '',
+      birthDate: data.birthDate || '',
+      profession: data.profession || '',
+      instagram: data.instagram || '',
+      maritalStatus: data.maritalStatus || '',
+      hotmartEmails
+    });
+
+    alert(emailChanged ? 'Email de acesso atualizado para ' + email + '.' : 'Perfil da aluna atualizado.');
+  };
   const handleCreateStudent = async (data: Record<string, string>) => {
     const email = normalizeEmail(data.email || '');
     const name = data.name?.trim();
@@ -5220,6 +5252,40 @@ export default function App() {
                               >
                                 <Key size={14} />
                               </button>
+                              <button
+                                onClick={() => {
+                                  const billingEmails = Array.from(new Set([
+                                    student.email,
+                                    ...((student.hotmartEmails || []) as string[])
+                                  ].filter(Boolean))).join(', ');
+                                  setPromptConfig({
+                                    title: 'Editar aluna',
+                                    description: 'Altere o perfil e o email de acesso. Se trocar o email, mantenha o email usado na Hotmart em Emails Hotmart/cobrança para parcelamentos e bloqueios continuarem vinculados.',
+                                    submitText: 'Salvar alterações',
+                                    fields: [
+                                      { name: 'name', label: 'Nome', defaultValue: student.name || '', required: true },
+                                      { name: 'email', label: 'Email de acesso', type: 'email', defaultValue: student.email || '', required: true },
+                                      { name: 'phone', label: 'Telefone / WhatsApp', defaultValue: student.phone || '' },
+                                      { name: 'accessExpiresAt', label: 'Expira em', type: 'date', defaultValue: toInputDate(student.accessExpiresAt || '') },
+                                      { name: 'birthDate', label: 'Data de nascimento', type: 'date', defaultValue: student.birthDate || '' },
+                                      { name: 'profession', label: 'Profissão', defaultValue: student.profession || '' },
+                                      { name: 'instagram', label: 'Instagram', defaultValue: student.instagram || '' },
+                                      { name: 'maritalStatus', label: 'Estado civil', defaultValue: student.maritalStatus || '' },
+                                      { name: 'hotmartEmails', label: 'Emails Hotmart/cobrança', type: 'textarea', defaultValue: billingEmails, placeholder: 'Separe por vírgula se houver mais de um email' }
+                                    ],
+                                    onSubmit: (data) => handleUpdateStudentProfile(student, {
+                                      ...data,
+                                      accessExpiresAt: data.accessExpiresAt ? fromInputDate(data.accessExpiresAt) : ''
+                                    }),
+                                    onCancel: () => setPromptConfig(null)
+                                  });
+                                }}
+                                className="p-2 bg-black/40 border border-white/5 rounded-lg text-gray-400 hover:text-[#4bd3ff] hover:border-[#4bd3ff]/50 transition-all"
+                                title="Editar perfil e email"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+
                               <button
                                 onClick={() => {
                                   setSelectedUser(student);

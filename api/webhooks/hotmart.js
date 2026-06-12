@@ -15,16 +15,38 @@ import {
   verifyHotmartRequest
 } from '../../server/lib/hotmart.js';
 
-const upsertStudentAccess = async ({ email, name, offerId, grantMainAccess }) => {
+const saveHotmartAlias = async ({ email, uid, currentEmail }) => {
+  if (!email || !uid) return;
+  await setDocument('hotmartEmailAliases', encodeURIComponent(email), {
+    email,
+    uid,
+    currentEmail: currentEmail || email,
+    updatedAt: new Date()
+  });
+};
+
+const resolveHotmartUserByEmail = async (email) => {
   const lookupUser = await getAuthUserByEmail(email);
+  if (lookupUser?.uid) return { uid: lookupUser.uid, matchedBy: 'auth_email' };
+
+  const alias = await getDocument('hotmartEmailAliases', encodeURIComponent(email));
+  if (alias?.uid) return { uid: alias.uid, currentEmail: alias.currentEmail || '', matchedBy: 'hotmart_alias' };
+
+  return null;
+};
+
+const upsertStudentAccess = async ({ email, name, offerId, grantMainAccess }) => {
+  const lookupUser = await resolveHotmartUserByEmail(email);
   if (lookupUser?.uid) {
     const existingUser = await getDocument('users', lookupUser.uid);
     if (existingUser) {
+      await saveHotmartAlias({ email, uid: lookupUser.uid, currentEmail: existingUser.email || lookupUser.currentEmail || email });
       return {
         uid: lookupUser.uid,
         created: false,
         skipped: true,
         reason: 'existing_user_no_access_email',
+        matchedBy: lookupUser.matchedBy,
         emailSent: false,
         accessExpiresAt: existingUser.accessExpiresAt || '',
         purchasedOfferIds: existingUser.purchasedOfferIds || []
@@ -32,11 +54,13 @@ const upsertStudentAccess = async ({ email, name, offerId, grantMainAccess }) =>
     }
   }
 
-  return provisionStudentAccess({ email, name, offerId, grantMainAccess });
+  const result = await provisionStudentAccess({ email, name, offerId, grantMainAccess });
+  if (result?.uid) await saveHotmartAlias({ email, uid: result.uid, currentEmail: email });
+  return result;
 };
 
 const revokeStudentAccess = async ({ email, offerId, revokeMainAccess }) => {
-  const lookupUser = await getAuthUserByEmail(email);
+  const lookupUser = await resolveHotmartUserByEmail(email);
   if (!lookupUser) return { updated: false, reason: 'auth_user_not_found' };
 
   const existingUser = await getDocument('users', lookupUser.uid);
@@ -51,7 +75,7 @@ const revokeStudentAccess = async ({ email, offerId, revokeMainAccess }) => {
   await setDocument('users', lookupUser.uid, {
     ...existingUser,
     uid: lookupUser.uid,
-    email,
+    email: existingUser.email || lookupUser.currentEmail || email,
     isBlocked: revokeMainAccess ? true : Boolean(existingUser.isBlocked),
     purchasedOfferIds: Array.from(purchasedOfferIds),
     updatedAt: new Date()

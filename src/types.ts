@@ -76,6 +76,7 @@ export interface UserProfile {
   isCofounder?: boolean;
   completedChallenges?: string[];
   purchasedOfferIds?: string[];
+  hotmartEmails?: string[];
   updatedAt?: any;
   rankPosition?: number;
 }
