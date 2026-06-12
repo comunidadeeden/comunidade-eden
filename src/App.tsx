@@ -7353,17 +7353,17 @@ export default function App() {
       )}
 
       {promptConfig && (
-        <div className="fixed inset-0 z-[1400] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[1400] flex items-center justify-center overflow-y-auto p-3 sm:p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={promptConfig.onCancel} />
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
-            className="w-full max-w-md bg-[#0b0c10] border border-white/10 p-8 rounded-3xl shadow-2xl relative z-10 space-y-6"
+            className="relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b0c10] shadow-2xl"
           >
-            <div>
+            <div className="shrink-0 border-b border-white/10 p-6 sm:p-8 sm:pb-5">
               <h3 className="text-xl font-black text-white tracking-tight leading-tight">{promptConfig.title}</h3>
-              {promptConfig.description && <p className="text-sm text-gray-400 mt-2">{promptConfig.description}</p>}
+              {promptConfig.description && <p className="text-sm text-gray-400 mt-2 leading-relaxed">{promptConfig.description}</p>}
             </div>
 
             <form
@@ -7387,8 +7387,9 @@ export default function App() {
                   setIsPromptSubmitting(false);
                 }
               }}
-              className="space-y-4"
+              className="flex min-h-0 flex-1 flex-col"
             >
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-6 sm:p-8 sm:py-6">
               {promptConfig.fields.map(field => (
                 <div key={field.name} className="space-y-2">
                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">{field.label}</label>
@@ -7412,8 +7413,9 @@ export default function App() {
                   )}
                 </div>
               ))}
+              </div>
 
-              <div className="flex justify-end gap-3 pt-6">
+              <div className="flex shrink-0 justify-end gap-3 border-t border-white/10 bg-[#0b0c10] p-4 sm:p-6">
                 <button
                   type="button"
                   onClick={promptConfig.onCancel}
