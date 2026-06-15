@@ -2897,7 +2897,7 @@ export default function App() {
               <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-[0.22em] truncate">
                 {audioState.subtitle || 'Mensagem do Guardião'}
               </p>
-              <h3 className="text-lg sm:text-xl font-black text-white truncate tracking-tight">{audioState.title || audioOfTheDay.title}</h3>
+              <h3 className="text-lg sm:text-xl font-black text-white tracking-tight leading-tight whitespace-normal break-words line-clamp-2">{audioState.title || audioOfTheDay.title}</h3>
               <p className="text-xs sm:text-sm text-gray-400 leading-relaxed line-clamp-2">
                 {audioState.description || audioOfTheDay.description}
               </p>
