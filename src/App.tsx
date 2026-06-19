@@ -7190,6 +7190,16 @@ export default function App() {
         const userCia = allCompletions.filter(item => item.userId === selectedJourneyUser.uid).sort((a, b) => getTimestampMillis(b.completedAt) - getTimestampMillis(a.completedAt));
         const userExtraordinary = journeyForms.find(item => item.userId === selectedJourneyUser.uid && item.type === 'extraordinaryLife');
         const userOaths = journeyForms.filter(item => item.userId === selectedJourneyUser.uid && item.type === 'weeklyOath').sort((a, b) => String(b.weekKey || '').localeCompare(String(a.weekKey || '')));
+        const completedLessonIds = new Set(selectedJourneyUser.completedChallenges || []);
+        const userCompletedLessons = trailsState.flatMap(trail =>
+          (trail.modules || []).flatMap(module =>
+            (module.items || []).map(lesson => ({
+              ...lesson,
+              moduleTitle: module.title,
+              trailTitle: trail.title
+            }))
+          )
+        ).filter(lesson => completedLessonIds.has(lesson.id));
         return (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedJourneyUser(null)} />
@@ -7198,7 +7208,7 @@ export default function App() {
               <div className="mb-8">
                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Protocolos da aluna</p>
                 <h3 className="text-2xl font-black uppercase tracking-tight text-white">{selectedJourneyUser.name}</h3>
-                <p className="mt-2 text-sm text-gray-400">CIA feitos: <span className="font-black text-[#4bd3ff]">{userCia.length}</span> · Juramentos: <span className="font-black text-[#4bd3ff]">{userOaths.length}</span></p>
+                <p className="mt-2 text-sm text-gray-400">CIA feitos: <span className="font-black text-[#4bd3ff]">{userCia.length}</span> · Juramentos: <span className="font-black text-[#4bd3ff]">{userOaths.length}</span> · Aulas concluídas: <span className="font-black text-[#4bd3ff]">{userCompletedLessons.length}</span></p>
               </div>
 
               <div className="grid gap-6 lg:grid-cols-2">
@@ -7243,6 +7253,21 @@ export default function App() {
                       )) : <p className="rounded-2xl border border-white/10 border-dashed p-6 text-xs font-black uppercase tracking-widest text-gray-600">Nenhum CIA concluído.</p>}
                     </div>
                   </div>
+                </section>
+
+                <section className="space-y-3 lg:col-span-2">
+                  <h4 className="text-sm font-black uppercase tracking-widest text-white">Aulas concluídas</h4>
+                  {userCompletedLessons.length ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {userCompletedLessons.map(lesson => (
+                        <div key={lesson.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                          <p className="text-sm font-black text-white">{lesson.title}</p>
+                          <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">{lesson.moduleTitle}</p>
+                          <p className="mt-1 text-xs text-gray-500">Trilha: {lesson.trailTitle}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="rounded-2xl border border-white/10 border-dashed p-6 text-xs font-black uppercase tracking-widest text-gray-600">Nenhuma aula concluída ainda.</p>}
                 </section>
               </div>
             </div>
