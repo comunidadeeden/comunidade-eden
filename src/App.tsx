@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
-import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, DailyCommitmentCompletion, NotificationNotice, CustomLevel, Offer, MonthlyRankingUser, JourneyFormSubmission } from './types';
+import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, NotificationNotice, CustomLevel, Offer, MonthlyRankingUser, JourneyFormSubmission } from './types';
 import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut, Dumbbell, Bell, Home, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
 import { confirmPasswordReset, isSignInWithEmailLink, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailAndPassword, signInWithEmailLink, signOut, updatePassword, verifyPasswordResetCode } from 'firebase/auth';
-import { doc, getDoc, where, collection, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, getCountFromServer, where, collection, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
 
 export const ICON_MAP: Record<string, React.FC<any>> = {
   Crown, Star, Zap, Award, Trophy, Sprout, Shield, Compass, FileText, CheckCircle, Leaf, Key
@@ -1494,9 +1494,9 @@ export default function App() {
   const [lockedModule, setLockedModule] = useState<Module | null>(null);
   const [dailyChallenges, setDailyChallenges] = useState<DailyChallenge[]>([]);
   const [allCompletions, setAllCompletions] = useState<DailyChallengeCompletion[]>([]);
+  const [ciaCompletionCount, setCiaCompletionCount] = useState(0);
   const [notificationsState, setNotificationsState] = useState<NotificationNotice[]>([]);
   const [adminNotificationsState, setAdminNotificationsState] = useState<NotificationNotice[]>([]);
-  const [commitmentCompletions, setCommitmentCompletions] = useState<DailyCommitmentCompletion[]>([]);
   const [todayChallenge, setTodayChallenge] = useState<DailyChallenge | null>(null);
   const [allAudios, setAllAudios] = useState<DailyAudio[]>([]);
   const [editingAudio, setEditingAudio] = useState<DailyAudio | null>(null);
@@ -1561,7 +1561,6 @@ export default function App() {
   const activeCiaChallenge = { ...CIA_PROTOCOL, date: todayDateKey };
   const isTodayMissionCompleted = allCompletions.some(c => c.challengeDate === todayDateKey && c.userId === user?.uid);
   const hasNewMissionToday = !isTodayMissionCompleted;
-  const ciaCompletionCount = allCompletions.filter(c => c.userId === user?.uid).length;
   const storedExtraordinaryLifeSubmission = journeyForms.find(form => form.userId === user?.uid && form.type === 'extraordinaryLife');
   const demoExtraordinaryLifeSubmission: JourneyFormSubmission | undefined = user?.email === ADMIN_EMAIL && !storedExtraordinaryLifeSubmission ? {
     id: 'demo-extraordinary-life',
@@ -2027,20 +2026,18 @@ export default function App() {
       if (unsubscribeAdminNotifications) unsubscribeAdminNotifications();
       if (unsubscribeStudents) unsubscribeStudents();
     };
-  }, [user, isAdmin]);
+  }, [user?.uid, isAdmin]);
 
   useEffect(() => {
     if (!selectedModule || !activeLesson) return;
 
-    const q = query(
-      collection(db, 'comments'),
-      orderBy('createdAt', 'desc')
-    );
+    const q = query(collection(db, 'comments'), where('lessonId', '==', activeLesson.id));
 
     const unsubscribeComments = onSnapshot(q, (snapshot) => {
-      const allComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LessonComment));
-      // In a real app we'd filter by lessonId in the query, but for simplicity let's filter here or use a specific subcollection
-      setComments(allComments.filter(c => c.lessonId === activeLesson.id));
+      const lessonComments = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as LessonComment))
+        .sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+      setComments(lessonComments);
     }, (error) => {
       handleFirestoreError(error, 'LIST', 'comments');
     });
@@ -2076,61 +2073,97 @@ export default function App() {
       handleFirestoreError(error, 'GET' as any, 'dailyAudios');
     });
 
-    // Fetch all challenges for admin
-    const challengesRef = collection(db, 'dailyChallenges');
-    const qChallenges = query(challengesRef, orderBy('createdAt', 'desc'));
-    const unsubscribeAllChallenges = onSnapshot(qChallenges, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyChallenge));
-      setDailyChallenges(docs);
-    }, (error) => {
-      handleFirestoreError(error, 'LIST' as any, 'dailyChallenges');
-    });
+    let unsubscribeAllChallenges: (() => void) | null = null;
+    if (isAdmin) {
+      const challengesRef = collection(db, 'dailyChallenges');
+      const qChallenges = query(challengesRef, orderBy('createdAt', 'desc'));
+      unsubscribeAllChallenges = onSnapshot(qChallenges, (snapshot) => {
+        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyChallenge));
+        setDailyChallenges(docs);
+      }, (error) => {
+        handleFirestoreError(error, 'LIST' as any, 'dailyChallenges');
+      });
+    } else {
+      setDailyChallenges([]);
+    }
 
-    // Fetch completions (filtered by user if not admin, all if admin)
     const completionsRef = collection(db, 'dailyChallengeCompletions');
-    const completionsQuery = isAdmin ? completionsRef : query(completionsRef, where('userId', '==', user.uid));
-    const unsubscribeAllCompletions = onSnapshot(completionsQuery, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyChallengeCompletion));
-      setAllCompletions(docs);
-    }, (error) => {
-      if (error.code !== 'permission-denied') { // Incase rule fails transiently
-         console.error(error);
-      }
-    });
+    let unsubscribeAllCompletions: (() => void) | null = null;
+    if (isAdmin) {
+      unsubscribeAllCompletions = onSnapshot(completionsRef, (snapshot) => {
+        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyChallengeCompletion));
+        setAllCompletions(docs);
+        setCiaCompletionCount(docs.filter(item => item.userId === user.uid).length);
+      }, (error) => {
+        if (error.code !== 'permission-denied') console.error(error);
+      });
+    } else {
+      const userCompletionsQuery = query(completionsRef, where('userId', '==', user.uid));
+      getCountFromServer(userCompletionsQuery)
+        .then(snapshot => setCiaCompletionCount(snapshot.data().count))
+        .catch(error => console.warn('Could not count CIA completions:', error));
 
-    // Fetch daily commitment completions
-    const commitmentRef = collection(db, 'dailyCommitmentCompletions');
-    const commitmentQuery = isAdmin ? commitmentRef : query(commitmentRef, where('userId', '==', user.uid));
-    const unsubscribeCommitments = onSnapshot(commitmentQuery, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyCommitmentCompletion));
-      setCommitmentCompletions(docs);
-    }, (error) => {
-      if (error.code !== 'permission-denied') {
-        console.error(error);
-      }
-    });
+      const recentDates = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date();
+        date.setDate(date.getDate() - index);
+        return date.toLocaleDateString('pt-BR').split('/').join('-');
+      });
+      const recentCompletions = new Map<string, DailyChallengeCompletion>();
+      const syncRecentCompletions = () => setAllCompletions(Array.from(recentCompletions.values()));
+      const unsubscribeRecentCompletions = recentDates.map(date => onSnapshot(
+        doc(db, 'dailyChallengeCompletions', user.uid + '_' + date),
+        (snapshot) => {
+          if (snapshot.exists()) {
+            recentCompletions.set(date, { id: snapshot.id, ...snapshot.data() } as DailyChallengeCompletion);
+          } else {
+            recentCompletions.delete(date);
+          }
+          syncRecentCompletions();
+        },
+        (error) => console.warn('Could not load recent CIA completion:', error)
+      ));
+      unsubscribeAllCompletions = () => unsubscribeRecentCompletions.forEach(unsubscribe => unsubscribe());
+    }
 
+    let unsubscribeJourneyForms: (() => void) | null = null;
+    if (isAdmin) {
+      unsubscribeJourneyForms = onSnapshot(collection(db, 'journeyForms'), (snapshot) => {
+        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as JourneyFormSubmission));
+        setJourneyForms(docs);
+      }, (error) => {
+        if (error.code !== 'permission-denied') console.error(error);
+      });
+    } else {
+      let extraordinaryLife: JourneyFormSubmission | null = null;
+      let weeklyOath: JourneyFormSubmission | null = null;
+      const syncJourneyForms = () => setJourneyForms([extraordinaryLife, weeklyOath].filter(Boolean) as JourneyFormSubmission[]);
+      const unsubscribeExtraordinaryLife = onSnapshot(doc(db, 'journeyForms', user.uid + '_extraordinaryLife'), (snapshot) => {
+        extraordinaryLife = snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } as JourneyFormSubmission : null;
+        syncJourneyForms();
+      }, (error) => console.warn('Could not load extraordinary life form:', error));
+      const unsubscribeWeeklyOath = onSnapshot(doc(db, 'journeyForms', user.uid + '_weeklyOath_' + currentWeekKey), (snapshot) => {
+        weeklyOath = snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } as JourneyFormSubmission : null;
+        syncJourneyForms();
+      }, (error) => console.warn('Could not load weekly oath:', error));
+      unsubscribeJourneyForms = () => {
+        unsubscribeExtraordinaryLife();
+        unsubscribeWeeklyOath();
+      };
+    }
 
-    const journeyFormsRef = collection(db, 'journeyForms');
-    const journeyFormsQuery = isAdmin ? journeyFormsRef : query(journeyFormsRef, where('userId', '==', user.uid));
-    const unsubscribeJourneyForms = onSnapshot(journeyFormsQuery, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as JourneyFormSubmission));
-      setJourneyForms(docs);
-    }, (error) => {
-      if (error.code !== 'permission-denied') {
-        console.error(error);
-      }
-    });
-
-    // Fetch all audios for admin
-    const audiosRefCol = collection(db, 'dailyAudios');
-    const qAudios = query(audiosRefCol, orderBy('createdAt', 'desc'));
-    const unsubscribeAllAudios = onSnapshot(qAudios, (snapshot) => {
-       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyAudio));
-       setAllAudios(docs);
-    }, (error) => {
-      handleFirestoreError(error, 'LIST' as any, 'dailyAudios');
-    });
+    let unsubscribeAllAudios: (() => void) | null = null;
+    if (isAdmin) {
+      const audiosRefCol = collection(db, 'dailyAudios');
+      const qAudios = query(audiosRefCol, orderBy('createdAt', 'desc'));
+      unsubscribeAllAudios = onSnapshot(qAudios, (snapshot) => {
+        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyAudio));
+        setAllAudios(docs);
+      }, (error) => {
+        handleFirestoreError(error, 'LIST' as any, 'dailyAudios');
+      });
+    } else {
+      setAllAudios([]);
+    }
 
     const loadRankingSummary = async () => {
       try {
@@ -2221,11 +2254,10 @@ export default function App() {
     return () => {
       unsubscribeChallenge();
       unsubscribeTodayAudio();
-      unsubscribeAllChallenges();
-      unsubscribeAllCompletions();
-      unsubscribeCommitments();
-      unsubscribeAllAudios();
-      unsubscribeJourneyForms();
+      if (unsubscribeAllChallenges) unsubscribeAllChallenges();
+      if (unsubscribeAllCompletions) unsubscribeAllCompletions();
+      if (unsubscribeAllAudios) unsubscribeAllAudios();
+      if (unsubscribeJourneyForms) unsubscribeJourneyForms();
       if (unsubscribeRanking) unsubscribeRanking();
       unsubscribeLevels();
       unsubscribeVisibility();
@@ -2658,6 +2690,18 @@ export default function App() {
         points: (user.points || 0) + (data.pointsAwarded || CIA_DAILY_POINTS),
         lastMissionRewardDate: todayDateKey
       });
+      setCiaCompletionCount(count => count + 1);
+      setAllCompletions(previous => [
+        ...previous.filter(completion => completion.challengeDate !== todayDateKey),
+        {
+          id: user.uid + '_' + todayDateKey,
+          userId: user.uid,
+          challengeDate: todayDateKey,
+          audioChecked,
+          responses: missionResponses,
+          completedAt: new Date()
+        } as DailyChallengeCompletion
+      ]);
       applyMonthlyRankingDelta(data.pointsAwarded || CIA_DAILY_POINTS);
 
       setIsMissionModalOpen(false);
