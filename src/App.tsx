@@ -1442,6 +1442,28 @@ export default function App() {
     }
   };
 
+  const handleReorderLessons = async (trailId: string, moduleId: string, fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+
+    const trail = trailsState.find(t => t.id === trailId);
+    const targetModule = trail?.modules?.find(m => m.id === moduleId);
+    const items = [...(targetModule?.items || [])];
+
+    if (!trail || !targetModule || !items[fromIndex] || !items[toIndex]) return;
+
+    const [movedLesson] = items.splice(fromIndex, 1);
+    items.splice(toIndex, 0, movedLesson);
+
+    try {
+      const updatedModules = (trail.modules || []).map(m =>
+        m.id === moduleId ? { ...m, items } : m
+      );
+      await updateDoc(doc(db, 'trails', trail.id), { modules: updatedModules });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `trails/${trailId}`);
+    }
+  };
+
   const ensureExtraContentTrail = async () => {
     const existingTrail = trailsState.find(trail => trail.id === EXTRA_CONTENT_TRAIL_ID || trail.isExtraContent);
     if (existingTrail) return existingTrail;
@@ -4804,18 +4826,57 @@ export default function App() {
                           Nenhuma aula cadastrada neste módulo.
                         </div>
                       )}
-                      {module.items?.map((lesson: any) => (
-                        <div key={lesson.id} className="flex items-center justify-between p-4 pl-16 border-b border-white/5 last:border-0 hover:bg-white/5 group/lesson">
-                          <div className="flex items-center gap-4">
-                            <div className="w-20 h-12 rounded bg-gray-700 overflow-hidden border border-white/5">
+                      {module.items?.map((lesson: any, lessonIndex: number) => (
+                        <div
+                          key={lesson.id}
+                          draggable
+                          onDragStart={(event) => event.dataTransfer.setData('text/plain', String(lessonIndex))}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            handleReorderLessons(module.trailId, module.id, Number(event.dataTransfer.getData('text/plain')), lessonIndex);
+                          }}
+                          className="flex items-center justify-between p-4 pl-16 border-b border-white/5 last:border-0 hover:bg-white/5 group/lesson cursor-grab active:cursor-grabbing"
+                          title="Arraste para mudar a ordem da aula"
+                        >
+                          <div className="flex min-w-0 items-center gap-4">
+                            <div className="text-gray-600 group-hover/lesson:text-gray-400" aria-hidden="true">
+                              <div className="grid grid-cols-2 gap-1">
+                                <div className="w-1 h-1 rounded-full bg-current"></div>
+                                <div className="w-1 h-1 rounded-full bg-current"></div>
+                                <div className="w-1 h-1 rounded-full bg-current"></div>
+                                <div className="w-1 h-1 rounded-full bg-current"></div>
+                                <div className="w-1 h-1 rounded-full bg-current"></div>
+                                <div className="w-1 h-1 rounded-full bg-current"></div>
+                              </div>
+                            </div>
+                            <div className="w-20 h-12 shrink-0 rounded bg-gray-700 overflow-hidden border border-white/5">
                               <VideoThumbnail imageUrl={lesson.imageUrl} videoUrl={lesson.videoUrl} />
                             </div>
-                            <div>
-                               <p className="text-white font-bold">{lesson.title}</p>
+                            <div className="min-w-0">
+                               <p className="text-white font-bold truncate">{lesson.title}</p>
                                <p className="text-[10px] uppercase tracking-widest text-gray-500 font-black">{lesson.type}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={lessonIndex === 0}
+                            onClick={() => handleReorderLessons(module.trailId, module.id, lessonIndex, lessonIndex - 1)}
+                            className="p-2 text-gray-600 hover:text-[#4bd3ff] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-gray-600"
+                            title="Subir aula"
+                          >
+                            <ArrowUp size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={lessonIndex === (module.items || []).length - 1}
+                            onClick={() => handleReorderLessons(module.trailId, module.id, lessonIndex, lessonIndex + 1)}
+                            className="p-2 text-gray-600 hover:text-[#4bd3ff] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:text-gray-600"
+                            title="Descer aula"
+                          >
+                            <ArrowDown size={16} />
+                          </button>
                           <button
                             onClick={() => {
                               setPromptConfig({
