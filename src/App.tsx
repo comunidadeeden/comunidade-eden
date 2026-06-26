@@ -456,6 +456,12 @@ const isAccessExpired = (date?: string) => {
 
 const getModuleRequiredPoints = (module?: Module | null) => Math.max(0, Number(module?.requiredPoints || 0));
 
+const formatLessonDuration = (duration?: string) => {
+  const normalizedDuration = String(duration || '').trim();
+  if (!normalizedDuration) return '';
+  return /\b(min|h|hora|horas)\b/i.test(normalizedDuration) ? normalizedDuration : `${normalizedDuration} min`;
+};
+
 const isModuleLockedForUser = (module: Module, user: UserProfile | null) => {
   if (module.isOffer) return false;
   return getModuleRequiredPoints(module) > (user?.points || 0);
@@ -4723,6 +4729,7 @@ export default function App() {
                                fields: [
                                  { name: 'title', label: 'Título do conteúdo', required: true },
                                  { name: 'videoUrl', label: 'URL do Vídeo (Youtube/Vimeo)' },
+                                 { name: 'duration', label: 'Duração do vídeo', placeholder: 'Ex: 18:45 ou 1h 12min' },
                                  { name: 'description', label: 'Descrição da aula', type: 'textarea' },
                                ],
                                onSubmit: async (data) => {
@@ -4733,6 +4740,7 @@ export default function App() {
                                      type: 'video',
                                      videoUrl: getEmbeddableVideoUrl(data.videoUrl),
                                      imageUrl: getVideoThumbnail(data.videoUrl),
+                                     duration: String(data.duration || '').trim(),
                                      description: data.description || ''
                                    }];
 
@@ -4855,7 +4863,7 @@ export default function App() {
                             </div>
                             <div className="min-w-0">
                                <p className="text-white font-bold truncate">{lesson.title}</p>
-                               <p className="text-[10px] uppercase tracking-widest text-gray-500 font-black">{lesson.type}</p>
+                               <p className="text-[10px] uppercase tracking-widest text-gray-500 font-black">{lesson.type}{lesson.duration ? ` · ${formatLessonDuration(lesson.duration)}` : ''}</p>
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
@@ -4884,6 +4892,7 @@ export default function App() {
                                 fields: [
                                   { name: 'title', label: 'Título da aula', defaultValue: lesson.title, required: true },
                                   { name: 'videoUrl', label: 'URL do Vídeo (Vimeo/Youtube)', defaultValue: lesson.videoUrl || '' },
+                                  { name: 'duration', label: 'Duração do vídeo', defaultValue: lesson.duration || '', placeholder: 'Ex: 18:45 ou 1h 12min' },
                                   { name: 'description', label: 'Descrição da aula', type: 'textarea', defaultValue: lesson.description || '' },
                                 ],
                                 onSubmit: async (data) => {
@@ -4893,7 +4902,7 @@ export default function App() {
 
                                     const updatedItems = (module.items || []).map((i: any) =>
                                       i.id === lesson.id
-                                        ? { ...i, title: data.title, videoUrl: getEmbeddableVideoUrl(data.videoUrl), description: data.description || '', imageUrl: getVideoThumbnail(data.videoUrl) }
+                                        ? { ...i, title: data.title, videoUrl: getEmbeddableVideoUrl(data.videoUrl), duration: String(data.duration || '').trim(), description: data.description || '', imageUrl: getVideoThumbnail(data.videoUrl) }
                                         : i
                                     );
 
@@ -7696,7 +7705,7 @@ function ModuleAccordionItem({
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`text-[9px] font-black uppercase tracking-widest ${isLessonActive ? 'text-[#4bd3ff]/60' : 'text-gray-600'}`}>
-                        {isChallenge ? 'Desafio Prático' : `${lesson.duration || '03:00'} min`}
+                        {isChallenge ? 'Desafio Prático' : formatLessonDuration(lesson.duration)}
                       </span>
                       {isCompleted && (
                         <CheckCircle size={10} className={isLessonActive ? 'text-[#4bd3ff]/60' : 'text-emerald-500'} />
