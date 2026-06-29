@@ -1587,8 +1587,9 @@ export default function App() {
   const todayDateKey = getTodayDateKey();
   const currentWeekKey = getCurrentWeekKey();
   const activeCiaChallenge = { ...CIA_PROTOCOL, date: todayDateKey };
+  const hasDailyAudio = Boolean(audioState.audioUrl);
   const isTodayMissionCompleted = allCompletions.some(c => c.challengeDate === todayDateKey && c.userId === user?.uid);
-  const hasNewMissionToday = !isTodayMissionCompleted;
+  const hasNewMissionToday = hasDailyAudio && !isTodayMissionCompleted;
   const storedExtraordinaryLifeSubmission = journeyForms.find(form => form.userId === user?.uid && form.type === 'extraordinaryLife');
   const demoExtraordinaryLifeSubmission: JourneyFormSubmission | undefined = user?.email === ADMIN_EMAIL && !storedExtraordinaryLifeSubmission ? {
     id: 'demo-extraordinary-life',
@@ -2675,6 +2676,12 @@ export default function App() {
   const handleSubmitMission = async () => {
     if (!user) return;
 
+    if (!hasDailyAudio) {
+      alert('O CIA de hoje será liberado assim que o áudio do dia estiver disponível.');
+      setIsMissionModalOpen(false);
+      return;
+    }
+
     if (!audioChecked) {
       alert('Você precisa confirmar que ouviu o áudio da missão!');
       return;
@@ -2949,7 +2956,6 @@ export default function App() {
 
 
   const renderAudioCard = () => {
-    const hasDailyAudio = Boolean(audioState.audioUrl);
     const audioProgress = audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0;
 
     return (
@@ -3151,7 +3157,7 @@ export default function App() {
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Contador CIA</p>
                     <h3 className="text-2xl font-black text-white uppercase tracking-tight">{ciaCompletionCount} protocolo{ciaCompletionCount === 1 ? '' : 's'} concluído{ciaCompletionCount === 1 ? '' : 's'}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-400">Cada dia abre um novo CIA para você registrar clareza, intenção e ação.</p>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-400">{hasDailyAudio ? 'Cada dia abre um novo CIA para você registrar clareza, intenção e ação.' : 'O CIA de hoje será liberado quando o áudio do dia estiver disponível.'}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {lastSevenDays.map(day => (
@@ -3170,7 +3176,7 @@ export default function App() {
                 <div className="p-3 bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 rounded-none text-[#4bd3ff]"><Zap size={24} /></div>
                 <div>
                   <h3 className="text-2xl font-black text-white uppercase tracking-tight">CIA Diário</h3>
-                  <p className="text-gray-400 text-sm">Clareza, Intenção e Ação. Responda uma vez por dia para ganhar folhas.</p>
+                  <p className="text-gray-400 text-sm">{hasDailyAudio ? 'Clareza, Intenção e Ação. Responda uma vez por dia para ganhar folhas.' : 'Aguarde o áudio do dia para liberar o CIA de hoje.'}</p>
                 </div>
               </div>
               <div className="bg-[#040e11] border border-white/10 p-8 rounded-none shadow-xl flex flex-col md:flex-row items-center gap-8 group relative overflow-hidden">
@@ -3181,14 +3187,14 @@ export default function App() {
                 )}
                 <div className="flex-1 space-y-4 relative z-10">
                   <h4 className="text-3xl font-black text-[#4bd3ff] uppercase tracking-tight group-hover:translate-x-1 transition-transform">CIA</h4>
-                  <p className="text-gray-400 leading-relaxed">{CIA_PROTOCOL.description}</p>
+                  <p className="text-gray-400 leading-relaxed">{hasDailyAudio ? CIA_PROTOCOL.description : 'A mensagem de preparação ainda não chegou. Assim que o áudio do dia for liberado, o CIA também ficará disponível.'}</p>
                   <button
-                    onClick={() => !isTodayMissionCompleted && setIsMissionModalOpen(true)}
-                    disabled={isTodayMissionCompleted}
-                    className={`inline-flex items-center gap-3 px-8 py-4 font-black uppercase tracking-widest text-xs rounded-none transition-all shadow-[0_10px_20px_rgba(75,211,255,0.2)] ${isTodayMissionCompleted ? 'bg-emerald-500/20 text-emerald-400 cursor-not-allowed shadow-none' : 'bg-[#4bd3ff] text-[#020507] hover:bg-[#38bdf8]'}`}
+                    onClick={() => hasDailyAudio && !isTodayMissionCompleted && setIsMissionModalOpen(true)}
+                    disabled={isTodayMissionCompleted || !hasDailyAudio}
+                    className={`inline-flex items-center gap-3 px-8 py-4 font-black uppercase tracking-widest text-xs rounded-none transition-all shadow-[0_10px_20px_rgba(75,211,255,0.2)] ${isTodayMissionCompleted ? 'bg-emerald-500/20 text-emerald-400 cursor-not-allowed shadow-none' : !hasDailyAudio ? 'bg-white/10 text-gray-500 cursor-not-allowed shadow-none' : 'bg-[#4bd3ff] text-[#020507] hover:bg-[#38bdf8]'}`}
                   >
-                    {isTodayMissionCompleted ? <CheckCircle size={18} /> : <Plus size={18} />}
-                    {isTodayMissionCompleted ? 'CIA concluído' : 'Responder CIA'}
+                    {isTodayMissionCompleted ? <CheckCircle size={18} /> : !hasDailyAudio ? <Lock size={18} /> : <Plus size={18} />}
+                    {isTodayMissionCompleted ? 'CIA concluído' : !hasDailyAudio ? 'Aguardando áudio' : 'Responder CIA'}
                   </button>
                 </div>
                 <div className="shrink-0 w-32 h-32 bg-[#0b2831]/20 border border-[#4bd3ff]/20 flex items-center justify-center rounded-none rotate-3 relative z-10">
