@@ -1599,7 +1599,6 @@ export default function App() {
   const currentJourneyField = EXTRAORDINARY_LIFE_FIELDS[journeyWizardStep];
   const journeyWizardProgress = Math.round(((journeyWizardStep + 1) / EXTRAORDINARY_LIFE_FIELDS.length) * 100);
   const purchasedOfferIds = user?.purchasedOfferIds || [];
-  const availableOffers = offersState.filter(offer => !purchasedOfferIds.includes(offer.id));
   const purchasedOffers = offersState.filter(offer => purchasedOfferIds.includes(offer.id));
   const extraContentTrail = trailsState.find(trail => trail.id === EXTRA_CONTENT_TRAIL_ID || trail.isExtraContent);
   const visibleContentTrails = trailsState.filter(trail => trail.id !== EXTRA_CONTENT_TRAIL_ID && !trail.isExtraContent);
@@ -1727,16 +1726,6 @@ export default function App() {
 
     saveNotificationState(seenNotificationIds, [...clearedNotificationIds, ...readVisibleIds]);
   };
-  const createOfferPreviewModule = (offer: Offer): Module => ({
-    id: `offer-preview-${offer.id}`,
-    offerId: offer.id,
-    isOffer: true,
-    title: offer.title,
-    description: offer.description,
-    imageUrl: offer.imageUrl,
-    lessonCount: offer.lessonCount || 0,
-    items: []
-  });
   const applyMonthlyRankingDelta = (pointsDelta: number) => {
     if (!user || !pointsDelta) return;
     setMonthlyRankingUsers(prev => {
@@ -3088,22 +3077,7 @@ export default function App() {
                     }}
                   />
                 )}
-                {availableOffers.length > 0 && (
-                  <TrailRow
-                    key="ofertas"
-                    trail={{
-                      id: 'ofertas',
-                      title: 'Ofertas Exclusivas 🔒',
-                      modules: availableOffers.map(createOfferPreviewModule)
-                    }}
-                    user={user}
-                    onLockedModule={setLockedModule}
-                    onSelectModule={(mod) => {
-                      const offer = offersState.find(item => item.id === mod.offerId);
-                      if (offer) setSelectedOffer(offer);
-                    }}
-                  />
-                )}
+
               </div>
             </div>
           </div>
