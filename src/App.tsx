@@ -15,8 +15,6 @@ const INITIAL_TABS = [
   { id: 'jornada', label: 'Início', icon: Home },
   { id: 'materiais', label: 'Materiais', icon: FileText },
   { id: 'gameficacao', label: 'Desafios', icon: Trophy },
-  { id: 'sua-jornada', label: 'Sua Jornada', icon: Compass },
-  { id: 'ranking', label: 'Ranking', icon: Crown },
   { id: 'guardiao', label: 'Guardião', icon: Shield },
 ];
 
@@ -7029,7 +7027,7 @@ export default function App() {
             const showMissionBadge = tab.id === 'gameficacao' && hasNewMissionToday;
             return (
               <React.Fragment key={tab.id}>
-                {index === 3 && activeTab !== 'guardiao' && !isAdminPanelOpen && (
+                {index === Math.floor(userTabs.length / 2) && activeTab !== 'guardiao' && !isAdminPanelOpen && (
                   <button
                     type="button"
                     onClick={toggleAudio}
