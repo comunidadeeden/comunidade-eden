@@ -6246,7 +6246,7 @@ export default function App() {
                playsInline
 	               className="w-full h-full object-cover opacity-65 scale-105"
 	             >
-	               <source src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Capa-Hubla.mp4" type="video/mp4" />
+	               <source src="/videos/capa-inicio.mp4" type="video/mp4" />
 	             </video>
 	             <div className="absolute inset-0 bg-gradient-to-t from-[#020507] via-[#020507]/12 to-[#020507]/55"></div>
 	             <div className="absolute inset-y-0 left-0 w-24 sm:w-40 bg-gradient-to-r from-[#020507] to-transparent"></div>
