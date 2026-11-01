@@ -41,12 +41,10 @@ const DEFAULT_MONTHLY_RANKING_PRIZE = '1 sessão individual com Bruno Simplicio'
 const EMPTY_DAILY_AUDIO: DailyAudio = {
   id: 'empty-daily-audio',
   date: '',
-  tag: 'Áudio do dia',
   subtitle: 'Mensagem do Jardim',
   title: 'A mensagem de hoje ainda não chegou',
   description: 'Volte um pouco mais tarde. Assim que o áudio for liberado, o play fica disponível por aqui.',
-  audioUrl: '',
-  createdAt: null
+  audioUrl: ''
 };
 const DAILY_COMMITMENT_POINTS = 10;
 const IS_MAINTENANCE_MODE = (import.meta as any).env?.VITE_MAINTENANCE_MODE === 'true';
@@ -6597,7 +6595,7 @@ export default function App() {
                    ) : (
                      <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
                        <Video size={64} className="mb-4 opacity-20" />
-                       <p className="font-bold uppercase tracking-widest text-sm">Vídeo Indisponível</p>
+                       <p className="font-bold uppercase tracking-widest text-sm">{selectedModule.items.length === 0 ? 'Novas aulas em breve' : 'Vídeo Indisponível'}</p>
                      </div>
                    )}
                 </div>
@@ -7744,7 +7742,7 @@ function TrailRow({ trail, onSelectModule, onLockedModule, user }: { trail: Trai
   return (
     <div className="mb-10 sm:mb-14 group">
       <div className="mb-4 px-2 tracking-tight">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-200">{trail.title}</h2>
+        <h2 className={`text-xl sm:text-2xl font-bold ${trail.id === 'novas-aulas' ? 'text-amber-300' : 'text-gray-200'}`}>{trail.title}</h2>
       </div>
 
       <div className="relative">
@@ -7796,7 +7794,7 @@ function TrailRow({ trail, onSelectModule, onLockedModule, user }: { trail: Trai
                 {shouldShowLessonCount && (
                   <div className="absolute inset-x-0 bottom-0 p-3 flex justify-start">
                      <span className="text-[9px] sm:text-[10px] font-bold text-[#4bd3ff] bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 backdrop-blur-sm px-2 py-1 rounded tracking-wider uppercase shadow-lg">
-                       {lessonCount} Aulas
+                       {lessonCount === 0 ? 'Em breve' : `${lessonCount} Aulas`}
                      </span>
                   </div>
                 )}
