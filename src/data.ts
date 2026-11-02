@@ -61,22 +61,53 @@ export const categoriesJornada: NetflixCategory[] = [
 
 export const materiaisDeApoio: NetflixCategory[] = [
   {
-    id: "pdfs",
-    title: "Guias Práticos",
-    items: [
+    "id": "pdfs",
+    "title": "Materiais Complementares",
+    "items": [
       {
-        id: "pdf-1",
-        title: "Mapa Mental da Fase 1",
-        description: "Um guia visual detalhado para a fase inicial.",
-        imageUrl: "https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&q=80&w=600&h=900",
-        type: 'material',
+        "id": "YgyTebODrREd1gtyUfw4",
+        "title": "Ferramenta de Rastreio de Traumas",
+        "videoUrl": "/materiais/arquivos/rastreio-de-traumas.pdf",
+        "imageUrl": "/materiais/capas/rastreio-de-traumas.png",
+        "description": "",
+        "type": "material",
+        "duration": "PDF"
       },
       {
-        id: "pdf-2",
-        title: "Planner Diário",
-        description: "Folheto de organização para imprimir.",
-        imageUrl: "https://images.unsplash.com/photo-1512314889357-e157c22f938d?auto=format&fit=crop&q=80&w=600&h=900",
-        type: 'material',
+        "id": "2XOPsClXHRNLkAsMxomL",
+        "title": "Guia de Diagnóstico - Bússola da Cura",
+        "videoUrl": "/materiais/arquivos/guia-de-diagnostico-bussola-da-cura.pdf",
+        "imageUrl": "/materiais/capas/guia-de-diagnostico-bussola-da-cura.png",
+        "description": "",
+        "type": "material",
+        "duration": "PDF"
+      },
+      {
+        "id": "1BRC5yWAX2mGDO72syzb",
+        "title": "Manual de Crise - SOS",
+        "videoUrl": "/materiais/arquivos/manual-de-crise-sos.pdf",
+        "imageUrl": "/materiais/capas/manual-de-crise-sos.png",
+        "description": "",
+        "type": "material",
+        "duration": "PDF"
+      },
+      {
+        "id": "MmYEw5Rmz2jZ7AIFFxgT",
+        "title": "Mapa de Dessignificação de um Trauma",
+        "videoUrl": "/materiais/arquivos/protocolo-de-dessignificacao.pdf",
+        "imageUrl": "/materiais/capas/protocolo-de-dessignificacao.png",
+        "description": "",
+        "type": "material",
+        "duration": "PDF"
+      },
+      {
+        "id": "LcDpUhEr8sj4qHEsEwDv",
+        "title": "Protocolo do Sono Reparador",
+        "videoUrl": "/materiais/arquivos/protocolo-do-sono-reparador.pdf",
+        "imageUrl": "/materiais/capas/protocolo-do-sono-reparador.png",
+        "description": "",
+        "type": "material",
+        "duration": "PDF"
       }
     ]
   }

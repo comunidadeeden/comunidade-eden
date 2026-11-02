@@ -8,5 +8,16 @@
       "source": "/acesso",
       "destination": "/index.html"
     }
+  ],
+  "headers": [
+    {
+      "source": "/materiais/arquivos/:path*",
+      "headers": [
+        {
+          "key": "Content-Disposition",
+          "value": "attachment"
+        }
+      ]
+    }
   ]
 }

@@ -7050,10 +7050,15 @@ function CategoryRow({ category, onSelect }: { category: NetflixCategory, onSele
         >
           {category.items.map(item => {
             const isContentItem = 'type' in item;
+            const fileUrl = isContentItem ? ((item as ContentItem).videoUrl || (item as ContentItem).audioUrl) : undefined;
+            const Card = fileUrl ? 'a' : 'div';
             return (
-              <div
+              <Card
                 key={item.id}
-                onClick={() => onSelect(item)}
+                href={fileUrl}
+                download={fileUrl ? true : undefined}
+                aria-label={fileUrl ? `Baixar ${item.title}` : undefined}
+                onClick={fileUrl ? undefined : () => onSelect(item)}
                 className="relative shrink-0 w-36 sm:w-44 md:w-52 aspect-[9/16] rounded-none bg-[#0b2831]/20 cursor-pointer overflow-hidden transition-all duration-300 hover:scale-105 hover:z-20 shadow-lg hover:shadow-2xl group/card border border-white/5 hover:border-white/20"
               >
                 <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110 opacity-80 group-hover/card:opacity-100" />
@@ -7062,11 +7067,11 @@ function CategoryRow({ category, onSelect }: { category: NetflixCategory, onSele
                   <div className="absolute inset-x-0 bottom-0 top-1/2 bg-gradient-to-t from-[#020507] via-[#020507]/60 to-transparent flex flex-col justify-end p-4 transition-opacity duration-300">
                      <h4 className="font-extrabold text-base sm:text-lg text-white leading-tight drop-shadow-md decoration-white/30 group-hover/card:underline underline-offset-4">{item.title}</h4>
                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-[9px] sm:text-[10px] font-bold text-[#4bd3ff] bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 px-1.5 py-0.5 rounded tracking-wider uppercase">Novo</span>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-[#4bd3ff] bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 px-1.5 py-0.5 rounded tracking-wider uppercase">{fileUrl ? 'Baixar arquivo' : 'Novo'}</span>
                         {isContentItem && (item as ContentItem).duration && <span className="text-[10px] sm:text-xs font-medium text-gray-300 drop-shadow">{(item as ContentItem).duration}</span>}
                      </div>
                   </div>
-                </div>
+                </Card>
               );
             })}
         </div>
