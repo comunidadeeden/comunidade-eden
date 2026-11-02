@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
-import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, NotificationNotice, CustomLevel, Offer, MonthlyRankingUser, JourneyFormSubmission } from './types';
+import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, NotificationNotice, Offer, MonthlyRankingUser, JourneyFormSubmission } from './types';
 import { Play, Volume2, User, ChevronRight, ChevronLeft, X, Lock, Download, Award, Shield, Compass, FileText, CheckCircle, Star, Trophy, Settings, LayoutDashboard, Video, Plus, Edit2, Trash2, ChevronDown, List, Mic, Users, Camera, Instagram, Briefcase, Phone, Heart, Zap, Crown, Key, Calendar, Leaf, Sprout, ArrowUp, ArrowDown, MessageSquare, Send, LogOut, Dumbbell, Bell, Home, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db } from './firebase';
@@ -399,7 +399,7 @@ const renderTextWithLinks = (text: string) => {
 
 const formatLastAccess = (value: any) => {
   const millis = getTimestampMillis(value);
-  if (!millis) return 'Nunca acessou';
+  if (!millis) return 'Sem acesso registrado';
   return new Date(millis).toLocaleString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
@@ -670,7 +670,6 @@ const parseStudentsFromDelimitedText = (text: string): ImportedStudentRow[] => {
     .filter(student => student.name && student.email);
 };
 
-const sortLevelsByStart = (levels: CustomLevel[]) => [...levels].sort((a, b) => b.points - a.points);
 
 enum OperationType {
   CREATE = 'create',
@@ -916,34 +915,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const isAdmin = user?.role === 'admin' || user?.email === ADMIN_EMAIL;
 
-  const [userLevels, setUserLevels] = useState<CustomLevel[]>([
-    { id: '1', title: 'Guardiã do Éden', points: 2000, maxPoints: 999999, level: 5, iconName: 'Crown' },
-    { id: '2', title: 'Decidida', points: 1200, maxPoints: 1999, level: 4, iconName: 'Star' },
-    { id: '3', title: 'Ruptura', points: 750, maxPoints: 1199, level: 3, iconName: 'Zap' },
-    { id: '4', title: 'Desperta', points: 550, maxPoints: 749, level: 2, iconName: 'Award' },
-    { id: '5', title: 'Observadora', points: 300, maxPoints: 549, level: 1, iconName: 'Trophy' },
-    { id: '6', title: 'Iniciante', points: 0, maxPoints: 299, level: 0, iconName: 'Sprout' }
-  ]);
-
-  const getUserLevel = (points: number) => {
-    const sortedLevels = [...userLevels].sort((a, b) => b.points - a.points);
-    const levelObj = sortedLevels.find(l => points >= l.points && points <= (l.maxPoints ?? Infinity)) || sortedLevels.find(l => points >= l.points) || sortedLevels[sortedLevels.length - 1];
-    return { title: levelObj?.title || 'Iniciante', level: levelObj?.level || 0, icon: ICON_MAP[levelObj?.iconName] || Trophy };
-  };
-
-  const getNextLevelInfo = (points: number) => {
-    const orderedLevels = [...userLevels].sort((a, b) => a.points - b.points);
-    const nextLevel = orderedLevels.find(l => points < l.points);
-    if (!nextLevel) {
-      return { nextTitle: 'Nível Máximo Alcançado', percentage: 100 };
-    }
-    const currentLevel = [...orderedLevels].reverse().find(l => points >= l.points) || { points: 0 };
-    return {
-       nextTitle: nextLevel.title,
-       percentage: ((points - currentLevel.points) / (nextLevel.points - currentLevel.points)) * 100
-    };
-  };
-
   const [activeTab, setActiveTab] = useState('jornada');
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -977,6 +948,9 @@ export default function App() {
   const [journeyResponses, setJourneyResponses] = useState<Record<string, any>>({});
   const [weeklyOath, setWeeklyOath] = useState({ identity: '', conquest: '' });
   const [journeyForms, setJourneyForms] = useState<JourneyFormSubmission[]>([]);
+  const [activityStudentId, setActivityStudentId] = useState<string | null>(null);
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityFilter, setActivityFilter] = useState('all');
   const [selectedJourneyUser, setSelectedJourneyUser] = useState<UserProfile | null>(null);
   const [isJourneyWizardOpen, setIsJourneyWizardOpen] = useState(false);
   const [journeyWizardStep, setJourneyWizardStep] = useState(0);
@@ -1315,7 +1289,6 @@ export default function App() {
       'Tem filhos',
       'Quantidade de filhos',
       'Folhas',
-      'Nível',
       'Status',
       'Último acesso',
       'Expira em',
@@ -1343,7 +1316,6 @@ export default function App() {
         formatBoolean(student.hasChildren),
         student.childrenCount || 0,
         student.points || 0,
-        getUserLevel(student.points || 0).title,
         status,
         formatLastAccess(student.lastAccessAt),
         student.accessExpiresAt || '',
@@ -2220,17 +2192,6 @@ export default function App() {
     }
     loadRankingSummary();
 
-    const unsubscribeLevels = onSnapshot(doc(db, 'settings', 'levels'), (docLevel) => {
-       if (docLevel.exists()) {
-          const data = docLevel.data();
-          if (data.levels && Array.isArray(data.levels)) {
-             setUserLevels(data.levels);
-          }
-       }
-    }, (error) => {
-      handleFirestoreError(error, 'GET' as any, 'settings/levels');
-    });
-
     const unsubscribeVisibility = onSnapshot(doc(db, 'settings', 'tabVisibility'), (docVisibility) => {
       if (docVisibility.exists()) {
         const data = docVisibility.data();
@@ -2273,7 +2234,6 @@ export default function App() {
       if (unsubscribeAllAudios) unsubscribeAllAudios();
       if (unsubscribeJourneyForms) unsubscribeJourneyForms();
       if (unsubscribeRanking) unsubscribeRanking();
-      unsubscribeLevels();
       unsubscribeVisibility();
       unsubscribeEmailTemplates();
       unsubscribeMonthlyRankingSettings();
@@ -2542,10 +2502,6 @@ export default function App() {
                     <span className="text-2xl">🍃</span>
                     <span className="text-2xl font-black text-white">{user.points} Folhas</span>
                   </div>
-                </div>
-	                <div className="sm:text-right">
-                  <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Nível Atual</p>
-                  <p className="text-lg font-bold text-white capitalize">{user.role}</p>
                 </div>
               </div>
 
@@ -3944,21 +3900,6 @@ export default function App() {
     );
   };
 
-  const handleSaveLevels = async () => {
-    try {
-      const normalizedLevels = sortLevelsByStart(userLevels).map((level, index) => ({
-        ...level,
-        level: userLevels.length - index - 1,
-        maxPoints: level.maxPoints ?? level.points,
-      }));
-      setUserLevels(normalizedLevels);
-      await setDoc(doc(db, 'settings', 'levels'), { levels: normalizedLevels });
-      alert('Níveis salvos com sucesso!');
-    } catch (e) {
-      handleFirestoreError(e, 'WRITE' as any, 'settings/levels');
-    }
-  };
-
   const handleToggleTabVisibility = async (tabId: string) => {
     const nextVisibility = {
       ...tabVisibility,
@@ -4252,119 +4193,6 @@ export default function App() {
     </div>
   );
 
-  const renderAdminLevels = () => (
-    <div className="w-full max-w-7xl space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
-        <div>
-          <h3 className="text-2xl font-black text-white uppercase tracking-tight">Níveis de Acesso</h3>
-          <p className="text-gray-400 text-sm mt-1">Defina os intervalos de pontos, nomes e ícones de cada nível.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => {
-              const minPoints = userLevels.length ? Math.max(...userLevels.map(level => level.maxPoints ?? level.points)) + 1 : 0;
-              setUserLevels([
-                ...userLevels,
-                {
-                  id: Math.random().toString(36).substring(2, 9),
-                  title: 'Novo Nível',
-                  points: minPoints,
-                  maxPoints: minPoints + 99,
-                  level: userLevels.length,
-                  iconName: 'Sprout'
-                }
-              ]);
-            }}
-            className="flex items-center gap-2 bg-white/10 text-white hover:bg-white/15 px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors"
-          >
-            <Plus size={16} /> Novo Nível
-          </button>
-          <button
-            onClick={handleSaveLevels}
-            className="flex items-center gap-2 bg-[#4bd3ff] text-[#020507] hover:bg-[#38bdf8] px-6 py-2.5 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors"
-          >
-            <CheckCircle size={16} /> Salvar Alterações
-          </button>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {userLevels.map((lvl, index) => (
-          <div key={lvl.id || index} className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr_1fr_1.2fr_auto] gap-4 p-4 border border-white/5 bg-white/5 rounded-xl items-end">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Nome do Nível</label>
-              <input
-                value={lvl.title}
-                onChange={(e) => {
-                  const newLevels = [...userLevels];
-                  newLevels[index].title = e.target.value;
-                  setUserLevels(newLevels);
-                }}
-                className="w-full bg-black/40 border border-white/10 p-3 rounded-lg text-white font-bold"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Pontos início</label>
-              <input
-                type="number"
-                value={lvl.points}
-                onChange={(e) => {
-                  const newLevels = [...userLevels];
-                  newLevels[index].points = Number(e.target.value) || 0;
-                  setUserLevels(newLevels);
-                }}
-                className="w-full bg-black/40 border border-white/10 p-3 rounded-lg text-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Pontos final</label>
-              <input
-                type="number"
-                value={lvl.maxPoints ?? lvl.points}
-                onChange={(e) => {
-                  const newLevels = [...userLevels];
-                  newLevels[index].maxPoints = Number(e.target.value) || 0;
-                  setUserLevels(newLevels);
-                }}
-                className="w-full bg-black/40 border border-white/10 p-3 rounded-lg text-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Ícone</label>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 flex items-center justify-center text-[#4bd3ff]">
-                  {(() => {
-                    const LevelIcon = ICON_MAP[lvl.iconName] || Trophy;
-                    return <LevelIcon size={22} />;
-                  })()}
-                </div>
-                <select
-                  value={lvl.iconName}
-                  onChange={(e) => {
-                    const newLevels = [...userLevels];
-                    newLevels[index].iconName = e.target.value;
-                    setUserLevels(newLevels);
-                  }}
-                  className="flex-1 bg-black/40 border border-white/10 p-3 rounded-lg text-white"
-                >
-                  {Object.keys(ICON_MAP).map(key => (
-                    <option key={key} value={key}>{key}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <button
-              onClick={() => setUserLevels(userLevels.filter((_, levelIndex) => levelIndex !== index))}
-              className="h-12 px-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500 hover:text-white transition-colors flex items-center justify-center gap-2 font-black uppercase tracking-widest text-[10px]"
-            >
-              <Trash2 size={16} /> Deletar
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   const renderAdminPanel = () => (
 	    <div className="fixed inset-0 z-[200] bg-[#020507] flex flex-col animate-in fade-in duration-300">
       {/* Admin Top Bar */}
@@ -4395,9 +4223,7 @@ export default function App() {
                 {id: 'avisos', label: 'Avisos', icon: Bell},
                 {id: 'emails', label: 'Emails', icon: Send},
                 {id: 'materiais', label: 'Materiais', icon: FileText},
-                {id: 'ofertas', label: 'Ofertas', icon: Trophy},
                 {id: 'audio', label: 'Áudio do Dia', icon: Mic},
-                {id: 'niveis', label: 'Níveis (Progresso)', icon: Crown},
               ].map(item => (
               <button
                 key={item.id}
@@ -4539,67 +4365,6 @@ export default function App() {
                   </div>
                 ))}
               </div>
-
-              <section className="bg-white/5 border border-white/10 rounded-3xl p-8">
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-8">
-                  <div>
-                    <h4 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
-                      <Video size={22} className="text-[#4bd3ff]" />
-                      Aulas Mais Assistidas
-                    </h4>
-                    <p className="text-gray-400 text-sm mt-1">Baseado nos conteúdos marcados como concluídos pelos alunos.</p>
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-                    {adminStudents.length} alunos
-                  </span>
-                </div>
-
-                {(() => {
-                  const lessons = trailsState.flatMap(trail => (trail.modules || []).flatMap(module => module.items || []));
-                  const watchedLessons = lessons
-                    .map(lesson => ({
-                      id: lesson.id,
-                      title: lesson.title,
-                      count: adminStudents.filter(student => student.completedChallenges?.includes(lesson.id)).length
-                    }))
-                    .sort((a, b) => b.count - a.count)
-                    .slice(0, 8);
-                  const maxCount = Math.max(1, ...watchedLessons.map(lesson => lesson.count));
-
-                  if (watchedLessons.length === 0) {
-                    return (
-                      <div className="border border-white/10 border-dashed rounded-2xl p-10 text-center">
-                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Ainda não há aulas cadastradas para gerar o demonstrativo.</p>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="space-y-4">
-                      {watchedLessons.map((lesson, index) => (
-                        <div key={lesson.id} className="grid grid-cols-[32px_1fr_auto] gap-4 items-center">
-                          <span className="text-gray-500 font-black text-xs tabular-nums">{String(index + 1).padStart(2, '0')}</span>
-                          <div className="min-w-0">
-                            <div className="flex items-center justify-between gap-4 mb-2">
-                              <p className="text-white font-bold truncate">{lesson.title}</p>
-                              <span className="text-[#4bd3ff] font-black text-xs whitespace-nowrap">{lesson.count} conclusão{lesson.count === 1 ? '' : 'ões'}</span>
-                            </div>
-                            <div className="h-3 rounded-full bg-black/40 overflow-hidden border border-white/5">
-                              <div
-                                className="h-full rounded-full bg-gradient-to-r from-[#4bd3ff] to-emerald-400"
-                                style={{ width: `${Math.max(lesson.count === 0 ? 3 : 8, (lesson.count / maxCount) * 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                          <span className="text-gray-500 font-bold text-xs tabular-nums">
-                            {adminStudents.length ? Math.round((lesson.count / adminStudents.length) * 100) : 0}%
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </section>
 
               {/* Visibility Controls */}
               <section className="bg-white/5 border border-white/10 rounded-3xl p-8">
@@ -5388,6 +5153,11 @@ export default function App() {
                               </button>
 
                               <button
+                                onClick={() => { setActivityStudentId(student.uid); setActivitySearch(''); setActivityFilter('all'); }}
+                                className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold whitespace-nowrap"
+                                title="Ver aulas e último acesso"
+                              >Ver aulas</button>
+                              <button
                                 onClick={() => setSelectedJourneyUser(student)}
                                 className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-gray-300 font-black text-[9px] uppercase tracking-widest hover:border-[#4bd3ff]/50 hover:text-[#4bd3ff] transition-colors"
                                 title="Ver protocolos da aluna"
@@ -5569,184 +5339,6 @@ export default function App() {
             </div>
           )}
 
-          {adminActiveSection === 'ofertas' && (
-            <div className="w-full max-w-7xl space-y-6">
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="text-2xl font-black text-white uppercase tracking-tight">Ofertas</h3>
-                  <p className="text-gray-400 text-sm mt-1">Crie produtos que aparecem como módulos bloqueados na trilha de ofertas.</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setPromptConfig({
-                      title: 'Nova Oferta',
-                      fields: [
-                        { name: 'title', label: 'Nome da oferta', required: true },
-                        { name: 'description', label: 'Descrição da oferta', type: 'textarea', required: true },
-                        { name: 'imageUrl', label: 'Link da capa', required: true },
-                        { name: 'checkoutUrl', label: 'Link do botão / checkout', required: true },
-                        { name: 'buttonLabel', label: 'Texto do botão', defaultValue: 'Comprar agora' },
-                        { name: 'helperText', label: 'Texto abaixo do botão', type: 'textarea' },
-                        { name: 'lessonCount', label: 'Quantidade de aulas', type: 'number', placeholder: '0' },
-                      ],
-                      onSubmit: async (data) => {
-                        try {
-                          const trail = await ensureExtraContentTrail();
-                          const offerRef = doc(collection(db, 'offers'));
-                          const newModule = {
-                            id: `offer-module-${offerRef.id}`,
-                            offerId: offerRef.id,
-                            title: data.title,
-                            description: data.description || '',
-                            imageUrl: data.imageUrl || '',
-                            lessonCount: Number(data.lessonCount || 0),
-                            items: []
-                          };
-                          await setDoc(offerRef, {
-                            title: data.title,
-                            description: data.description || '',
-                            imageUrl: data.imageUrl || '',
-                            checkoutUrl: data.checkoutUrl || '',
-                            buttonLabel: data.buttonLabel || 'Comprar agora',
-                            helperText: data.helperText || '',
-                            lessonCount: Number(data.lessonCount || 0),
-                            moduleId: newModule.id,
-                            createdAt: serverTimestamp(),
-                            updatedAt: serverTimestamp()
-                          });
-                          await setDoc(doc(db, 'trails', trail.id), {
-                            ...trail,
-                            modules: [...(trail.modules || []), newModule],
-                            isExtraContent: true,
-                            updatedAt: serverTimestamp()
-                          });
-                        } catch (e) {
-                          handleFirestoreError(e, OperationType.CREATE, 'offers');
-                        }
-                      },
-                      onCancel: () => setPromptConfig(null)
-                    });
-                  }}
-                  className="flex items-center gap-2 bg-[#4bd3ff] hover:bg-[#38bdf8] text-black px-6 py-2.5 rounded-xl font-black transition-all"
-                >
-                  <Plus size={20} /> Nova Oferta
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {offersState.length === 0 && (
-                  <div className="md:col-span-2 xl:col-span-3 border border-white/10 border-dashed rounded-2xl p-10 text-center">
-                    <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Nenhuma oferta cadastrada ainda.</p>
-                  </div>
-                )}
-                {offersState.map((offer) => (
-                  <div key={offer.id} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                    <div className="aspect-[16/10] bg-black/30 overflow-hidden">
-                      <img src={offer.imageUrl} alt="" className="w-full h-full object-cover opacity-80" />
-                    </div>
-                    <div className="p-5 space-y-4">
-                      <div>
-                        <h4 className="text-white font-black text-lg tracking-tight">{offer.title}</h4>
-                        <p className="text-gray-400 text-sm mt-2 line-clamp-3">{offer.description}</p>
-                      </div>
-                      <p className="text-gray-500 text-xs truncate">{offer.checkoutUrl}</p>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="text-gray-500 text-xs font-bold uppercase tracking-widest">{offer.lessonCount ? `${offer.lessonCount} aula(s)` : 'Sem tag de aulas'}</span>
-                        <span className="text-[#4bd3ff] text-xs font-black uppercase tracking-widest">{offer.clickCount || 0} clique(s)</span>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => {
-                            setPromptConfig({
-                              title: 'Editar Oferta',
-                              fields: [
-                                { name: 'title', label: 'Nome da oferta', defaultValue: offer.title, required: true },
-                                { name: 'description', label: 'Descrição da oferta', type: 'textarea', defaultValue: offer.description || '', required: true },
-                                { name: 'imageUrl', label: 'Link da capa', defaultValue: offer.imageUrl || '', required: true },
-                                { name: 'checkoutUrl', label: 'Link do botão / checkout', defaultValue: offer.checkoutUrl || '', required: true },
-                                { name: 'buttonLabel', label: 'Texto do botão', defaultValue: offer.buttonLabel || 'Comprar agora' },
-                                { name: 'helperText', label: 'Texto abaixo do botão', type: 'textarea', defaultValue: offer.helperText || '' },
-                                { name: 'lessonCount', label: 'Quantidade de aulas', type: 'number', defaultValue: String(offer.lessonCount || 0), placeholder: '0' },
-                              ],
-                              onSubmit: async (data) => {
-                                try {
-                                  const trail = await ensureExtraContentTrail();
-                                  const moduleId = offer.moduleId || `offer-module-${offer.id}`;
-                                  const syncedModule = {
-                                    id: moduleId,
-                                    offerId: offer.id,
-                                    title: data.title,
-                                    description: data.description || '',
-                                    imageUrl: data.imageUrl || '',
-                                    lessonCount: Number(data.lessonCount || 0),
-                                    items: (trail.modules || []).find(module => module.id === moduleId)?.items || []
-                                  };
-                                  const hasSyncedModule = (trail.modules || []).some(module => module.id === moduleId);
-                                  const updatedModules = hasSyncedModule
-                                    ? (trail.modules || []).map(module => module.id === moduleId ? { ...module, ...syncedModule } : module)
-                                    : [...(trail.modules || []), syncedModule];
-
-                                  await updateDoc(doc(db, 'offers', offer.id), {
-                                    title: data.title,
-                                    description: data.description || '',
-                                    imageUrl: data.imageUrl || '',
-                                    checkoutUrl: data.checkoutUrl || '',
-                                    buttonLabel: data.buttonLabel || 'Comprar agora',
-                                    helperText: data.helperText || '',
-                                    lessonCount: Number(data.lessonCount || 0),
-                                    moduleId,
-                                    updatedAt: serverTimestamp()
-                                  });
-                                  await updateDoc(doc(db, 'trails', trail.id), {
-                                    modules: updatedModules,
-                                    isExtraContent: true,
-                                    updatedAt: serverTimestamp()
-                                  });
-                                } catch (e) {
-                                  handleFirestoreError(e, OperationType.UPDATE, `offers/${offer.id}`);
-                                }
-                              },
-                              onCancel: () => setPromptConfig(null)
-                            });
-                          }}
-                          className="p-2 text-gray-400 hover:text-[#4bd3ff]"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setPromptConfig({
-                              title: 'Excluir Oferta?',
-                              description: 'A oferta será removida da vitrine. Usuários que compraram deixarão de ver esse módulo extra até ela ser recriada.',
-                              submitText: 'Excluir',
-                              fields: [],
-                              onSubmit: async () => {
-                                try {
-                                  await deleteDoc(doc(db, 'offers', offer.id));
-                                  const trail = await ensureExtraContentTrail();
-                                  await updateDoc(doc(db, 'trails', trail.id), {
-                                    modules: (trail.modules || []).filter(module => module.id !== offer.moduleId && module.offerId !== offer.id),
-                                    updatedAt: serverTimestamp()
-                                  });
-                                } catch (e) {
-                                  handleFirestoreError(e, OperationType.DELETE, `offers/${offer.id}`);
-                                }
-                              },
-                              onCancel: () => setPromptConfig(null)
-                            });
-                          }}
-                          className="p-2 text-gray-400 hover:text-red-400"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {adminActiveSection === 'avisos' && renderAdminNotifications()}
 
           {adminActiveSection === 'emails' && renderAdminEmails()}
@@ -5755,7 +5347,6 @@ export default function App() {
 
           {adminActiveSection === 'missoes' && renderAdminMissions()}
 
-          {adminActiveSection === 'niveis' && renderAdminLevels()}
         </div>
       </div>
     </div>
@@ -6257,260 +5848,6 @@ export default function App() {
 	        </div>
       )}
 
-      {activeTab === 'ranking' && !isCurrentTabInDevelopment && (
-        <div className="relative w-full z-0 pt-24 pb-16 px-4 sm:px-12 flex justify-center">
-          <div className="w-full max-w-2xl bg-[#040e11] border border-white/10 p-6 sm:p-10 rounded-2xl shadow-2xl relative">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[100px] rounded-full -mr-32 -mt-32"></div>
-
-            <div className="space-y-10 relative z-10">
-              <div className="bg-[#0b0c10]/55 backdrop-blur-3xl border border-[#4bd3ff]/20 rounded-2xl p-6 sm:p-8 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)]">
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-[#f1f5f9] tracking-tight mb-2 flex items-center gap-2">
-                       {user?.name}
-                       {user?.isCofounder && (
-                           <div className="group relative flex items-center">
-                             <Key size={24} className="text-[#4bd3ff]" />
-                             <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#0b2831] px-2 py-1 text-[10px] font-bold text-[#4bd3ff] opacity-0 transition-opacity group-hover:opacity-100 border border-[#4bd3ff]/20 z-[100] shadow-xl tracking-normal">
-                               Essa é uma co fundadora do Éden
-                             </div>
-                           </div>
-                       )}
-                    </h2>
-                    <div className="inline-block bg-[#0b2831] border border-[#144b5c] text-emerald-400 px-4 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase">
-                      {getUserLevel(user?.points || 0).title}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-emerald-400 text-2xl drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">🍃</span>
-                      <span className="text-3xl font-black text-[#f8fafc]">{user?.points || 0}</span>
-                    </div>
-                    <span className="text-gray-400 text-[10px] font-bold tracking-widest uppercase">Folhas</span>
-                  </div>
-                </div>
-
-                {(() => {
-                  const nextLvl = getNextLevelInfo(user?.points || 0);
-                  const currLvl = getUserLevel(user?.points || 0);
-                  return (
-                    <>
-                      <div className="mb-2 flex items-center justify-between text-xs text-gray-400 font-bold uppercase tracking-wider">
-                        <span>Progresso para {nextLvl.nextTitle}</span>
-                        <span className="text-[#4bd3ff]">{Math.min(100, Math.round(nextLvl.percentage))}%</span>
-                      </div>
-                      <div className="h-2.5 bg-black/40 rounded-full overflow-hidden mb-4 border border-white/5 p-[1px]">
-                        <div
-                          className="h-full bg-gradient-to-r from-emerald-500 via-[#4bd3ff] to-emerald-400 rounded-full transition-all duration-1000 ease-out shadow-[0_0_20px_rgba(75,211,255,0.4)]"
-                          style={{ width: `${Math.min(100, nextLvl.percentage)}%` }}
-                        ></div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-2 mt-2">
-                        <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
-                          <currLvl.icon size={12} className="text-emerald-400 shrink-0" />
-                          <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
-                            {currLvl.title}
-                          </span>
-                        </div>
-                        {user?.isCofounder && (
-                          <div className="flex items-center gap-2 bg-[#4bd3ff]/10 px-3 py-1.5 rounded-full border border-[#4bd3ff]/20">
-                            <Key size={12} className="text-[#4bd3ff]" />
-                            <span className="text-[10px] text-[#4bd3ff] font-bold uppercase tracking-widest">
-                               Co-fundadora
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-
-              <div className="flex flex-col items-center space-y-4">
-                <div className="flex items-center gap-3">
-                  <Leaf size={28} className="text-emerald-400 animate-pulse" />
-                  <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">
-                    Ranking do Éden
-                  </h2>
-                </div>
-                <div className="inline-flex items-center gap-1 bg-black/40 border border-white/10 rounded-2xl p-1">
-                  {[
-                    { id: 'mensal', label: 'Mensal' },
-                    { id: 'geral', label: 'Geral' }
-                  ].map((mode) => (
-                    <button
-                      key={mode.id}
-                      onClick={() => setRankingMode(mode.id as 'geral' | 'mensal')}
-                      className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${rankingMode === mode.id ? 'bg-[#4bd3ff] text-[#020507]' : 'text-gray-400 hover:text-white'}`}
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {rankingMode === 'mensal' && (
-                <div className="rounded-3xl border border-[#4bd3ff]/20 bg-[#061418] overflow-hidden">
-                  <div className="p-5 sm:p-6 border-b border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                      <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-[0.28em] mb-2">Desafio do mês</p>
-                      <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight capitalize">{formatMonthKey(monthlyRankingMeta.monthKey)}</h3>
-                    </div>
-                    <div className="rounded-2xl bg-[#4bd3ff]/10 border border-[#4bd3ff]/20 px-4 py-3 text-left sm:text-right">
-                      <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-widest">Prêmio</p>
-                      <p className="text-white font-black text-sm">{monthlyRankingMeta.prize}</p>
-                      <p className="text-gray-500 text-[11px] mt-1">
-                        {monthlyRankingMeta.daysRemaining > 0 ? `${monthlyRankingMeta.daysRemaining} dia(s) restantes` : 'Encerrando hoje'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-5 sm:p-6">
-                    {monthlyRankingUsers.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {monthlyRankingUsers.slice(0, 3).map((rUser, idx) => {
-                          const rankStyles = [
-                            'border-yellow-400/30 bg-yellow-400/10 sm:scale-105',
-                            'border-slate-300/20 bg-white/5',
-                            'border-amber-600/25 bg-amber-600/10'
-                          ];
-                          return (
-                            <div key={rUser.uid} className={`rounded-2xl border p-4 text-center ${rankStyles[idx]}`}>
-                              <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden">
-                                {rUser.avatar ? <img src={rUser.avatar} alt="" className="w-full h-full object-cover" /> : <Crown size={22} className={idx === 0 ? 'text-yellow-400' : 'text-[#4bd3ff]'} />}
-                              </div>
-                              <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">#{idx + 1}</p>
-                              <h4 className="text-white font-black truncate">{rUser.name || 'Aluna'}</h4>
-                              <div className="mt-3 flex items-center justify-center gap-1 text-emerald-400">
-                                <span>🍃</span>
-                                <span className="text-2xl font-black">{Math.max(0, rUser.points || 0)}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="py-10 text-center border border-dashed border-white/10 rounded-2xl">
-                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">O desafio mensal começou. As primeiras folhas ainda vão aparecer.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-4">
-                {(() => {
-                  const rankingList = (rankingMode === 'mensal' ? monthlyRankingUsers : rankingUsers);
-
-                  if (rankingList.length === 0) {
-                    return (
-                      <div className="py-12 text-center border-2 border-dashed border-white/5 rounded-2xl">
-                        <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Aguardando as primeiras folhas aparecerem...</p>
-                      </div>
-                    );
-                  }
-
-                  const rankedList = rankingList.map((rUser, idx) => ({
-                    rUser,
-                    position: Number((rUser as UserProfile | MonthlyRankingUser).rankPosition || idx + 1)
-                  }));
-                  const topThree = rankedList.filter(({ position }) => position <= 3).slice(0, 3);
-                  const currentUserRanking = rankedList.find(({ rUser }) => rUser.uid === user?.uid) || null;
-                  const rows = currentUserRanking && currentUserRanking.position > 3
-                    ? [...topThree, currentUserRanking]
-                    : topThree;
-
-                  return (
-                    <>
-                      {rows.map(({ rUser, position }, rowIndex) => {
-                        const medalColors = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
-                        const points = Math.max(0, rUser.points || 0);
-                        const level = getUserLevel(rankingMode === 'mensal' ? Math.max(0, (rUser as MonthlyRankingUser).totalPoints || 0) : points);
-                        const LevelIcon = level.icon;
-                        const isCofounder = rUser.isCofounder;
-                        const isCurrentUser = rUser.uid === user?.uid;
-                        const showDivider = rowIndex === 3;
-
-                        return (
-                          <React.Fragment key={`${rUser.uid}-${position}`}>
-                            {showDivider && (
-                              <div className="flex items-center gap-3 py-1">
-                                <div className="h-px flex-1 bg-white/10" />
-                                <span className="text-[10px] font-black uppercase tracking-[0.24em] text-gray-500">Sua colocação</span>
-                                <div className="h-px flex-1 bg-white/10" />
-                              </div>
-                            )}
-                            <div className={`flex items-center gap-4 py-4 px-4 border rounded-xl transition-all group ${isCurrentUser ? 'border-[#4bd3ff]/60 bg-[#4bd3ff]/10 shadow-[0_0_28px_rgba(75,211,255,0.12)]' : 'border-white/5 hover:bg-white/[0.02]'}`}>
-                              <div className="w-10 h-10 flex flex-col items-center justify-center shrink-0">
-                                {position <= 3 ? (
-                                  <div className="flex flex-col items-center">
-                                    <span className="text-[8px] font-bold text-gray-500 mb-0.5">#{position}</span>
-                                    <Trophy size={20} className={medalColors[position - 1]} />
-                                  </div>
-                                ) : (
-                                  <span className="text-gray-500 font-black">#{position}</span>
-                                )}
-                              </div>
-
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-white font-extrabold text-base sm:text-lg truncate tracking-tight flex items-center gap-2">
-                                  {isCurrentUser ? 'Você' : (rUser.name || 'Membro do Éden')}
-                                  {isCurrentUser && (
-                                    <span className="rounded-full bg-[#4bd3ff] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#020507]">
-                                      #{position}
-                                    </span>
-                                  )}
-                                  {isCofounder && (
-                                    <div className="group relative flex items-center">
-                                      <Key size={16} className="text-[#4bd3ff]" />
-                                      <div className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#0b2831] px-2 py-1 text-[10px] font-bold text-[#4bd3ff] opacity-0 transition-opacity group-hover:opacity-100 border border-[#4bd3ff]/20 z-100 shadow-xl">
-                                        Essa é uma co fundadora do Éden
-                                      </div>
-                                    </div>
-                                  )}
-                                </h4>
-                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
-                                  <div className="flex items-center gap-1.5">
-                                    <LevelIcon size={12} className="text-[#4bd3ff]" />
-                                    <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                                      {level.title}
-                                    </span>
-                                  </div>
-                                  {isCofounder && (
-                                    <div className="flex items-center gap-1.5 opacity-80">
-                                      <Key size={10} className="text-[#4bd3ff]" />
-                                      <span className="text-[10px] font-bold text-[#4bd3ff] uppercase tracking-widest">
-                                        Co-fundadora
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 text-emerald-400">
-                                <span className="text-xl">🍃</span>
-                                <span className="font-black text-xl">{points}</span>
-                              </div>
-                            </div>
-                          </React.Fragment>
-                        );
-                      })}
-
-                      {!currentUserRanking && (
-                        <div className="border border-[#4bd3ff]/20 bg-[#4bd3ff]/5 rounded-2xl p-4 text-center">
-                          <p className="text-[#4bd3ff] text-[10px] font-black uppercase tracking-widest">Você ainda não entrou neste ranking</p>
-                          <p className="text-gray-400 text-xs mt-1">Ganhe folhas para aparecer com sua colocação.</p>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 	      <div className={`${activeTab === 'guardiao' ? 'px-0 pb-0 pt-0' : `px-4 sm:px-12 pb-32 ${(activeTab === 'gameficacao' || activeTab === 'ranking' || activeTab === 'admin' || activeTab === 'jornada') ? (activeTab === 'jornada' ? '-mt-28 sm:-mt-40 pt-0' : activeTab === 'gameficacao' ? 'pt-16 sm:pt-20' : activeTab === 'ranking' ? 'pt-0' : 'pt-24') : (activeTab === 'materiais') ? 'pt-24' : 'pt-24'}`} relative z-30`}>
         {renderContent()}
       </div>
@@ -6855,7 +6192,7 @@ export default function App() {
                   {selectedLessonChallenge.title}
                 </h3>
                 <p className="text-gray-400 text-sm leading-relaxed mb-8">
-                  {selectedLessonChallenge.description || 'Preparamos um desafio especial para colocar seus conhecimentos em prática. Complete a tarefa e ganhe pontos para subir de nível no Éden.'}
+                  {selectedLessonChallenge.description || 'Preparamos um desafio especial para colocar seus conhecimentos em prática. Complete a tarefa e ganhe folhas no Éden.'}
                 </p>
 
                 <div className="space-y-4">
@@ -7361,6 +6698,55 @@ export default function App() {
                 </section>
               </div>
             </div>
+          </div>
+        );
+      })()}
+
+      {isAdmin && activityStudentId && (() => {
+        const student = adminStudents.find(item => item.uid === activityStudentId);
+        if (!student) return null;
+        const completed = new Set(student.completedChallenges || []);
+        const lessons = trailsState.flatMap(trail => trail.modules.flatMap(module =>
+          module.items.filter(item => item.type === 'video').map(item => ({
+            ...item, moduleTitle: module.title, trailTitle: trail.title, completed: completed.has(item.id)
+          }))
+        ));
+        const completedCount = lessons.filter(item => item.completed).length;
+        const search = activitySearch.trim().toLocaleLowerCase('pt-BR');
+        const filtered = lessons.filter(item =>
+          (activityFilter === 'all' || (activityFilter === 'completed' ? item.completed : !item.completed)) &&
+          `${item.title} ${item.moduleTitle} ${item.trailTitle}`.toLocaleLowerCase('pt-BR').includes(search)
+        );
+        return (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActivityStudentId(null)} />
+            <section role="dialog" aria-modal="true" aria-labelledby="student-activity-title" onKeyDown={event => { if (event.key === 'Escape') setActivityStudentId(null); }} className="relative w-full max-w-5xl max-h-[88vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0c10] p-5 sm:p-8">
+              <button autoFocus aria-label="Fechar acompanhamento" onClick={() => setActivityStudentId(null)} className="absolute right-4 top-4 p-2 text-gray-400 hover:text-white"><X size={22} /></button>
+              <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Acompanhamento individual</p>
+              <h3 id="student-activity-title" className="mt-2 pr-10 text-2xl font-bold text-white">{student.name}</h3>
+              <p className="mt-1 text-sm text-gray-400">{student.email}</p>
+              <div className="grid gap-3 sm:grid-cols-3 my-6">
+                {[['Último acesso', formatLastAccess(student.lastAccessAt)], ['Folhas', String(student.points || 0)], ['Conclusões informadas', `${completedCount} de ${lessons.length} aulas`]].map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs text-gray-400">{label}</p><p className="mt-2 font-bold text-white">{value}</p></div>
+                ))}
+              </div>
+              <p className="mb-5 text-sm text-gray-400 leading-relaxed">Este histórico mostra aulas que o aluno marcou como concluídas. Sem conclusão registrada não significa que a aula não foi assistida. Os registros antigos não possuem data de conclusão nem percentual de vídeo reproduzido.</p>
+              <div className="flex flex-col sm:flex-row gap-3 mb-5">
+                <input aria-label="Buscar aula ou módulo" placeholder="Buscar aula ou módulo" value={activitySearch} onChange={event => setActivitySearch(event.target.value)} className="flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white" />
+                <select aria-label="Filtrar conclusão" value={activityFilter} onChange={event => setActivityFilter(event.target.value)} className="rounded-xl border border-white/10 bg-[#0b0c10] px-4 py-3 text-white">
+                  <option value="all">Todas as aulas</option><option value="completed">Marcadas como concluídas</option><option value="pending">Sem conclusão registrada</option>
+                </select>
+              </div>
+              <div className="space-y-3">
+                {filtered.map(lesson => (
+                  <div key={lesson.id} className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between rounded-xl border border-white/10 p-4">
+                    <div><p className="font-bold text-white">{lesson.title}</p><p className="mt-1 text-xs text-gray-400">{lesson.trailTitle} · {lesson.moduleTitle}</p></div>
+                    <span className={`text-xs font-bold shrink-0 ${lesson.completed ? 'text-emerald-400' : 'text-gray-400'}`}>{lesson.completed ? 'Marcada como concluída' : 'Sem conclusão registrada'}</span>
+                  </div>
+                ))}
+                {filtered.length === 0 && <p className="py-8 text-center text-gray-400">Nenhuma aula encontrada para este filtro.</p>}
+              </div>
+            </section>
           </div>
         );
       })()}
