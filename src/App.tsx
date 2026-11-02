@@ -5511,10 +5511,11 @@ export default function App() {
 	        <div className="flex min-w-0 items-center gap-4 sm:gap-8">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveTab('jornada')}>
             <img
-	              src="https://brunosimplicio.com.br/wp-content/uploads/2026/05/Logo-horizontal-branca.png"
+	              src="/brand/eden-logo-horizontal-branca.png"
               alt="Éden Logo"
+	              width={1750}
+	              height={554}
 	              className="h-7 sm:h-10 w-auto max-w-[150px] sm:max-w-none object-contain transition-transform hover:scale-105"
-              referrerPolicy="no-referrer"
             />
           </div>
         </div>
