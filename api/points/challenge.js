@@ -1,4 +1,4 @@
-import { commitUserPointDelta, getAuthUserByIdToken, getDocument } from '../../server/lib/firebaseRest.js';
+import { commitUserPointDelta, getAuthUserByIdToken, getDocumentVersion } from '../../server/lib/firebaseRest.js';
 
 const getBearerToken = (request) => {
   const authorization = request.headers.authorization || '';
@@ -41,7 +41,8 @@ export default async function handler(request, response) {
     const authUser = await getAuthUserByIdToken(idToken);
     if (!authUser?.uid) return response.status(401).json({ error: 'Token invalido.' });
 
-    const userProfile = await getDocument('users', authUser.uid);
+    const version = await getDocumentVersion('users', authUser.uid);
+    const userProfile = version?.data;
     if (!userProfile || userProfile.isBlocked || isAccessExpired(userProfile.accessExpiresAt)) {
       return response.status(403).json({ error: 'Acesso indisponivel.' });
     }
@@ -55,6 +56,9 @@ export default async function handler(request, response) {
       ? userProfile.completedChallenges
       : [];
     const isCompleted = completedChallenges.includes(challengeId);
+    if (request.body?.action === 'complete' && isCompleted) {
+      return response.status(200).json({ pointsAwarded: 0, completedChallenges });
+    }
     const nextCompletedChallenges = isCompleted
       ? completedChallenges.filter(id => id !== challengeId)
       : [...completedChallenges, challengeId];
@@ -62,6 +66,7 @@ export default async function handler(request, response) {
 
     const result = await commitUserPointDelta({
       uid: authUser.uid,
+      userUpdateTime: version.updateTime,
       userProfile,
       points,
       monthKey: getSaoPauloMonthKey(),
@@ -78,6 +83,6 @@ export default async function handler(request, response) {
     });
   } catch (error) {
     console.error('Challenge reward API error:', error);
-    return response.status(500).json({ error: 'Nao foi possivel atualizar o desafio.' });
+    return response.status(error.statusCode || 500).json({ error: 'Nao foi possivel atualizar o desafio.' });
   }
 }

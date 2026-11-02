@@ -83,7 +83,7 @@ const isRetryableAuthLookupError = (response, body = {}) => {
   return response.status === 429 || response.status >= 500 || ['UNAVAILABLE', 'RESOURCE_EXHAUSTED'].includes(status);
 };
 
-export const getDocument = async (collection, id) => {
+export const getDocumentVersion = async (collection, id) => {
   const { response, body } = await authorizedFetch(`${firestoreBaseUrl()}/${collection}/${encodeURIComponent(id)}`);
   if (response.status === 404) return null;
   if (!response.ok) {
@@ -92,8 +92,10 @@ export const getDocument = async (collection, id) => {
     const firestoreMessage = body?.error?.message ? ` ${body.error.message}` : '';
     throw new Error(`Nao foi possivel ler ${collection}/${id}. Firestore: ${firestoreStatus}.${firestoreMessage}`);
   }
-  return fromFirestoreDocument(body);
+  return { data: fromFirestoreDocument(body), updateTime: body.updateTime };
 };
+
+export const getDocument = async (collection, id) => (await getDocumentVersion(collection, id))?.data || null;
 
 export const setDocument = async (collection, id, data) => {
   const fields = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, toFirestoreValue(value)]));
@@ -373,7 +375,7 @@ const monthlyPointEventWrite = ({ uid, userProfile = {}, monthKey, points, sourc
   }
 });
 
-export const commitUserPointDelta = async ({ uid, userProfile = {}, points, monthKey, source, sourceId, userFields = {} }) => {
+export const commitUserPointDelta = async ({ uid, userProfile = {}, points, monthKey, source, sourceId, userFields = {}, userUpdateTime }) => {
   if (!points) return { pointsAwarded: 0 };
   const now = new Date();
   const userDocument = firestoreDocumentName('users', uid);
@@ -398,7 +400,7 @@ export const commitUserPointDelta = async ({ uid, userProfile = {}, points, mont
               increment: { integerValue: String(points) }
             }
           ],
-          currentDocument: { exists: true }
+          currentDocument: userUpdateTime ? { updateTime: userUpdateTime } : { exists: true }
         },
         monthlyScoreWrite({ uid, userProfile, monthKey, points, now }),
         monthlyPointEventWrite({ uid, userProfile, monthKey, points, source, sourceId, now })
@@ -407,6 +409,11 @@ export const commitUserPointDelta = async ({ uid, userProfile = {}, points, mont
   });
 
   if (!response.ok) {
+    if (['FAILED_PRECONDITION', 'ABORTED'].includes(body?.error?.status)) {
+      const error = new Error('Atualização concorrente. Tente novamente.');
+      error.statusCode = 409;
+      throw error;
+    }
     console.error('User point delta commit error:', body);
     throw new Error('Nao foi possivel registrar a pontuacao.');
   }

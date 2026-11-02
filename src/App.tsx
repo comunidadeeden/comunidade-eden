@@ -1,3 +1,5 @@
+import { usePandaCompletion } from './usePandaCompletion';
+import { pandaVideo } from './lib/pandaProgress';
 import React, { useState, useRef, useEffect } from 'react';
 import { audioOfTheDay, materiaisDeApoio } from './data';
 import { ContentItem, NetflixCategory, Module, Trail, UserProfile, LessonComment, DailyChallenge, DailyAudio, DailyChallengeCompletion, NotificationNotice, Offer, MonthlyRankingUser, JourneyFormSubmission } from './types';
@@ -1454,8 +1456,12 @@ export default function App() {
     return newTrail;
   };
 
-  const toggleChallengeCompletion = async (challengeId: string) => {
-    if (!user) return;
+  const completionPending = useRef(new Set<string>());
+  const toggleChallengeCompletion = async (challengeId: string, completeOnly = false): Promise<boolean> => {
+    if (!user) return false;
+    if (completeOnly && user.completedChallenges?.includes(challengeId)) return true;
+    if (completionPending.current.has(challengeId)) return false;
+    completionPending.current.add(challengeId);
 
     try {
       const idToken = await auth.currentUser?.getIdToken();
@@ -1466,18 +1472,22 @@ export default function App() {
           'Authorization': `Bearer ${idToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ challengeId })
+        body: JSON.stringify({ challengeId, ...(completeOnly ? { action: 'complete' } : {}) })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error || 'Não foi possível atualizar o desafio.');
-      setUser({
-        ...user,
-        completedChallenges: data.completedChallenges || user.completedChallenges || [],
-        points: Math.max(0, (user.points || 0) + (data.pointsAwarded || 0))
-      });
+      setUser(previous => previous?.uid === user.uid ? {
+        ...previous,
+        completedChallenges: data.completedChallenges || previous.completedChallenges || [],
+        points: Math.max(0, (previous.points || 0) + (data.pointsAwarded || 0))
+      } : previous);
       applyMonthlyRankingDelta(data.pointsAwarded || 0);
+      return true;
     } catch (error) {
       console.error("Error updating challenge completion:", error);
+      return false;
+    } finally {
+      completionPending.current.delete(challengeId);
     }
   };
 
@@ -1515,6 +1525,7 @@ export default function App() {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   const activeLesson = selectedModule?.items[currentLessonIndex];
+  const lessonFrameRef = usePandaCompletion(activeLesson?.videoUrl, activeLesson?.id, id => toggleChallengeCompletion(id, true));
   const [materiaisState, setMateriaisState] = useState(materiaisDeApoio);
   const [audioState, setAudioState] = useState<DailyAudio>(EMPTY_DAILY_AUDIO);
   const [offersState, setOffersState] = useState<Offer[]>([]);
@@ -5895,6 +5906,8 @@ export default function App() {
                 <div className="relative aspect-video bg-black rounded-none shadow-2xl border border-white/5 bg-[#0b2831]/10">
                    {activeLesson?.videoUrl ? (
                      <iframe
+                      key={activeLesson.id}
+                      ref={lessonFrameRef}
                       src={getEmbeddableVideoUrl(activeLesson.videoUrl)}
                       className="absolute inset-0 w-full h-full border-0"
                       allow="autoplay; fullscreen; picture-in-picture; xr-spatial-tracking; clipboard-write"
@@ -5938,6 +5951,7 @@ export default function App() {
                   </button>
                 </div>
 
+                {pandaVideo(activeLesson?.videoUrl) && <p className="px-4 sm:px-0 text-xs text-gray-400">Esta aula será marcada como concluída automaticamente ao atingir 75% do vídeo.</p>}
                 {/* Description */}
                 {activeLesson?.description && (
                   <section className="mx-4 sm:mx-0 rounded-2xl border border-white/10 bg-[#061418]/70 p-5 sm:p-6 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
@@ -6726,11 +6740,11 @@ export default function App() {
               <h3 id="student-activity-title" className="mt-2 pr-10 text-2xl font-bold text-white">{student.name}</h3>
               <p className="mt-1 text-sm text-gray-400">{student.email}</p>
               <div className="grid gap-3 sm:grid-cols-3 my-6">
-                {[['Último acesso', formatLastAccess(student.lastAccessAt)], ['Folhas', String(student.points || 0)], ['Conclusões informadas', `${completedCount} de ${lessons.length} aulas`]].map(([label, value]) => (
+                {[['Último acesso', formatLastAccess(student.lastAccessAt)], ['Folhas', String(student.points || 0)], ['Aulas concluídas', `${completedCount} de ${lessons.length} aulas`]].map(([label, value]) => (
                   <div key={label} className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs text-gray-400">{label}</p><p className="mt-2 font-bold text-white">{value}</p></div>
                 ))}
               </div>
-              <p className="mb-5 text-sm text-gray-400 leading-relaxed">Este histórico mostra aulas que o aluno marcou como concluídas. Sem conclusão registrada não significa que a aula não foi assistida. Os registros antigos não possuem data de conclusão nem percentual de vídeo reproduzido.</p>
+              <p className="mb-5 text-sm text-gray-400 leading-relaxed">As conclusões podem ser marcadas pelo aluno ou automaticamente aos 75% nos vídeos Panda. Sem conclusão registrada não significa que a aula não foi assistida. Este relatório não mede o tempo total assistido.</p>
               <div className="flex flex-col sm:flex-row gap-3 mb-5">
                 <input aria-label="Buscar aula ou módulo" placeholder="Buscar aula ou módulo" value={activitySearch} onChange={event => setActivitySearch(event.target.value)} className="flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white" />
                 <select aria-label="Filtrar conclusão" value={activityFilter} onChange={event => setActivityFilter(event.target.value)} className="rounded-xl border border-white/10 bg-[#0b0c10] px-4 py-3 text-white">
