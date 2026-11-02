@@ -411,32 +411,6 @@ const formatLastAccess = (value: any) => {
   });
 };
 
-const formatMonthKey = (monthKey: string) => {
-  if (!monthKey) return 'Este mês';
-  const [year, month] = monthKey.split('-').map(Number);
-  if (!year || !month) return 'Este mês';
-  return new Date(year, month - 1, 1).toLocaleDateString('pt-BR', {
-    month: 'long',
-    year: 'numeric'
-  });
-};
-
-const getMonthKeyFromDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-const getPreviousMonthKey = () => {
-  const date = new Date();
-  date.setMonth(date.getMonth() - 1);
-  return getMonthKeyFromDate(date);
-};
-
-const getRecentMonthOptions = (count = 12) => {
-  const date = new Date();
-  return Array.from({ length: count }, (_, index) => {
-    const optionDate = new Date(date.getFullYear(), date.getMonth() - index, 1);
-    return getMonthKeyFromDate(optionDate);
-  });
-};
-
 const isPastDate = (date: string) => {
   const parsedDate = parseBrazilianDate(date);
   parsedDate.setHours(23, 59, 59, 999);
@@ -1514,11 +1488,6 @@ export default function App() {
     daysRemaining: 0,
     prize: DEFAULT_MONTHLY_RANKING_PRIZE
   });
-  const [monthlyRankingPrize, setMonthlyRankingPrize] = useState(DEFAULT_MONTHLY_RANKING_PRIZE);
-  const [adminRankingMonth, setAdminRankingMonth] = useState(getPreviousMonthKey());
-  const [adminMonthlyRankingUsers, setAdminMonthlyRankingUsers] = useState<MonthlyRankingUser[]>([]);
-  const [isLoadingAdminMonthlyRanking, setIsLoadingAdminMonthlyRanking] = useState(false);
-  const [adminMonthlyRankingError, setAdminMonthlyRankingError] = useState('');
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
   const [commentInput, setCommentInput] = useState('');
   const [comments, setComments] = useState<LessonComment[]>([]);
@@ -2227,16 +2196,6 @@ export default function App() {
       handleFirestoreError(error, 'GET' as any, 'settings/emailTemplates');
     });
 
-    const unsubscribeMonthlyRankingSettings = onSnapshot(doc(db, 'settings', 'monthlyRanking'), (docRanking) => {
-      const prize = docRanking.exists()
-        ? String(docRanking.data().prize || DEFAULT_MONTHLY_RANKING_PRIZE)
-        : DEFAULT_MONTHLY_RANKING_PRIZE;
-      setMonthlyRankingPrize(prize);
-      setMonthlyRankingMeta(prev => ({ ...prev, prize }));
-    }, (error) => {
-      handleFirestoreError(error, 'GET' as any, 'settings/monthlyRanking');
-    });
-
     return () => {
       unsubscribeChallenge();
       unsubscribeTodayAudio();
@@ -2247,7 +2206,6 @@ export default function App() {
       if (unsubscribeRanking) unsubscribeRanking();
       unsubscribeVisibility();
       unsubscribeEmailTemplates();
-      unsubscribeMonthlyRankingSettings();
     };
   }, [user?.uid, isAdmin]);
 
@@ -3937,49 +3895,6 @@ export default function App() {
     }
   };
 
-  const handleSaveMonthlyRankingPrize = async () => {
-    try {
-      const prize = monthlyRankingPrize.trim() || DEFAULT_MONTHLY_RANKING_PRIZE;
-      await setDoc(doc(db, 'settings', 'monthlyRanking'), {
-        prize,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      setMonthlyRankingPrize(prize);
-      setMonthlyRankingMeta(prev => ({ ...prev, prize }));
-      alert('Prêmio mensal salvo com sucesso!');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'settings/monthlyRanking');
-      alert('Não foi possível salvar o prêmio mensal.');
-    }
-  };
-
-  const loadAdminMonthlyRankingHistory = async (monthKey = adminRankingMonth) => {
-    try {
-      setIsLoadingAdminMonthlyRanking(true);
-      setAdminMonthlyRankingError('');
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error('Sessão de admin expirada.');
-
-      const response = await fetch(`/api/ranking?adminMonthlyHistory=1&month=${encodeURIComponent(monthKey)}`, {
-        headers: { 'Authorization': `Bearer ${idToken}` }
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || 'Não foi possível carregar o histórico do ranking.');
-      setAdminMonthlyRankingUsers(data.monthly?.users || []);
-    } catch (error) {
-      setAdminMonthlyRankingUsers([]);
-      setAdminMonthlyRankingError(error instanceof Error ? error.message : 'Não foi possível carregar o histórico do ranking.');
-    } finally {
-      setIsLoadingAdminMonthlyRanking(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isAdmin && adminActiveSection === 'geral') {
-      loadAdminMonthlyRankingHistory(adminRankingMonth);
-    }
-  }, [isAdmin, adminActiveSection, adminRankingMonth]);
-
   const renderEmailTemplateField = (
     key: keyof typeof DEFAULT_ACCESS_EMAIL_TEMPLATE,
     label: string,
@@ -4262,94 +4177,6 @@ export default function App() {
                   <p className="text-gray-400 font-medium">Visão geral da plataforma Éden</p>
                 </div>
               </div>
-
-              <section className="bg-[#061418] border border-[#4bd3ff]/20 rounded-3xl p-6 sm:p-8">
-                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
-                  <div className="min-w-0">
-                    <p className="text-[#4bd3ff] text-[10px] font-black uppercase tracking-[0.28em] mb-2">Ranking mensal</p>
-                    <h4 className="text-xl sm:text-2xl font-black text-white tracking-tight">Prêmio do mês</h4>
-                    <p className="text-gray-400 text-sm mt-1">Esse texto aparece no card do ranking mensal para as alunas.</p>
-                  </div>
-                  <div className="w-full lg:max-w-xl flex flex-col sm:flex-row gap-3">
-                    <input
-                      value={monthlyRankingPrize}
-                      onChange={(event) => setMonthlyRankingPrize(event.target.value)}
-                      placeholder={DEFAULT_MONTHLY_RANKING_PRIZE}
-                      className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
-                    />
-                    <button
-                      onClick={handleSaveMonthlyRankingPrize}
-                      className="bg-[#4bd3ff] hover:bg-[#38bdf8] text-[#020507] px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-colors whitespace-nowrap"
-                    >
-                      Salvar prêmio
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              <section className="bg-[#061418] border border-white/10 rounded-3xl p-6 sm:p-8">
-                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-6">
-                  <div>
-                    <p className="text-[#4bd3ff] text-[10px] font-black uppercase tracking-[0.28em] mb-2">Histórico do ranking</p>
-                    <h4 className="text-xl sm:text-2xl font-black text-white tracking-tight">Ranking por mês</h4>
-                    <p className="text-gray-400 text-sm mt-1">Consulte as primeiras colocadas de cada mês sem alterar nenhuma pontuação.</p>
-                  </div>
-                  <div className="flex w-full flex-col sm:flex-row gap-3 lg:max-w-md">
-                    <select
-                      value={adminRankingMonth}
-                      onChange={(event) => setAdminRankingMonth(event.target.value)}
-                      className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-white focus:outline-none focus:border-[#4bd3ff]/50 transition-colors"
-                    >
-                      {getRecentMonthOptions(18).map(monthKey => (
-                        <option key={monthKey} value={monthKey} className="bg-[#071418] text-white">
-                          {formatMonthKey(monthKey)}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => loadAdminMonthlyRankingHistory(adminRankingMonth)}
-                      disabled={isLoadingAdminMonthlyRanking}
-                      className="bg-white/10 hover:bg-white/15 disabled:opacity-50 text-white px-5 py-3 rounded-2xl font-black uppercase tracking-widest text-xs transition-colors whitespace-nowrap"
-                    >
-                      {isLoadingAdminMonthlyRanking ? 'Carregando...' : 'Atualizar'}
-                    </button>
-                  </div>
-                </div>
-
-                {adminMonthlyRankingError ? (
-                  <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm font-bold text-red-200">
-                    {adminMonthlyRankingError}
-                  </div>
-                ) : adminMonthlyRankingUsers.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center">
-                    <p className="text-xs font-black uppercase tracking-widest text-gray-500">Nenhum ponto registrado em {formatMonthKey(adminRankingMonth)}.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {adminMonthlyRankingUsers.slice(0, 10).map((student, index) => {
-                      const position = student.rankPosition || index + 1;
-                      return (
-                        <div
-                          key={`${student.uid}-${position}`}
-                          className={`flex items-center gap-4 rounded-2xl border p-4 ${position === 1 ? 'border-[#4bd3ff]/45 bg-[#4bd3ff]/10' : 'border-white/10 bg-white/[0.03]'}`}
-                        >
-                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl font-black ${position === 1 ? 'bg-[#4bd3ff] text-[#020507]' : 'bg-black/35 text-gray-400'}`}>
-                            #{position}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-base font-black text-white">{student.name || 'Aluna'}</p>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{position === 1 ? 'Vencedora do mês' : 'Ranking mensal'}</p>
-                          </div>
-                          <div className="flex items-center gap-2 text-emerald-400">
-                            <span className="text-lg">🍃</span>
-                            <span className="text-xl font-black">{Math.max(0, student.points || 0)}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
 
               {/* Stats Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
