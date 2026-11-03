@@ -1,4 +1,5 @@
 import { ModuleProgressList } from './components/ModuleProgressList';
+import { OverallModuleProgress } from './components/OverallModuleProgress';
 import { getModuleProgress } from './lib/moduleProgress';
 import { usePandaCompletion } from './usePandaCompletion';
 import { pandaVideo } from './lib/pandaProgress';
@@ -4207,6 +4208,8 @@ export default function App() {
                   </div>
                 ))}
               </div>
+
+              <OverallModuleProgress trails={trailsState} users={adminStudents} />
 
               {/* Visibility Controls */}
               <section className="bg-white/5 border border-white/10 rounded-3xl p-8">
