@@ -1,3 +1,5 @@
+import { ModuleProgressList } from './components/ModuleProgressList';
+import { getModuleProgress } from './lib/moduleProgress';
 import { usePandaCompletion } from './usePandaCompletion';
 import { pandaVideo } from './lib/pandaProgress';
 import React, { useState, useRef, useEffect } from 'react';
@@ -925,8 +927,6 @@ export default function App() {
   const [weeklyOath, setWeeklyOath] = useState({ identity: '', conquest: '' });
   const [journeyForms, setJourneyForms] = useState<JourneyFormSubmission[]>([]);
   const [activityStudentId, setActivityStudentId] = useState<string | null>(null);
-  const [activitySearch, setActivitySearch] = useState('');
-  const [activityFilter, setActivityFilter] = useState('all');
   const [selectedJourneyUser, setSelectedJourneyUser] = useState<UserProfile | null>(null);
   const [isJourneyWizardOpen, setIsJourneyWizardOpen] = useState(false);
   const [journeyWizardStep, setJourneyWizardStep] = useState(0);
@@ -4991,7 +4991,7 @@ export default function App() {
                               </button>
 
                               <button
-                                onClick={() => { setActivityStudentId(student.uid); setActivitySearch(''); setActivityFilter('all'); }}
+                                onClick={() => setActivityStudentId(student.uid)}
                                 className="px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold whitespace-nowrap"
                                 title="Ver aulas e último acesso"
                               >Ver aulas</button>
@@ -6459,26 +6459,20 @@ export default function App() {
         const userCia = allCompletions.filter(item => item.userId === selectedJourneyUser.uid).sort((a, b) => getTimestampMillis(b.completedAt) - getTimestampMillis(a.completedAt));
         const userExtraordinary = journeyForms.find(item => item.userId === selectedJourneyUser.uid && item.type === 'extraordinaryLife');
         const userOaths = journeyForms.filter(item => item.userId === selectedJourneyUser.uid && item.type === 'weeklyOath').sort((a, b) => String(b.weekKey || '').localeCompare(String(a.weekKey || '')));
-        const completedLessonIds = new Set(selectedJourneyUser.completedChallenges || []);
-        const userCompletedLessons = trailsState.flatMap(trail =>
-          (trail.modules || []).flatMap(module =>
-            (module.items || []).map(lesson => ({
-              ...lesson,
-              moduleTitle: module.title,
-              trailTitle: trail.title
-            }))
-          )
-        ).filter(lesson => completedLessonIds.has(lesson.id));
+        const journeyModules = getModuleProgress(trailsState, selectedJourneyUser.completedChallenges);
+        const journeyCompletedCount = journeyModules.reduce((total, module) => total + module.completedCount, 0);
         return (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setSelectedJourneyUser(null)} />
             <div className="relative z-10 max-h-[88vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-white/10 bg-[#0b0c10] p-6 sm:p-8 shadow-2xl">
-              <button onClick={() => setSelectedJourneyUser(null)} className="absolute right-5 top-5 text-gray-500 hover:text-white"><X size={22} /></button>
+              <button aria-label="Fechar jornada" onClick={() => setSelectedJourneyUser(null)} className="absolute right-5 top-5 text-gray-500 hover:text-white"><X size={22} /></button>
               <div className="mb-8">
                 <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#4bd3ff] mb-2">Protocolos da aluna</p>
                 <h3 className="text-2xl font-black uppercase tracking-tight text-white">{selectedJourneyUser.name}</h3>
-                <p className="mt-2 text-sm text-gray-400">CIA feitos: <span className="font-black text-[#4bd3ff]">{userCia.length}</span> · Juramentos: <span className="font-black text-[#4bd3ff]">{userOaths.length}</span> · Aulas concluídas: <span className="font-black text-[#4bd3ff]">{userCompletedLessons.length}</span></p>
+                <p className="mt-2 text-sm text-gray-400">CIA feitos: <span className="font-black text-[#4bd3ff]">{userCia.length}</span> · Juramentos: <span className="font-black text-[#4bd3ff]">{userOaths.length}</span> · Aulas concluídas: <span className="font-black text-[#4bd3ff]">{journeyCompletedCount}</span></p>
               </div>
+
+              <div key={selectedJourneyUser.uid} className="mb-8"><ModuleProgressList modules={journeyModules} /></div>
 
               <div className="grid gap-6 lg:grid-cols-2">
                 <section className="space-y-3">
@@ -6524,20 +6518,7 @@ export default function App() {
                   </div>
                 </section>
 
-                <section className="space-y-3 lg:col-span-2">
-                  <h4 className="text-sm font-black uppercase tracking-widest text-white">Aulas concluídas</h4>
-                  {userCompletedLessons.length ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {userCompletedLessons.map(lesson => (
-                        <div key={lesson.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                          <p className="text-sm font-black text-white">{lesson.title}</p>
-                          <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-[#4bd3ff]">{lesson.moduleTitle}</p>
-                          <p className="mt-1 text-xs text-gray-500">Trilha: {lesson.trailTitle}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <p className="rounded-2xl border border-white/10 border-dashed p-6 text-xs font-black uppercase tracking-widest text-gray-600">Nenhuma aula concluída ainda.</p>}
-                </section>
+
               </div>
             </div>
           </div>
@@ -6547,18 +6528,9 @@ export default function App() {
       {isAdmin && activityStudentId && (() => {
         const student = adminStudents.find(item => item.uid === activityStudentId);
         if (!student) return null;
-        const completed = new Set(student.completedChallenges || []);
-        const lessons = trailsState.flatMap(trail => trail.modules.flatMap(module =>
-          module.items.filter(item => item.type === 'video').map(item => ({
-            ...item, moduleTitle: module.title, trailTitle: trail.title, completed: completed.has(item.id)
-          }))
-        ));
-        const completedCount = lessons.filter(item => item.completed).length;
-        const search = activitySearch.trim().toLocaleLowerCase('pt-BR');
-        const filtered = lessons.filter(item =>
-          (activityFilter === 'all' || (activityFilter === 'completed' ? item.completed : !item.completed)) &&
-          `${item.title} ${item.moduleTitle} ${item.trailTitle}`.toLocaleLowerCase('pt-BR').includes(search)
-        );
+        const modules = getModuleProgress(trailsState, student.completedChallenges);
+        const completedCount = modules.reduce((total, module) => total + module.completedCount, 0);
+        const lessonCount = modules.reduce((total, module) => total + module.total, 0);
         return (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActivityStudentId(null)} />
@@ -6568,26 +6540,12 @@ export default function App() {
               <h3 id="student-activity-title" className="mt-2 pr-10 text-2xl font-bold text-white">{student.name}</h3>
               <p className="mt-1 text-sm text-gray-400">{student.email}</p>
               <div className="grid gap-3 sm:grid-cols-3 my-6">
-                {[['Último acesso', formatLastAccess(student.lastAccessAt)], ['Folhas', String(student.points || 0)], ['Aulas concluídas', `${completedCount} de ${lessons.length} aulas`]].map(([label, value]) => (
+                {[['Último acesso', formatLastAccess(student.lastAccessAt)], ['Folhas', String(student.points || 0)], ['Aulas concluídas', `${completedCount} de ${lessonCount} aulas`]].map(([label, value]) => (
                   <div key={label} className="rounded-xl border border-white/10 bg-white/5 p-4"><p className="text-xs text-gray-400">{label}</p><p className="mt-2 font-bold text-white">{value}</p></div>
                 ))}
               </div>
               <p className="mb-5 text-sm text-gray-400 leading-relaxed">As conclusões podem ser marcadas pelo aluno ou automaticamente aos 75% nos vídeos Panda. Sem conclusão registrada não significa que a aula não foi assistida. Este relatório não mede o tempo total assistido.</p>
-              <div className="flex flex-col sm:flex-row gap-3 mb-5">
-                <input aria-label="Buscar aula ou módulo" placeholder="Buscar aula ou módulo" value={activitySearch} onChange={event => setActivitySearch(event.target.value)} className="flex-1 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white" />
-                <select aria-label="Filtrar conclusão" value={activityFilter} onChange={event => setActivityFilter(event.target.value)} className="rounded-xl border border-white/10 bg-[#0b0c10] px-4 py-3 text-white">
-                  <option value="all">Todas as aulas</option><option value="completed">Marcadas como concluídas</option><option value="pending">Sem conclusão registrada</option>
-                </select>
-              </div>
-              <div className="space-y-3">
-                {filtered.map(lesson => (
-                  <div key={lesson.id} className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between rounded-xl border border-white/10 p-4">
-                    <div><p className="font-bold text-white">{lesson.title}</p><p className="mt-1 text-xs text-gray-400">{lesson.trailTitle} · {lesson.moduleTitle}</p></div>
-                    <span className={`text-xs font-bold shrink-0 ${lesson.completed ? 'text-emerald-400' : 'text-gray-400'}`}>{lesson.completed ? 'Marcada como concluída' : 'Sem conclusão registrada'}</span>
-                  </div>
-                ))}
-                {filtered.length === 0 && <p className="py-8 text-center text-gray-400">Nenhuma aula encontrada para este filtro.</p>}
-              </div>
+              <div key={student.uid}><ModuleProgressList modules={modules} /></div>
             </section>
           </div>
         );
