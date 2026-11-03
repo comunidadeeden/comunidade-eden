@@ -2882,13 +2882,17 @@ export default function App() {
               {isPlayingAudio ? <Volume2 size={22} className="text-[#4bd3ff]" /> : <Play size={22} className="translate-x-0.5 fill-white" />}
             </button>
             <div className="flex-1 min-w-0 space-y-1">
-              <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-[0.22em] truncate">
-                {audioState.subtitle || 'Mensagem do Guardião'}
-              </p>
+              {audioState.subtitle && (
+                <p className="text-[10px] text-[#4bd3ff] font-black uppercase tracking-[0.22em] truncate">
+                  {audioState.subtitle}
+                </p>
+              )}
               <h3 className="text-lg sm:text-xl font-black text-white tracking-tight leading-tight whitespace-normal break-words line-clamp-2">{audioState.title || audioOfTheDay.title}</h3>
-              <p className="text-xs sm:text-sm text-gray-400 leading-relaxed line-clamp-2">
-                {audioState.description || audioOfTheDay.description}
-              </p>
+              {audioState.description && (
+                <p className="text-xs sm:text-sm text-gray-400 leading-relaxed line-clamp-2">
+                  {audioState.description}
+                </p>
+              )}
             </div>
           </div>
 
